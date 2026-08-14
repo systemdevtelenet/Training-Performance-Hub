@@ -1,0 +1,78 @@
+{
+  "inhouse": {
+    "groups": {
+      "Alpha Client": {
+        "Batch-AL-01": {
+          "members": [
+            { "name": "Alice Lopez", "status": "Ongoing", "month": "January", "quarter": "Q1", "p": 92, "a": 8, "isEndorsed": true, "isLoss": false, "assignedTrainer": "John Loi Gara" },
+            { "name": "Bob Santos", "status": "Terminated", "month": "January", "quarter": "Q1", "p": 78, "a": 22, "isEndorsed": false, "isLoss": true, "assignedTrainer": "Jeremy Rigodon" },
+            { "name": "Carmen Dela Cruz", "status": "Ongoing", "month": "February", "quarter": "Q1", "p": 90, "a": 10, "isEndorsed": true, "isLoss": false, "assignedTrainer": "John Loi Gara" },
+            { "name": "Daryl Reyes", "status": "Ongoing", "month": "February", "quarter": "Q1", "p": 88, "a": 12, "isEndorsed": false, "isLoss": false, "assignedTrainer": "Jeremy Rigodon" }
+          ]
+        }
+      },
+      "Bravo Client": {
+        "Batch-BV-02": {
+          "members": [
+            { "name": "Eleanor Flores", "status": "Ongoing", "month": "March", "quarter": "Q1", "p": 86, "a": 14, "isEndorsed": true, "isLoss": false, "assignedTrainer": "Bianca Kaye Ernestine Colonia" },
+            { "name": "Frank Lopez", "status": "Resigned", "month": "March", "quarter": "Q1", "p": 70, "a": 30, "isEndorsed": false, "isLoss": true, "assignedTrainer": "Bianca Kaye Ernestine Colonia" }
+          ]
+        }
+      }
+    }
+  },
+  "pst": {
+    "groups": {
+      "Gamma Client": {
+        "Batch-GM-01": {
+          "members": [
+            { "name": "Grace Gomez", "status": "Ongoing", "month": "April", "quarter": "Q2", "p": 94, "a": 6, "isEndorsed": true, "isLoss": false, "assignedTrainer": "Rohla Mie Baswa" },
+            { "name": "Henry Mercado", "status": "Active", "month": "April", "quarter": "Q2", "p": 91, "a": 9, "isEndorsed": false, "isLoss": false, "assignedTrainer": "Rohla Mie Baswa" },
+            { "name": "Isabel Gomez", "status": "Ongoing", "month": "May", "quarter": "Q2", "p": 89, "a": 11, "isEndorsed": true, "isLoss": false, "assignedTrainer": "Rohla Mie Baswa" }
+          ]
+        }
+      }
+    }
+  },
+  "trainerAttendance": {
+    "groups": {
+      "John Loi Gara": {
+        "members": [
+          { "name": "Alice Lopez", "month": "January", "quarter": "Q1", "p": 92, "a": 8 },
+          { "name": "Carmen Dela Cruz", "month": "February", "quarter": "Q1", "p": 90, "a": 10 }
+        ]
+      },
+      "Jeremy Rigodon": {
+        "members": [
+          { "name": "Bob Santos", "month": "January", "quarter": "Q1", "p": 78, "a": 22 },
+          { "name": "Daryl Reyes", "month": "February", "quarter": "Q1", "p": 88, "a": 12 }
+        ]
+      }
+    }
+  },
+  "trainerReliability": {
+    "groups": {
+      "John Loi Gara": {
+        "members": [
+          { "name": "Alice Lopez", "month": "January", "quarter": "Q1", "p": 92, "a": 8, "losses": 0 },
+          { "name": "Carmen Dela Cruz", "month": "February", "quarter": "Q1", "p": 90, "a": 10, "losses": 0 }
+        ]
+      },
+      "Jeremy Rigodon": {
+        "members": [
+          { "name": "Bob Santos", "month": "January", "quarter": "Q1", "p": 78, "a": 22, "losses": 1 },
+          { "name": "Daryl Reyes", "month": "February", "quarter": "Q1", "p": 88, "a": 12, "losses": 0 }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "trainersSummary": {
+      "headcount": 3,
+      "totalLosses": 2,
+      "attritionRate": "10.0%",
+      "attendanceRate": "89.3%",
+      "reliabilityRate": "94.7%"
+    }
+  }
+}
