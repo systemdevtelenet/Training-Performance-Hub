@@ -1,0 +1,15 @@
+# Dependencies (Never push these to GitHub)
+node_modules/
+.tools/
+
+# Next.js Build Output
+.next/
+out/
+
+# Environment Variables
+.env.local
+.env*.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
