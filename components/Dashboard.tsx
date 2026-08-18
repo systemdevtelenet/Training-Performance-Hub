@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Select, SelectItem, TextInput } from '@tremor/react';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown, CalendarDays, Calendar, Building2 } from 'lucide-react';
 
 import { getFilteredData, generateTrendAnalytics, MONTH_ORDER } from '@/lib/analytics-utils';
 import { ExecutiveSummaryView } from '@/components/ExecutiveSummaryView';
@@ -32,45 +31,50 @@ export default function Dashboard() {
       
       {/* Page Title Header */}
       <div className="flex items-center justify-between pb-1">
-        <h2 className="text-xl font-bold text-slate-800 tracking-tight">Executive Summary</h2>
+        <div className="flex flex-col">
+          <span className="text-[0.65rem] font-bold uppercase text-slate-400 tracking-wider">DASHBOARD</span>
+          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Executive Summary</h2>
+        </div>
       </div>
 
       {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/60 p-4 rounded-2xl border border-slate-200">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr]">
         <div>
-          <label className="text-[0.65rem] font-bold uppercase text-slate-400 mb-1 block">Quarter Filter</label>
-          <Select value={filters.quarter} onValueChange={(v) => setFilters(prev => ({ ...prev, quarter: v }))}>
-            <SelectItem value="ALL">All Quarters</SelectItem>
-            <SelectItem value="Q1">Q1</SelectItem>
-            <SelectItem value="Q2">Q2</SelectItem>
-            <SelectItem value="Q3">Q3</SelectItem>
-            <SelectItem value="Q4">Q4</SelectItem>
-          </Select>
+          <label htmlFor="quarter" className="mb-1 flex items-center gap-1 text-[0.5rem] font-bold uppercase text-slate-500"><CalendarDays className="h-3 w-3" />Quarter</label>
+          <div className="relative">
+            <select id="quarter" value={filters.quarter} onChange={(e) => setFilters(prev => ({ ...prev, quarter: e.target.value }))} className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-9 text-xs text-slate-700 outline-none transition focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/15">
+              <option value="ALL">All Quarters</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
         <div>
-          <label className="text-[0.65rem] font-bold uppercase text-slate-400 mb-1 block">Month Filter</label>
-          <Select value={filters.month} onValueChange={(v) => setFilters(prev => ({ ...prev, month: v }))}>
-            <SelectItem value="ALL">All Months</SelectItem>
-            {MONTH_ORDER.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-          </Select>
+          <label htmlFor="month" className="mb-1 flex items-center gap-1 text-[0.5rem] font-bold uppercase text-slate-500"><Calendar className="h-3 w-3" />Month</label>
+          <div className="relative">
+            <select id="month" value={filters.month} onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value }))} className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-9 text-xs text-slate-700 outline-none transition focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/15">
+              <option value="ALL">All Months</option>{MONTH_ORDER.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
         <div>
-          <label className="text-[0.65rem] font-bold uppercase text-slate-400 mb-1 block">Client Account</label>
-          <Select value={filters.account} onValueChange={(v) => setFilters(prev => ({ ...prev, account: v }))}>
-            <SelectItem value="ALL">All Client Accounts</SelectItem>
-          </Select>
+          <label htmlFor="account" className="mb-1 flex items-center gap-1 text-[0.5rem] font-bold uppercase text-slate-500"><Building2 className="h-3 w-3" />Client Account</label>
+          <div className="relative">
+            <select id="account" value={filters.account} onChange={(e) => setFilters(prev => ({ ...prev, account: e.target.value }))} className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-9 text-xs text-slate-700 outline-none transition focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/15">
+              <option value="ALL">All Client Accounts</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
         <div>
-          <label className="text-[0.65rem] font-bold uppercase text-slate-400 mb-1 block">Search Trainee / Batch / Trainer</label>
-          <TextInput
-            icon={Search}
-            placeholder="Type name or batch..."
-            value={filters.search}
-            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-          />
+          <label htmlFor="search" className="mb-1 block text-[0.65rem] font-bold uppercase text-slate-500">Search Trainee / Batch / Trainer</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input id="search" type="search" placeholder="Type name or batch..." value={filters.search} onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))} className="h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/15" />
+          </div>
         </div>
       </div>
 

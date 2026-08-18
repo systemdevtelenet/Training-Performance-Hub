@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Search, ChevronDown, RefreshCw, Download, Printer } from 'lucide-react';
+import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
 
 const inhouseBatches = [
   { name: 'General -1', hc: 15, attr: '20.0%' },
@@ -45,6 +47,11 @@ const clientAccounts = [
 ];
 
 export default function TraineesPage() {
+  const [selectedCard, setSelectedCard] = useState<DrawerTrainee | null>(null);
+  const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string) => {
+    setSelectedCard({ name: item.name, batchName: item.name, accountName, trainingType, assignedTrainer: trainer, headcount: item.hc, attritionRate: item.attr, contextLabel });
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
@@ -124,12 +131,12 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {inhouseBatches.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 bg-white transition-all">
+              <button key={idx} type="button" onClick={() => openCard(item, 'Batch Information', 'Inhouse Training', 'Inhouse Training')} className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
                 <span className="text-xs font-bold text-[#2F6798]">{item.name}</span>
                 <span className="text-[11px] font-semibold text-slate-500">
                   HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -144,7 +151,7 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {pstBatches.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 bg-white transition-all">
+              <button key={idx} type="button" onClick={() => openCard(item, 'Batch Information', 'PST Training', 'PST Training', item.trainer)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-800">{item.name}</span>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
@@ -154,7 +161,7 @@ export default function TraineesPage() {
                 <span className="text-[11px] font-semibold text-slate-500">
                   HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -169,17 +176,18 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {clientAccounts.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 bg-white transition-all">
+              <button key={idx} type="button" onClick={() => openCard(item, 'Client Account Information', 'Client Account', item.name)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
                 <span className="text-xs font-bold text-slate-800">{item.name}</span>
                 <span className="text-[11px] font-semibold text-slate-500">
                   HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
 
       </div>
+      <TraineeDetailDrawer trainee={selectedCard} onClose={() => setSelectedCard(null)} />
 
     </div>
   );

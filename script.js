@@ -624,7 +624,16 @@ function generateAccountMetrics(rawData) {
             name: m.name,
             status: m.status,
             batch: b,
-            timeline: `${m.quarter} / ${m.month}`
+            timeline: `${m.quarter} / ${m.month}`,
+            month: m.month,
+            quarter: m.quarter,
+            p: m.p,
+            a: m.a,
+            isEndorsed: m.isEndorsed,
+            isLoss: m.isLoss,
+            assignedTrainer: m.assignedTrainer,
+            training: type === 'inhouse' ? 'Inhouse Training' : 'PST Training',
+            accountName: displayAcc
           });
         });
       }
@@ -1732,7 +1741,7 @@ function render(rawData) {
                 <tbody>
                   ${b.members.map(m => `
                     <tr>
-                      <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9;"><b>${escapeHtml(m.name)}</b></td>
+                      <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9;"><button type="button" class="trainee-name-trigger" onclick="openTraineeDrawer('${traineeDrawerPayload({ ...m, accountName: b.accountName, batch: b.batchName, training: deptType === 'inhouse' ? 'Inhouse Training' : 'PST Training' })}')">${escapeHtml(m.name)}</button></td>
                       ${deptType === 'pst' ? `<td style="padding:4px 6px; border-bottom:1px solid #f1f5f9; color:#475569;">${escapeHtml(m.assignedTrainer || 'N/A')}</td>` : ''}
                       <td style="padding:4px 6px; text-align:center; border-bottom:1px solid #f1f5f9;">${m.p || 0}</td>
                       <td style="padding:4px 6px; text-align:center; border-bottom:1px solid #f1f5f9; color:var(--crimson);">${m.a || 0}</td>
@@ -1784,7 +1793,7 @@ function render(rawData) {
                 <tbody>
                   ${acc.traineesList.map(t => `
                     <tr>
-                      <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9;"><b>${escapeHtml(t.name)}</b></td>
+                      <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9;"><button type="button" class="trainee-name-trigger" onclick="openTraineeDrawer('${traineeDrawerPayload(t)}')">${escapeHtml(t.name)}</button></td>
                       <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9; color:#64748b;">${escapeHtml(t.batch)}</td>
                       <td style="padding:4px 6px; border-bottom:1px solid #f1f5f9;"><span class="status-badge" style="${getStatusBadgeStyle(t.status)}">${escapeHtml(t.status)}</span></td>
                     </tr>
@@ -1827,3 +1836,72 @@ function render(rawData) {
     return;
   }
 }
+
+function traineeDrawerPayload(trainee) {
+  return encodeURIComponent(JSON.stringify(trainee)).replace(/'/g, '%27');
+}
+
+function closeTraineeDrawer() {
+  const drawer = document.getElementById('trainee-detail-drawer');
+  if (!drawer) return;
+  drawer.classList.remove('is-open');
+  window.setTimeout(() => drawer.remove(), 240);
+}
+
+function openTraineeDrawer(encodedTrainee) {
+  let trainee;
+  try {
+    trainee = JSON.parse(decodeURIComponent(encodedTrainee));
+  } catch (error) {
+    console.error('Unable to open trainee details.', error);
+    return;
+  }
+
+  const currentDrawer = document.getElementById('trainee-detail-drawer');
+  if (currentDrawer) currentDrawer.remove();
+
+  const present = Number(trainee.p || 0);
+  const absent = Number(trainee.a || 0);
+  const attendance = present + absent > 0 ? `${((present / (present + absent)) * 100).toFixed(1)}%` : 'N/A';
+  const status = trainee.status || 'Unknown';
+  const outcome = trainee.isEndorsed ? 'Endorsed' : trainee.isLoss ? 'Marked as loss' : 'In progress';
+  const detailRow = (label, value) => `<div class="trainee-drawer-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || 'N/A')}</strong></div>`;
+
+  const drawer = document.createElement('div');
+  drawer.id = 'trainee-detail-drawer';
+  drawer.className = 'trainee-detail-drawer';
+  drawer.innerHTML = `
+    <button class="trainee-drawer-backdrop" aria-label="Close trainee details" onclick="closeTraineeDrawer()"></button>
+    <aside class="trainee-drawer-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(trainee.name)} details">
+      <header class="trainee-drawer-header">
+        <div>
+          <div class="trainee-drawer-title-row"><h2>${escapeHtml(trainee.name)}</h2><span class="status-badge" style="${getStatusBadgeStyle(status)}">${escapeHtml(status)}</span></div>
+          <p>${escapeHtml(trainee.batch || trainee.batchName || 'Unassigned batch')}</p>
+          <small>${escapeHtml(trainee.accountName || trainee.account || 'Unassigned account')}</small>
+        </div>
+        <button class="trainee-drawer-close" type="button" aria-label="Close trainee details" onclick="closeTraineeDrawer()">&times;</button>
+      </header>
+      <div class="trainee-drawer-content">
+        <section><h3>Trainee Information</h3><div class="trainee-drawer-list">
+          ${detailRow('Full Name', trainee.name)}
+          ${detailRow('Batch', trainee.batch || trainee.batchName)}
+          ${detailRow('Account / Client', trainee.accountName || trainee.account)}
+          ${detailRow('Training', trainee.training || trainee.trainingType)}
+          ${detailRow('Trainer', trainee.assignedTrainer || 'Not assigned')}
+          ${detailRow('Status', status)}
+        </div></section>
+        <section><h3>Performance</h3><div class="trainee-performance-grid">
+          <div><span>Attendance</span><strong class="primary-blue">${attendance}</strong></div>
+          <div><span>Present / Absent</span><strong>${present} <em>/</em> <b>${absent}</b></strong></div>
+          <div class="full"><span>Training outcome</span><strong>${outcome}</strong></div>
+        </div></section>
+        ${(trainee.month || trainee.quarter || trainee.timeline) ? `<p class="trainee-drawer-period">Reporting period: ${escapeHtml(trainee.timeline || [trainee.month, trainee.quarter].filter(Boolean).join(' / '))}</p>` : ''}
+      </div>
+    </aside>`;
+  document.body.appendChild(drawer);
+  requestAnimationFrame(() => drawer.classList.add('is-open'));
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeTraineeDrawer();
+});

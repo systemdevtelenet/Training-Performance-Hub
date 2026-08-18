@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   Search, 
   ChevronDown, 
+  ChevronRight,
   RefreshCw, 
   Download, 
   Users, 
   CalendarCheck, 
-  ShieldCheck 
+  ShieldCheck,
+  BarChart3,
+  TrendingUp,
+  ArrowUpDown
 } from 'lucide-react';
+import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 
 type TrainerTab = 'directory' | 'attendance' | 'reliability';
 
@@ -380,64 +385,295 @@ function DirectoryView() {
 
 {/* Attendance View Component */}
 function AttendanceView() {
-  const attendanceData = [
-    { name: 'Nina Joy Briones', present: 89, absent: 1, suspension: 0, rate: '98.9%' },
-    { name: 'Michelle Yncierto', present: 137, absent: 11, suspension: 0, rate: '92.6%' },
-    { name: 'Rohla Mie Baswa', present: 39, absent: 19, suspension: 0, rate: '67.2%' },
-    { name: 'Vincent Luis Celdran', present: 148, absent: 0, suspension: 0, rate: '100.0%' },
-    { name: 'Maegan Marie Cabardo', present: 50, absent: 1, suspension: 0, rate: '98.0%' },
-    { name: 'Ronelyn Baguio', present: 134, absent: 9, suspension: 0, rate: '93.7%' },
-    { name: 'Joven Aniñon', present: 83, absent: 10, suspension: 0, rate: '89.2%' },
-    { name: 'Francisjell Yongco', present: 63, absent: 0, suspension: 0, rate: '100.0%' },
-  ];
+  const attendanceData = useMemo<TrainerAttendanceData[]>(() => [
+    { name: 'Nina Joy Briones', present: 89, absent: 1, suspension: 0, rate: '98.9%', timeline: [
+      { name: 'Nina Joy Briones', month: 'January', quarter: 'Q1', p: 12, a: 0 },
+      { name: 'Nina Joy Briones', month: 'February', quarter: 'Q1', p: 11, a: 0 },
+      { name: 'Nina Joy Briones', month: 'March', quarter: 'Q1', p: 13, a: 0 },
+      { name: 'Nina Joy Briones', month: 'April', quarter: 'Q2', p: 12, a: 1 },
+      { name: 'Nina Joy Briones', month: 'May', quarter: 'Q2', p: 14, a: 0 },
+      { name: 'Nina Joy Briones', month: 'June', quarter: 'Q2', p: 13, a: 0 },
+      { name: 'Nina Joy Briones', month: 'July', quarter: 'Q3', p: 14, a: 0 },
+    ]},
+    { name: 'Michelle Yncierto', present: 137, absent: 11, suspension: 0, rate: '92.6%', timeline: [
+      { name: 'Michelle Yncierto', month: 'January', quarter: 'Q1', p: 20, a: 2 },
+      { name: 'Michelle Yncierto', month: 'February', quarter: 'Q1', p: 18, a: 1 },
+      { name: 'Michelle Yncierto', month: 'March', quarter: 'Q1', p: 21, a: 2 },
+      { name: 'Michelle Yncierto', month: 'April', quarter: 'Q2', p: 20, a: 2 },
+      { name: 'Michelle Yncierto', month: 'May', quarter: 'Q2', p: 22, a: 2 },
+      { name: 'Michelle Yncierto', month: 'June', quarter: 'Q2', p: 21, a: 1 },
+      { name: 'Michelle Yncierto', month: 'July', quarter: 'Q3', p: 21, a: 1 },
+    ]},
+    { name: 'Rohla Mie Baswa', present: 39, absent: 19, suspension: 0, rate: '67.2%', timeline: [
+      { name: 'Rohla Mie Baswa', month: 'January', quarter: 'Q1', p: 8, a: 5 },
+      { name: 'Rohla Mie Baswa', month: 'February', quarter: 'Q1', p: 7, a: 4 },
+      { name: 'Rohla Mie Baswa', month: 'March', quarter: 'Q1', p: 9, a: 3 },
+      { name: 'Rohla Mie Baswa', month: 'April', quarter: 'Q2', p: 8, a: 4 },
+      { name: 'Rohla Mie Baswa', month: 'May', quarter: 'Q2', p: 7, a: 3 },
+    ]},
+    { name: 'Vincent Luis Celdran', present: 148, absent: 0, suspension: 0, rate: '100.0%', timeline: [
+      { name: 'Vincent Luis Celdran', month: 'January', quarter: 'Q1', p: 22, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'February', quarter: 'Q1', p: 20, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'March', quarter: 'Q1', p: 23, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'April', quarter: 'Q2', p: 21, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'May', quarter: 'Q2', p: 22, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'June', quarter: 'Q2', p: 20, a: 0 },
+      { name: 'Vincent Luis Celdran', month: 'July', quarter: 'Q3', p: 20, a: 0 },
+    ]},
+    { name: 'Maegan Marie Cabardo', present: 50, absent: 1, suspension: 0, rate: '98.0%', timeline: [
+      { name: 'Maegan Marie Cabardo', month: 'January', quarter: 'Q1', p: 8, a: 0 },
+      { name: 'Maegan Marie Cabardo', month: 'February', quarter: 'Q1', p: 7, a: 1 },
+      { name: 'Maegan Marie Cabardo', month: 'March', quarter: 'Q1', p: 8, a: 0 },
+      { name: 'Maegan Marie Cabardo', month: 'April', quarter: 'Q2', p: 9, a: 0 },
+      { name: 'Maegan Marie Cabardo', month: 'May', quarter: 'Q2', p: 9, a: 0 },
+      { name: 'Maegan Marie Cabardo', month: 'June', quarter: 'Q2', p: 9, a: 0 },
+    ]},
+    { name: 'Ronelyn Baguio', present: 134, absent: 9, suspension: 0, rate: '93.7%', timeline: [
+      { name: 'Ronelyn Baguio', month: 'January', quarter: 'Q1', p: 19, a: 2 },
+      { name: 'Ronelyn Baguio', month: 'February', quarter: 'Q1', p: 18, a: 1 },
+      { name: 'Ronelyn Baguio', month: 'March', quarter: 'Q1', p: 20, a: 2 },
+      { name: 'Ronelyn Baguio', month: 'April', quarter: 'Q2', p: 21, a: 1 },
+      { name: 'Ronelyn Baguio', month: 'May', quarter: 'Q2', p: 20, a: 2 },
+      { name: 'Ronelyn Baguio', month: 'June', quarter: 'Q2', p: 19, a: 1 },
+      { name: 'Ronelyn Baguio', month: 'July', quarter: 'Q3', p: 17, a: 0 },
+    ]},
+    { name: 'Joven Aniñon', present: 83, absent: 10, suspension: 0, rate: '89.2%', timeline: [
+      { name: 'Joven Aniñon', month: 'January', quarter: 'Q1', p: 12, a: 2 },
+      { name: 'Joven Aniñon', month: 'February', quarter: 'Q1', p: 11, a: 1 },
+      { name: 'Joven Aniñon', month: 'March', quarter: 'Q1', p: 13, a: 2 },
+      { name: 'Joven Aniñon', month: 'April', quarter: 'Q2', p: 12, a: 2 },
+      { name: 'Joven Aniñon', month: 'May', quarter: 'Q2', p: 13, a: 2 },
+      { name: 'Joven Aniñon', month: 'June', quarter: 'Q2', p: 11, a: 1 },
+    ]},
+    { name: 'Francisjell Yongco', present: 63, absent: 0, suspension: 0, rate: '100.0%', timeline: [
+      { name: 'Francisjell Yongco', month: 'January', quarter: 'Q1', p: 9, a: 0 },
+      { name: 'Francisjell Yongco', month: 'February', quarter: 'Q1', p: 8, a: 0 },
+      { name: 'Francisjell Yongco', month: 'March', quarter: 'Q1', p: 10, a: 0 },
+      { name: 'Francisjell Yongco', month: 'April', quarter: 'Q2', p: 9, a: 0 },
+      { name: 'Francisjell Yongco', month: 'May', quarter: 'Q2', p: 9, a: 0 },
+      { name: 'Francisjell Yongco', month: 'June', quarter: 'Q2', p: 8, a: 0 },
+    ]},
+  ], []);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'rate' | 'name' | 'present' | 'absent'>('rate');
+  const [selectedTrainer, setSelectedTrainer] = useState<TrainerAttendanceData | null>(null);
+
+  const getAttendanceStatus = useCallback((rate: number) => {
+    if (rate >= 95) return { label: 'Excellent', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
+    if (rate >= 90) return { label: 'Good', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' };
+    if (rate >= 80) return { label: 'Needs Attention', color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' };
+    return { label: 'Critical', color: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' };
+  }, []);
+
+  const getRateColor = useCallback((rate: number) => {
+    if (rate < 80) return 'text-rose-600';
+    if (rate >= 95) return 'text-emerald-600';
+    return 'text-[#2F6798]';
+  }, []);
+
+  const filteredAndSorted = useMemo(() => {
+    let data = [...attendanceData];
+    if (searchQuery) {
+      data = data.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (statusFilter !== 'all') {
+      data = data.filter(t => {
+        const rate = parseFloat(t.rate);
+        if (statusFilter === 'excellent') return rate >= 95;
+        if (statusFilter === 'good') return rate >= 90 && rate < 95;
+        if (statusFilter === 'attention') return rate >= 80 && rate < 90;
+        if (statusFilter === 'critical') return rate < 80;
+        return true;
+      });
+    }
+    data.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'present') return b.present - a.present;
+      if (sortBy === 'absent') return b.absent - a.absent;
+      return parseFloat(b.rate) - parseFloat(a.rate);
+    });
+    return data;
+  }, [attendanceData, searchQuery, statusFilter, sortBy]);
+
+  const kpis = useMemo(() => {
+    const totalPresent = attendanceData.reduce((s, t) => s + t.present, 0);
+    const totalAbsent = attendanceData.reduce((s, t) => s + t.absent, 0);
+    const totalSUS = attendanceData.reduce((s, t) => s + t.suspension, 0);
+    const totalTrainers = attendanceData.length;
+    const avgRate = totalPresent + totalAbsent > 0
+      ? ((totalPresent / (totalPresent + totalAbsent)) * 100).toFixed(1) + '%'
+      : '0.0%';
+    return { totalPresent, totalAbsent, totalSUS, totalTrainers, avgRate };
+  }, [attendanceData]);
+
+  const handleTrainerClick = useCallback((trainer: TrainerAttendanceData) => {
+    setSelectedTrainer(prev => prev?.name === trainer.name ? null : trainer);
+  }, []);
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-sm font-bold text-slate-800 tracking-wide">
-        Trainer Attendance (SUS counted as a loss) Breakdown
-      </h2>
-
-      <div className="space-y-2.5">
-        {attendanceData.map((item, index) => {
-          const rateNum = parseFloat(item.rate);
-          let rateColorClass = 'text-[#2F6798]';
-          
-          if (rateNum < 80) {
-            rateColorClass = 'text-rose-500 font-black';
-          } else if (rateNum === 100) {
-            rateColorClass = 'text-emerald-600 font-black';
-          }
-
-          return (
-            <div
-              key={index}
-              className="bg-white rounded-2xl border border-slate-200/80 shadow-xs px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 hover:shadow-sm transition-all"
-            >
-              <h3 className="text-xs font-bold text-slate-900 tracking-wide">
-                {item.name}
-              </h3>
-
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-500 self-end sm:self-auto">
-                <span>
-                  Present: <strong className="text-slate-800 font-bold">{item.present}</strong>
-                </span>
-                <span className="text-slate-300">|</span>
-                <span>
-                  Absent: <strong className={item.absent > 0 ? 'text-rose-500 font-bold' : 'text-slate-800 font-bold'}>{item.absent}</strong>
-                </span>
-                <span className="text-slate-300">|</span>
-                <span>
-                  Suspension: <strong className="text-slate-800 font-bold">{item.suspension}</strong>
-                </span>
-                <span className="text-slate-300">|</span>
-                <span>
-                  Rate: <strong className={rateColorClass}>{item.rate}</strong>
-                </span>
-              </div>
-            </div>
-          );
-        })}
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 tracking-wide">
+            Trainer Attendance (SUS counted as a loss) Breakdown
+          </h2>
+          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+            {attendanceData.length} trainers &middot; Click a card to view details
+          </p>
+        </div>
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5 text-[#2F6798]" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Rate</span>
+          </div>
+          <p className="text-xl font-black text-slate-900">{kpis.avgRate}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Present</span>
+          </div>
+          <p className="text-xl font-black text-slate-900">{kpis.totalPresent.toLocaleString()}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
+              <BarChart3 className="w-3.5 h-3.5 text-rose-600" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Absent</span>
+          </div>
+          <p className="text-xl font-black text-slate-900">{kpis.totalAbsent}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+              <Users className="w-3.5 h-3.5 text-slate-600" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Trainers</span>
+          </div>
+          <p className="text-xl font-black text-slate-900">{kpis.totalTrainers}</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3.5">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search trainer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
+            />
+          </div>
+          <div className="flex gap-2.5">
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+              >
+                <option value="all">All Status</option>
+                <option value="excellent">Excellent</option>
+                <option value="good">Good</option>
+                <option value="attention">Needs Attention</option>
+                <option value="critical">Critical</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+              >
+                <option value="rate">Sort by Rate</option>
+                <option value="name">Sort by Name</option>
+                <option value="present">Sort by Present</option>
+                <option value="absent">Sort by Absent</option>
+              </select>
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {filteredAndSorted.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-8 text-center">
+          <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+          <p className="text-xs font-medium text-slate-400">No trainers match your search criteria.</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filteredAndSorted.map((trainer) => {
+            const rateNum = parseFloat(trainer.rate);
+            const status = getAttendanceStatus(rateNum);
+            const rateColor = getRateColor(rateNum);
+            const isSelected = selectedTrainer?.name === trainer.name;
+
+            return (
+              <button
+                key={trainer.name}
+                type="button"
+                onClick={() => handleTrainerClick(trainer)}
+                className={`w-full text-left bg-white rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
+                  isSelected
+                    ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
+                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30'
+                }`}
+                aria-label={`${trainer.name}, attendance rate ${trainer.rate}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-xs font-bold text-slate-900 tracking-wide truncate">
+                      {trainer.name}
+                    </h3>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold border whitespace-nowrap ${status.color}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+                      {status.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500">
+                    <span>Present <strong className="text-slate-800 font-bold ml-0.5">{trainer.present}</strong></span>
+                    <span className="text-slate-300">&middot;</span>
+                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 font-bold ml-0.5'}>{trainer.absent}</strong></span>
+                    <span className="text-slate-300">&middot;</span>
+                    <span>SUS <strong className="text-slate-800 font-bold ml-0.5">{trainer.suspension}</strong></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 sm:gap-5 shrink-0">
+                  <div className="text-right">
+                    <span className={`text-xl font-black ${rateColor}`}>{trainer.rate}</span>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Attendance Rate</p>
+                  </div>
+                  <div className="hidden sm:block w-24">
+                    <div className="w-full bg-slate-100 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                        style={{ width: `${Math.min(rateNum, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <TrainerAttendanceDrawer trainer={selectedTrainer} onClose={() => setSelectedTrainer(null)} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Title } from '@tremor/react';
+import { Title } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 interface ChartProps {
@@ -11,20 +11,20 @@ interface ChartProps {
 export function AnalyticsChart({ title, data }: ChartProps) {
   if (!data || data.length === 0) {
     return (
-      <Card className="p-4 text-center text-sm text-slate-400">
+      <p className="my-4 text-center text-sm text-slate-400">
         Not enough data matrix segments to map a timeline graph trajectory.
-      </Card>
+      </p>
     );
   }
 
   return (
-    <Card className="p-5 my-4 bg-slate-50/50 border border-slate-200 shadow-sm rounded-2xl">
+    <div className="my-5 first:mt-3 last:mb-0">
       <div className="flex justify-between items-center mb-4">
         <Title className="text-xs uppercase font-bold text-slate-600 tracking-wider">
           {title} (Attrition % Trend)
         </Title>
       </div>
-      <div className="h-48 w-full">
+      <div className="h-48 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -45,7 +45,7 @@ export function AnalyticsChart({ title, data }: ChartProps) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </Card>
+    </div>
   );
 }
 
