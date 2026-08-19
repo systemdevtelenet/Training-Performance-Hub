@@ -31,17 +31,17 @@ export default function TrainersPage() {
       {/* Top Header & Global Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Trainers Management</h1>
-          <p className="text-xs font-medium text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Trainers Management</h1>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
             Real-time directory, automated attendance tracking, and reliability analytics
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50/80 hover:border-slate-300 transition-all">
+          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
             <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" /> Refresh
           </button>
-          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50/80 hover:border-slate-300 transition-all">
+          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
             <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export
           </button>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold border border-emerald-200/60 shadow-xs">
@@ -51,13 +51,13 @@ export default function TrainersPage() {
       </div>
 
       {/* Pill Segmented Controls (Sub-Tabs) */}
-      <div className="bg-slate-100/80 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200/60 max-w-md shadow-inner">
+      <div className="bg-slate-100/80 dark:bg-slate-800/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200/60 dark:border-slate-700/60 max-w-md shadow-inner">
         <button
           onClick={() => setActiveTab('directory')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
             activeTab === 'directory'
               ? 'bg-[#2F6798] text-white shadow-xs ring-1 ring-black/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <Users className="w-3.5 h-3.5" />
@@ -69,7 +69,7 @@ export default function TrainersPage() {
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
             activeTab === 'attendance'
               ? 'bg-[#2F6798] text-white shadow-xs ring-1 ring-black/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <CalendarCheck className="w-3.5 h-3.5" />
@@ -81,7 +81,7 @@ export default function TrainersPage() {
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
             activeTab === 'reliability'
               ? 'bg-[#2F6798] text-white shadow-xs ring-1 ring-black/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
@@ -90,45 +90,45 @@ export default function TrainersPage() {
       </div>
 
       {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shadow-xs">
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Quarter</label>
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Quarter</label>
           <div className="relative">
-            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
               <option>All Quarters</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Month</label>
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Month</label>
           <div className="relative">
-            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
               <option>All Months</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Account</label>
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Account</label>
           <div className="relative">
-            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
               <option>All Client Accounts</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Search</label>
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Search</label>
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Trainer or Batch..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
             />
           </div>
         </div>
@@ -256,19 +256,19 @@ function DirectoryView() {
         {/* Left List Pane */}
         <div className="lg:col-span-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 tracking-wider">
-              Trainers Directory <span className="text-slate-400 font-normal">({filteredTrainers.length})</span>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wider">
+              Trainers Directory <span className="text-slate-400 dark:text-slate-500 font-normal">({filteredTrainers.length})</span>
             </h2>
           </div>
           
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search trainer, role, account..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200/80 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 shadow-xs"
+              className="w-full bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 shadow-xs"
             />
           </div>
 
@@ -280,7 +280,7 @@ function DirectoryView() {
                 className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border ${
                   statusFilter === status
                     ? 'bg-[#2F6798] text-white border-[#2F6798] shadow-xs'
-                    : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                 }`}
               >
                 {status === 'ALL' ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()} {statusCounts[status]}
@@ -288,7 +288,7 @@ function DirectoryView() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2 max-h-[600px] overflow-y-auto space-y-1.5">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-2 max-h-[600px] overflow-y-auto space-y-1.5">
             {filteredTrainers.map((trainer) => {
               const isSelected = active.id === trainer.id;
               return (
@@ -298,20 +298,20 @@ function DirectoryView() {
                   className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
                     isSelected
                       ? 'bg-[#2F6798]/5 border-[#2F6798]/30 shadow-sm'
-                      : 'bg-white border-transparent hover:border-slate-200 hover:bg-slate-50'
+                      : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${
-                      isSelected ? 'bg-[#2F6798] text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                      isSelected ? 'bg-[#2F6798] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
                     }`}>
                       {trainer.name.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <h3 className={`text-xs font-bold truncate ${isSelected ? 'text-[#2F6798]' : 'text-slate-800'}`}>
+                      <h3 className={`text-xs font-bold truncate ${isSelected ? 'text-[#2F6798]' : 'text-slate-800 dark:text-slate-100'}`}>
                         {trainer.name}
                       </h3>
-                      <p className="text-[10px] font-medium text-slate-400 uppercase mt-0.5 truncate flex items-center gap-1.5">
+                      <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase mt-0.5 truncate flex items-center gap-1.5">
                         {trainer.role} 
                         <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusDot(trainer.status)}`} />
                         {trainer.status}
@@ -325,47 +325,47 @@ function DirectoryView() {
               );
             })}
             {filteredTrainers.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-8">No trainers found.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-8">No trainers found.</p>
             )}
           </div>
         </div>
 
         {/* Right Detail Pane */}
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-8">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-6 space-y-8">
           {/* Profile Header */}
-          <div className="relative overflow-hidden pb-6 border-b border-slate-100">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
+          <div className="relative overflow-hidden pb-6 border-b border-slate-100 dark:border-slate-700">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 dark:bg-slate-700/30 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
             <div className="flex items-center gap-5 relative z-10">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#2F6798] to-[#1f4b73] text-white flex items-center justify-center font-bold text-3xl shadow-md shrink-0">
                 {active.name.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-2xl font-bold text-slate-900 truncate">{active.name}</h2>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 truncate">{active.name}</h2>
                   <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${getStatusBadge(active.status)}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(active.status)}`} />
                     {active.status}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   {active.role}
                 </p>
-                <div className="flex items-center gap-4 mt-3 text-xs font-medium text-slate-500">
+                <div className="flex items-center gap-4 mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                     <span>{active.accounts || 'No Account'}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                     <span>{active.tasks || 'No Tasks'}</span>
                   </div>
                 </div>
               </div>
               <div className="hidden sm:flex flex-col gap-2 shrink-0">
-                <button className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold transition-colors">
+                <button className="px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors">
                   View Attendance
                 </button>
-                <button className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold transition-colors">
+                <button className="px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors">
                   View Reliability
                 </button>
               </div>
@@ -373,35 +373,35 @@ function DirectoryView() {
           </div>
 
           {/* Performance Snapshot */}
-          <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Performance Snapshot</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-slate-100">
+          <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Performance Snapshot</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-slate-100 dark:divide-slate-700">
               <div className="px-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Attendance</p>
-                <p className="text-xl font-black text-slate-800">{active.attendanceRate || 'N/A'}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Attendance</p>
+                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.attendanceRate || 'N/A'}</p>
                 <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.attendanceRate, 'attendance').color}`}>
                   {getKPIStatus(active.attendanceRate, 'attendance').label}
                 </p>
               </div>
               <div className="px-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Reliability</p>
-                <p className="text-xl font-black text-slate-800">{active.reliabilityRate || 'N/A'}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Reliability</p>
+                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.reliabilityRate || 'N/A'}</p>
                 <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.reliabilityRate, 'reliability').color}`}>
                   {getKPIStatus(active.reliabilityRate, 'reliability').label}
                 </p>
               </div>
               <div className="px-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Success Rate</p>
-                <p className="text-xl font-black text-slate-800">{active.overallSuccess || 'N/A'}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Success Rate</p>
+                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.overallSuccess || 'N/A'}</p>
                 <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.overallSuccess, 'success').color}`}>
                   {getKPIStatus(active.overallSuccess, 'success').label}
                 </p>
               </div>
               <div className="px-4 relative group">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                   Avg Attrition
                   <span className="cursor-help">
-                    <Info className="w-3 h-3 text-slate-300 hover:text-slate-500" />
+                    <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
                   </span>
                 </p>
                 <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20">
@@ -410,15 +410,15 @@ function DirectoryView() {
                 {(() => {
                   if (!active.batches || active.batches.length === 0) return (
                     <>
-                      <p className="text-xl font-black text-slate-800">N/A</p>
-                      <p className="text-[10px] font-bold mt-1 text-slate-400">N/A</p>
+                      <p className="text-xl font-black text-slate-800 dark:text-slate-100">N/A</p>
+                      <p className="text-[10px] font-bold mt-1 text-slate-400 dark:text-slate-500">N/A</p>
                     </>
                   );
                   const totalAttr = active.batches.reduce((sum, b) => sum + parseFloat(b.attrition), 0);
                   const avgAttr = (totalAttr / active.batches.length).toFixed(1) + '%';
                   return (
                     <>
-                      <p className="text-xl font-black text-slate-800">{avgAttr}</p>
+                      <p className="text-xl font-black text-slate-800 dark:text-slate-100">{avgAttr}</p>
                       <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(avgAttr, 'attrition').color}`}>
                         {getKPIStatus(avgAttr, 'attrition').label}
                       </p>
@@ -431,32 +431,32 @@ function DirectoryView() {
 
           {/* Profile Information & Leave Breakdown Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 space-y-4 h-full">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Profile Information</h3>
+            <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 space-y-4 h-full">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Profile Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Employee ID</span>
-                  <p className="text-xs font-semibold text-slate-800 mt-1">{active.id}</p>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Employee ID</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.id}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Start Date</span>
-                  <p className="text-xs font-semibold text-slate-800 mt-1">{active.startDate || 'N/A'}</p>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Start Date</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.startDate || 'N/A'}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Accounts</span>
-                  <p className="text-xs font-semibold text-slate-800 mt-1">{active.accounts || 'N/A'}</p>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Accounts</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.accounts || 'N/A'}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Primary Task</span>
-                  <p className="text-xs font-semibold text-slate-800 mt-1">{active.tasks || 'N/A'}</p>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Primary Task</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.tasks || 'N/A'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 h-full flex flex-col">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 h-full flex flex-col">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-1 flex items-center justify-between">
                 Attendance & Leave
-                <span className="text-[9px] font-normal text-slate-400 normal-case bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500 normal-case bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-700">
                   Click box for records
                 </span>
               </h3>
@@ -477,11 +477,11 @@ function DirectoryView() {
                     className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${
                       item.highlight
                         ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
-                        : 'bg-slate-50 border-slate-100 hover:border-slate-300 focus:ring-slate-200/50'
+                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
                     }`}
                   >
-                    <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500'}`}>{item.label}</span>
-                    <span className={`text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800'}`}>{item.val}</span>
+                    <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400'}`}>{item.label}</span>
+                    <span className={`text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800 dark:text-slate-100'}`}>{item.val}</span>
                   </button>
                 ))}
               </div>
@@ -489,17 +489,17 @@ function DirectoryView() {
           </div>
 
           {/* Handled Batches */}
-          <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5">
+          <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
                 Handled Batches ({active.batches?.length || 0})
               </h3>
             </div>
 
             {active.batches && active.batches.length > 0 ? (
-              <div className="border border-slate-200/80 rounded-xl overflow-hidden">
+              <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/80">
+                  <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700/80">
                     <tr>
                       <th className="px-4 py-3">Batch Info</th>
                       <th className="px-4 py-3 text-center">Trainees</th>
@@ -508,7 +508,7 @@ function DirectoryView() {
                         <div className="flex items-center justify-center gap-1 relative group/attr">
                           Attrition Rate
                           <span className="cursor-help">
-                            <Info className="w-3 h-3 text-slate-300 hover:text-slate-500" />
+                            <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
                           </span>
                           <div className="absolute bottom-full mb-2 hidden group-hover/attr:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20 pointer-events-none">
                             Percentage of trainees who leave or are lost from the training process within the selected batch/period.
@@ -518,20 +518,20 @@ function DirectoryView() {
                       <th className="px-4 py-3 text-right">Success Rate</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium bg-white">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300 font-medium bg-white dark:bg-slate-800">
                     {active.batches.map((row, idx) => {
                       const isSuccessGood = parseFloat(row.success) >= 90;
                       const isAttritionBad = parseFloat(row.attrition) > 20;
                       return (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
+                        <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors cursor-pointer group">
                           <td className="px-4 py-3">
-                            <p className="font-bold text-slate-800">Batch {row.batch}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{row.account} &middot; {row.dept}</p>
+                            <p className="font-bold text-slate-800 dark:text-slate-100">Batch {row.batch}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{row.account} &middot; {row.dept}</p>
                           </td>
                           <td className="px-4 py-3 text-center font-bold">{row.trainees}</td>
                           <td className="px-4 py-3 text-center font-bold text-rose-500">{row.losses}</td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`font-bold ${isAttritionBad ? 'text-rose-600' : 'text-slate-800'}`}>
+                            <span className={`font-bold ${isAttritionBad ? 'text-rose-600' : 'text-slate-800 dark:text-slate-100'}`}>
                               {row.attrition}
                             </span>
                           </td>
@@ -553,8 +553,8 @@ function DirectoryView() {
                 </table>
               </div>
             ) : (
-              <div className="border border-slate-100 rounded-xl p-8 text-center bg-slate-50">
-                <p className="text-xs font-medium text-slate-400">No active batches assigned for this trainer.</p>
+              <div className="border border-slate-100 dark:border-slate-700 rounded-xl p-8 text-center bg-slate-50 dark:bg-slate-800/40">
+                <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No active batches assigned for this trainer.</p>
               </div>
             )}
           </div>
@@ -697,64 +697,64 @@ function AttendanceView() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold text-slate-800 tracking-wide">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide">
             Trainer Attendance (SUS counted as a loss) Breakdown
           </h2>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
             {attendanceData.length} trainers &middot; Click a card to view details
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
               <TrendingUp className="w-3.5 h-3.5 text-[#2F6798]" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Rate</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Rate</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.avgRate}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.avgRate}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
               <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Present</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Present</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.totalPresent.toLocaleString()}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalPresent.toLocaleString()}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
               <BarChart3 className="w-3.5 h-3.5 text-rose-600" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Absent</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Absent</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.totalAbsent}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalAbsent}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 text-slate-600" />
+            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+              <Users className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Trainers</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Trainers</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.totalTrainers}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalTrainers}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3.5">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-3.5">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search trainer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
             />
           </div>
           <div className="flex gap-2.5">
@@ -762,7 +762,7 @@ function AttendanceView() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="excellent">Excellent</option>
@@ -770,29 +770,30 @@ function AttendanceView() {
                 <option value="attention">Needs Attention</option>
                 <option value="critical">Critical</option>
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
             <div className="relative">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+              >
               >
                 <option value="rate">Sort by Rate</option>
                 <option value="name">Sort by Name</option>
                 <option value="present">Sort by Present</option>
                 <option value="absent">Sort by Absent</option>
               </select>
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </div>
       </div>
 
       {filteredAndSorted.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-8 text-center">
-          <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-xs font-medium text-slate-400">No trainers match your search criteria.</p>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-8 text-center">
+          <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+          <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No trainers match your search criteria.</p>
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -807,16 +808,16 @@ function AttendanceView() {
                 key={trainer.name}
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
+                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
                   isSelected
                     ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30'
+                    : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
                 }`}
                 aria-label={`${trainer.name}, attendance rate ${trainer.rate}`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xs font-bold text-slate-900 tracking-wide truncate">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-50 tracking-wide truncate">
                       {trainer.name}
                     </h3>
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold border whitespace-nowrap ${status.color}`}>
@@ -824,29 +825,29 @@ function AttendanceView() {
                       {status.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500">
-                    <span>Present <strong className="text-slate-800 font-bold ml-0.5">{trainer.present}</strong></span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 font-bold ml-0.5'}>{trainer.absent}</strong></span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>SUS <strong className="text-slate-800 font-bold ml-0.5">{trainer.suspension}</strong></span>
+                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span>Present <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.present}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.absent}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                    <span>SUS <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.suspension}</strong></span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 sm:gap-5 shrink-0">
                   <div className="text-right">
                     <span className={`text-xl font-black ${rateColor}`}>{trainer.rate}</span>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Attendance Rate</p>
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Attendance Rate</p>
                   </div>
                   <div className="hidden sm:block w-24">
-                    <div className="w-full bg-slate-100 rounded-full h-1.5">
+                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
                       <div
                         className={`h-1.5 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
                         style={{ width: `${Math.min(rateNum, 100)}%` }}
                       />
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
                 </div>
               </button>
             );
@@ -945,64 +946,64 @@ function ReliabilityView() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold text-slate-800 tracking-wide">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide">
             Trainer Reliability (SL, VL, ML, PL, HOL, SUS, MED, BL counted as losses)
           </h2>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
             {reliabilityData.length} trainers &middot; Click a card to view details
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
               <TrendingUp className="w-3.5 h-3.5 text-[#2F6798]" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Reliability</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Reliability</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.avgRate}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.avgRate}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reliable</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reliable</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.reliable}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.reliable}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Needs Attention</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Needs Attention</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.attention}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.attention}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Critical</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Critical</span>
           </div>
-          <p className="text-xl font-black text-slate-900">{kpis.critical}</p>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.critical}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3.5">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-3.5">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search trainer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
             />
           </div>
           <div className="flex gap-2.5">
@@ -1010,7 +1011,7 @@ function ReliabilityView() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="excellent">Excellent</option>
@@ -1018,27 +1019,28 @@ function ReliabilityView() {
                 <option value="attention">Needs Attention</option>
                 <option value="critical">Critical</option>
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
             <div className="relative">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'low' | 'high')}
-                className="h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
+              >
               >
                 <option value="low">Sort: Low → High</option>
                 <option value="high">Sort: High → Low</option>
               </select>
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </div>
       </div>
 
       {filteredAndSorted.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-8 text-center">
-          <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-xs font-medium text-slate-400">No trainers match your search criteria.</p>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-8 text-center">
+          <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+          <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No trainers match your search criteria.</p>
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -1053,15 +1055,15 @@ function ReliabilityView() {
                 key={trainer.name}
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
+                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
                   isSelected
                     ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30'
+                    : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
                 }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xs font-bold text-slate-900 tracking-wide truncate">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-50 tracking-wide truncate">
                       {trainer.name}
                     </h3>
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold border whitespace-nowrap ${status.color}`}>
@@ -1069,22 +1071,22 @@ function ReliabilityView() {
                       {status.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500">
-                    <span>Present <strong className="text-slate-800 font-bold ml-0.5">{trainer.present}</strong></span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 font-bold ml-0.5'}>{trainer.absent}</strong></span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>Losses <strong className={trainer.losses > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 font-bold ml-0.5'}>{trainer.losses}</strong></span>
+                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span>Present <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.present}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.absent}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                    <span>Losses <strong className={trainer.losses > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.losses}</strong></span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 sm:gap-5 shrink-0">
                   <div className="text-right">
                     <span className={`text-xl font-black ${rateColor}`}>{trainer.rate}</span>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Reliability Rate</p>
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reliability Rate</p>
                   </div>
                   <div className="hidden sm:block w-24">
-                    <div className="w-full bg-slate-100 rounded-full h-1.5">
+                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
                       <div
                         className={`h-1.5 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
                         style={{ width: `${Math.min(rateNum, 100)}%` }}

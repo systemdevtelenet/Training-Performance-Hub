@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   LayoutDashboard, 
   Users, 
@@ -10,6 +11,7 @@ import {
   BarChart, 
   Sparkles,
   User,
+  Settings,
   LogOut,
   X,
   Menu
@@ -44,12 +46,16 @@ export default function Sidebar() {
         )}
       >
         <div>
-          {/* Brand & Menu Toggle Header */}
-          <div className={cn("flex items-center border-b border-white/20 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-6")}>
+          <div className={cn("flex items-center border-b border-white/20 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
             {!isCollapsed && (
-              <div className="overflow-hidden">
-                <h2 className="font-bold text-lg text-white tracking-tight whitespace-nowrap">Cebu Tele-Net</h2>
-                <p className="text-xs text-white whitespace-nowrap">Operations Analytics</p>
+              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+                  <Image src="/images/ctnp-logo.png" alt="CTNP" width={36} height={36} className="object-contain" />
+                </div>
+                <div className="overflow-hidden min-w-0">
+                  <h2 className="font-bold text-sm text-white tracking-tight whitespace-nowrap truncate">Cebu Tele-Net</h2>
+                  <p className="text-[10px] text-white/70 whitespace-nowrap truncate">Operations Analytics</p>
+                </div>
               </div>
             )}
             <button
@@ -61,7 +67,6 @@ export default function Sidebar() {
             </button>
           </div>
 
-          {/* Main Navigation Links */}
           <nav className="px-3 py-4 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -87,7 +92,6 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* Bottom Profile, Logout & Status Area */}
         <div className="p-3 space-y-1 border-t border-white/20">
           <Link
             href="/profile"
@@ -104,6 +108,21 @@ export default function Sidebar() {
             {!isCollapsed && <span>Profile</span>}
           </Link>
 
+          <Link
+            href="/settings"
+            title={isCollapsed ? "Settings" : undefined}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors",
+              isCollapsed && "justify-center px-0",
+              pathname === '/settings'
+                ? "bg-white/20 text-white"
+                : "text-white hover:bg-white/10"
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0 text-white" />
+            {!isCollapsed && <span>Settings</span>}
+          </Link>
+
           <button
             onClick={() => setShowLogoutModal(true)}
             title={isCollapsed ? "Logout" : undefined}
@@ -116,7 +135,6 @@ export default function Sidebar() {
             {!isCollapsed && <span>Logout</span>}
           </button>
 
-          {/* System Status */}
           <div className={cn("pt-4 pb-2 px-3 flex items-center gap-2 text-xs text-white", isCollapsed && "justify-center px-0")}>
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             {!isCollapsed && <span className="truncate">Live Systems Connected</span>}
@@ -124,48 +142,41 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Logout Confirmation Pop-up Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6 animate-in zoom-in-95 duration-200">
-            
-            {/* Close Button */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6">
             <button
               onClick={() => setShowLogoutModal(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute top-5 right-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
 
-            {/* Circular Logout Icon */}
-            <div className="w-20 h-20 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200">
+            <div className="w-20 h-20 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200 dark:shadow-red-900/30">
               <LogOut className="h-9 w-9 text-white stroke-[2.5]" />
             </div>
 
-            {/* Title & Prompt */}
             <div className="space-y-2">
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Logout</h3>
-              <p className="text-sm text-slate-500 font-medium">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Logout</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
                 Are you sure you want to logout?
               </p>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="px-6 py-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm transition-colors"
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-sm transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmLogout}
-                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200"
+                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200 dark:shadow-red-900/30"
               >
                 Yes
               </button>
             </div>
-
           </div>
         </div>
       )}
