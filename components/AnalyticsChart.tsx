@@ -11,7 +11,7 @@ interface ChartProps {
 export function AnalyticsChart({ title, data }: ChartProps) {
   if (!data || data.length === 0) {
     return (
-      <p className="my-4 text-center text-sm text-slate-400">
+      <p className="my-4 text-center text-sm text-slate-400 dark:text-slate-500">
         Not enough data matrix segments to map a timeline graph trajectory.
       </p>
     );
@@ -20,11 +20,11 @@ export function AnalyticsChart({ title, data }: ChartProps) {
   return (
     <div className="my-5 first:mt-3 last:mb-0">
       <div className="flex justify-between items-center mb-4">
-        <Title className="text-xs uppercase font-bold text-slate-600 tracking-wider">
+        <Title className="text-xs uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider">
           {title} (Attrition % Trend)
         </Title>
       </div>
-      <div className="h-48 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+      <div className="h-48 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />

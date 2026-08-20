@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   Camera,
@@ -24,15 +24,19 @@ import {
   Monitor,
   ChevronDown,
   Check,
+  Loader2,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type ProfileTab = 'personal' | 'security' | 'work';
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('personal');
+  const [isHydrating, setIsHydrating] = useState(true);
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [profile, setProfile] = useState({
     firstName: 'Nico',
@@ -55,6 +59,12 @@ export default function ProfilePage() {
     confirm: '',
   });
 
+  // Simulate initial data fetching delay
+  useEffect(() => {
+    const timer = setTimeout(() => setIsHydrating(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
   const updateProfile = (field: string, value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }));
   };
@@ -64,7 +74,11 @@ export default function ProfilePage() {
   };
 
   const handleSave = () => {
-    console.log('Profile saved:', profile);
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+      console.log('Profile saved:', profile);
+    }, 800);
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -100,10 +114,11 @@ export default function ProfilePage() {
         </div>
         <button
           onClick={handleSave}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-colors"
+          disabled={isHydrating || saving}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <Save className="w-4 h-4" />
-          Save Changes
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -112,9 +127,13 @@ export default function ProfilePage() {
         <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden">
           <div className="bg-gradient-to-br from-[#2F6798] to-[#1e4a6e] px-6 pt-8 pb-12 text-center relative">
             <div className="relative inline-block">
-              <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/30 flex items-center justify-center mx-auto">
-                <span className="text-3xl font-bold text-white">{initials}</span>
-              </div>
+              {isHydrating ? (
+                <Skeleton className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/30 mx-auto" />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/30 flex items-center justify-center mx-auto">
+                  <span className="text-3xl font-bold text-white">{initials}</span>
+                </div>
+              )}
               <button
                 type="button"
                 className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-slate-800 border-2 border-[#2F6798] text-[#2F6798] flex items-center justify-center shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -127,18 +146,28 @@ export default function ProfilePage() {
 
           <div className="px-6 -mt-6 text-center relative z-10">
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs p-4">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">{profile.firstName} {profile.lastName}</h3>
-              <p className="text-[10px] font-bold text-[#2F6798] uppercase tracking-wider mt-1">{profile.role}</p>
-              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1">{profile.email}</p>
+              {isHydrating ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">{profile.firstName} {profile.lastName}</h3>
+                  <p className="text-[10px] font-bold text-[#2F6798] uppercase tracking-wider mt-1">{profile.role}</p>
+                  <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1">{profile.email}</p>
+                </>
+              )}
 
               <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 grid grid-cols-2 gap-2 text-center">
                 <div>
                   <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Employee ID</p>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{profile.employeeId}</p>
+                  {isHydrating ? <Skeleton className="h-4 w-16 mx-auto mt-0.5" /> : <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{profile.employeeId}</p>}
                 </div>
                 <div>
                   <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</p>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{profile.department}</p>
+                  {isHydrating ? <Skeleton className="h-4 w-24 mx-auto mt-0.5" /> : <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">{profile.department}</p>}
                 </div>
               </div>
             </div>
@@ -174,7 +203,7 @@ export default function ProfilePage() {
                   </div>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{stat.label}</span>
                 </div>
-                <p className="text-xl font-black text-slate-900 dark:text-slate-50">{stat.value}</p>
+                {isHydrating ? <Skeleton className="h-7 w-16" /> : <p className="text-xl font-black text-slate-900 dark:text-slate-50">{stat.value}</p>}
               </div>
             ))}
           </div>
@@ -199,8 +228,22 @@ export default function ProfilePage() {
             </div>
 
             <div className="p-6">
-              {/* Personal Details Tab */}
-              {activeTab === 'personal' && (
+              {isHydrating ? (
+                <div className="space-y-6 animate-pulse">
+                  <Skeleton className="h-4 w-40" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="md:col-span-2 h-10 w-full rounded-xl" />
+                    <Skeleton className="md:col-span-2 h-10 w-full rounded-xl" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Personal Details Tab */}
+                  {activeTab === 'personal' && (
                 <div className="space-y-5">
                   <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Personal Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -491,6 +534,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
               )}
+            </>
+            )}
             </div>
           </div>
         </div>

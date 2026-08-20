@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, UserRound, BriefcaseBusiness, GraduationCap, UserCheck, CalendarDays, CheckCircle2, ClipboardCheck } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, UserRound, BriefcaseBusiness, GraduationCap, UserCheck, CalendarDays, CheckCircle2, ClipboardCheck, TrendingDown } from 'lucide-react';
 
 export type DrawerTrainee = {
   name: string;
@@ -47,67 +48,144 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, rendered]);
 
-  if (!rendered || !displayedTrainee) return null;
+  if (!rendered || !displayedTrainee || typeof window === 'undefined') return null;
 
   const totalAttendance = (displayedTrainee.p || 0) + (displayedTrainee.a || 0);
   const attendanceRate = totalAttendance ? `${(((displayedTrainee.p || 0) / totalAttendance) * 100).toFixed(1)}%` : 'N/A';
-  const status = displayedTrainee.status;
-  const statusClass = displayedTrainee.isLoss
-    ? 'bg-[#ED1C25]/10 text-[#ED1C25]'
-    : 'bg-[#2F6798]/10 text-[#2F6798]';
+  const status = displayedTrainee.status || (displayedTrainee.isEndorsed ? 'Endorsed' : displayedTrainee.isLoss ? 'Loss' : 'Active');
+  
+  const statusColor = displayedTrainee.isLoss ? 'bg-destructive text-white' : 'bg-emerald-500 text-white';
+  const roleColor = 'bg-primary text-white';
 
   const information = [
-    ['Full Name', displayedTrainee.name, UserRound],
-    ['Batch', displayedTrainee.batchName, BriefcaseBusiness],
-    ['Account / Client', displayedTrainee.accountName, BriefcaseBusiness],
-    ['Training', displayedTrainee.trainingType, GraduationCap],
-    ['Trainer', displayedTrainee.assignedTrainer || 'Not assigned', UserCheck],
-    ...(status ? [['Status', status, CheckCircle2] as const] : []),
+    { section: 'TRAINEE INFORMATION', items: [
+      { label: 'Full Name', value: displayedTrainee.name, icon: UserRound },
+      { label: 'Batch', value: displayedTrainee.batchName, icon: BriefcaseBusiness },
+      { label: 'Account / Client', value: displayedTrainee.accountName, icon: BriefcaseBusiness },
+      { label: 'Training Type', value: displayedTrainee.trainingType, icon: GraduationCap },
+      { label: 'Assigned Trainer', value: displayedTrainee.assignedTrainer || 'Not assigned', icon: UserCheck },
+    ]},
+    { section: 'PERFORMANCE METRICS', items: [
+      displayedTrainee.headcount !== undefined ? 
+        { label: 'Batch Headcount', value: String(displayedTrainee.headcount), icon: UserRound } :
+        { label: 'Attendance Rate', value: attendanceRate, icon: CalendarDays },
+      
+      displayedTrainee.headcount !== undefined ? 
+        { label: 'Batch Attrition', value: displayedTrainee.attritionRate || '0.0%', icon: TrendingDown } :
+        { label: 'Present / Absent', value: `${displayedTrainee.p || 0} / ${displayedTrainee.a || 0}`, icon: ClipboardCheck },
+    ]}
   ];
 
-  return (
-    <div className={`fixed inset-0 z-50 ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}>
-      <button aria-label="Close trainee details" onClick={onClose} className={`absolute inset-0 bg-slate-900/10 dark:bg-black/30 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`} />
-      <aside role="dialog" aria-modal="true" aria-label={`${displayedTrainee.name} details`} className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-250 ease-out sm:w-[min(440px,calc(100%-2rem))] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}`}>
-        <header className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/70 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <h2 className="truncate text-lg font-bold text-slate-800 dark:text-slate-100">{displayedTrainee.name}</h2>
-                {status && <span className={`rounded-full px-2.5 py-1 text-[0.65rem] font-bold uppercase ${statusClass}`}>{status}</span>}
-              </div>
-              <p className="text-sm font-medium text-[#2F6798]">{displayedTrainee.batchName}</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{displayedTrainee.accountName}</p>
-            </div>
-            <button type="button" onClick={onClose} aria-label="Close trainee details" className="rounded-lg p-2 text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+  const drawerContent = (
+    <div className={`fixed inset-0 z-[9999] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      {/* Backdrop */}
+      <button aria-label="Close modal" onClick={onClose} className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'} cursor-default`} />
+      
+      {/* Drawer Container */}
+      <aside role="dialog" aria-modal="true" aria-label={`${displayedTrainee.name} details`} className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 ease-out sm:w-[min(500px,calc(100%-2rem))] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}`}>
+        
+        {/* Header - Solid Primary */}
+        <header className="bg-primary px-6 py-4 flex items-center justify-between shrink-0">
+          <h2 className="text-sm font-bold tracking-wide text-white uppercase">Trainee Details</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-white/80 hover:text-white transition-colors focus:outline-none">
+            <X className="h-5 w-5" />
+          </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-5">
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">{displayedTrainee.contextLabel || 'Trainee Information'}</h3>
-            <dl className="divide-y divide-slate-100 dark:divide-slate-700 rounded-xl border border-slate-200 dark:border-slate-700">
-              {information.map(([label, value, Icon]) => {
-                const DetailIcon = Icon as typeof UserRound;
-                return <div key={label as string} className="flex items-center justify-between gap-4 px-4 py-3"><dt className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"><DetailIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{label as string}</dt><dd className="max-w-[58%] text-right text-xs font-semibold text-slate-800 dark:text-slate-100">{value as string}</dd></div>;
-              })}
-            </dl>
-          </section>
-
-          {displayedTrainee.headcount !== undefined ? <section><h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Performance</h3><div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4"><p className="text-[0.65rem] font-bold uppercase text-slate-500 dark:text-slate-400">Headcount</p><p className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{displayedTrainee.headcount}</p></div><div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4"><p className="text-[0.65rem] font-bold uppercase text-slate-500 dark:text-slate-400">Attrition</p><p className="mt-1 text-xl font-bold text-[#ED1C25]">{displayedTrainee.attritionRate || 'N/A'}</p></div></div></section> : <section>
-            <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Performance</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4"><p className="text-[0.65rem] font-bold uppercase text-slate-500 dark:text-slate-400">Attendance</p><p className="mt-1 text-xl font-bold text-[#2F6798]">{attendanceRate}</p></div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4"><p className="text-[0.65rem] font-bold uppercase text-slate-500 dark:text-slate-400">Present / Absent</p><p className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{displayedTrainee.p || 0}<span className="text-sm text-slate-400 dark:text-slate-500"> / </span><span className="text-[#ED1C25]">{displayedTrainee.a || 0}</span></p></div>
-              <div className="col-span-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4"><p className="flex items-center gap-2 text-[0.65rem] font-bold uppercase text-slate-500 dark:text-slate-400"><ClipboardCheck className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Training outcome</p><p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{displayedTrainee.isEndorsed ? 'Endorsed' : displayedTrainee.isLoss ? 'Marked as loss' : 'In progress'}</p></div>
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Profile Section */}
+          <div className="p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 dark:border-slate-700/50">
+            {/* Avatar */}
+            <div className="w-24 h-24 shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 border-4 border-white dark:border-slate-800 shadow-md flex items-center justify-center overflow-hidden">
+              <UserRound className="h-12 w-12 text-slate-400 dark:text-slate-500" />
             </div>
-          </section>}
+            
+            {/* Info & Badges */}
+            <div className="flex-1 flex flex-col items-center sm:items-start text-center sm:text-left">
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{displayedTrainee.name}</h3>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">{displayedTrainee.accountName}</p>
+              
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold shadow-sm ${roleColor}`}>
+                  {displayedTrainee.batchName}
+                </span>
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold shadow-sm ${statusColor}`}>
+                  {status}
+                </span>
+              </div>
+            </div>
+          </div>
 
-          {(displayedTrainee.month || displayedTrainee.quarter) && <p className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"><CalendarDays className="h-4 w-4 text-slate-400 dark:text-slate-500" />Reporting period: {[displayedTrainee.month, displayedTrainee.quarter].filter(Boolean).join(' · ')}</p>}
+          {/* Table-like Info Section */}
+          <div className="p-6 md:p-8 pt-4">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+              
+              {/* Table Header */}
+              <div className="bg-primary px-6 py-3 flex text-xs font-bold text-white tracking-wide">
+                <div className="w-1/2 flex items-center gap-2 uppercase"><span className="opacity-70">ⓘ</span> FIELD</div>
+                <div className="w-1/2 flex items-center gap-2 uppercase"><ClipboardCheck className="h-4 w-4 opacity-70" /> DETAILS</div>
+              </div>
+
+              {/* Sections */}
+              {information.map((section, sIdx) => (
+                <div key={sIdx}>
+                  <div className="bg-slate-50/50 dark:bg-slate-900/30 px-6 py-3 border-b border-slate-100 dark:border-slate-700 text-xs font-bold text-primary dark:text-primary tracking-wide">
+                    {section.section}
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {section.items.map((item, iIdx) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={iIdx} className="flex px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="w-1/2 flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300">
+                            <Icon className="h-4 w-4 text-primary" />
+                            {item.label}
+                          </div>
+                          <div className="w-1/2 flex items-center text-sm font-medium text-slate-800 dark:text-slate-100">
+                            {item.value}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3 mt-6">
+              <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider ml-1">Performance Metrics</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-[#2F6798]">
+                      <UserRound className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Headcount</span>
+                  </div>
+                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                    {displayedTrainee.headcount !== undefined ? displayedTrainee.headcount : 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="flex flex-col p-4 rounded-2xl border border-rose-200 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-950/20 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400">
+                      <TrendingDown className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-rose-600/70 dark:text-rose-400/70 uppercase tracking-wider">Attrition</span>
+                  </div>
+                  <span className="text-2xl font-black text-rose-600 dark:text-rose-400">
+                    {displayedTrainee.attritionRate || '0.0%'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Search, 
   ChevronDown, 
@@ -15,8 +15,10 @@ import {
   ArrowUpDown,
   AlertTriangle,
   Info,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
+import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
 
@@ -24,6 +26,21 @@ type TrainerTab = 'directory' | 'attendance' | 'reliability';
 
 export default function TrainersPage() {
   const [activeTab, setActiveTab] = useState<TrainerTab>('directory');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Simulate initial data fetching delay
+  useEffect(() => {
+    // Note: in a real app, this would be a useEffect data fetch. 
+    // We are simulating it for demonstration.
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -38,8 +55,17 @@ export default function TrainersPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
-            <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" /> Refresh
+          <button 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRefreshing ? (
+              <Loader2 className="w-3.5 h-3.5 text-[#2F6798] animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" />
+            )}
+            Refresh
           </button>
           <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
             <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export
@@ -136,9 +162,17 @@ export default function TrainersPage() {
 
       {/* Dynamic Tab Content Views */}
       <div className="pt-2">
-        {activeTab === 'directory' && <DirectoryView />}
-        {activeTab === 'attendance' && <AttendanceView />}
-        {activeTab === 'reliability' && <ReliabilityView />}
+        {isLoading ? (
+          <TrainersDirectorySkeleton />
+        ) : (
+          <>
+            <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
+              {activeTab === 'directory' && <DirectoryView />}
+              {activeTab === 'attendance' && <AttendanceView />}
+              {activeTab === 'reliability' && <ReliabilityView />}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

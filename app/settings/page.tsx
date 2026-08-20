@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Settings,
   Bell,
@@ -35,11 +35,14 @@ import {
   Zap,
   Server,
 } from 'lucide-react';
+import { useTheme } from '@/components/ThemeProvider';
 
 type SettingsTab = 'general' | 'notifications' | 'thresholds' | 'roles' | 'integrations';
 
 export default function SettingsPage() {
+  const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [isHydrating, setIsHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -90,6 +93,11 @@ export default function SettingsPage() {
     { id: '3', name: 'Phone Tracker DB', purpose: 'Call monitoring and agent activity tracking system', status: 'connected', lastSync: 'Aug 20, 2026 03:45 AM', icon: Activity },
     { id: '4', name: 'SSO / LDAP', purpose: 'Single Sign-On via Active Directory for centralized authentication', status: 'disconnected', lastSync: null, icon: ShieldAlert },
   ]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsHydrating(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const markUnsaved = useCallback(() => {
     setHasUnsavedChanges(true);
@@ -187,17 +195,18 @@ export default function SettingsPage() {
           )}
           <button
             onClick={handleReset}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-all"
+            disabled={isHydrating || saving}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            {isHydrating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" /> : <RotateCcw className="w-3.5 h-3.5" />}
             Reset to Default
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-all disabled:opacity-70"
+            disabled={isHydrating || saving}
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {saving ? (
+            {isHydrating || saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : showSaved ? (
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -237,8 +246,29 @@ export default function SettingsPage() {
         </div>
 
         <div className="p-6">
-          {/* ────────────── GENERAL ────────────── */}
-          {activeTab === 'general' && (
+          {/* SKELETON RENDER */}
+          {isHydrating ? (
+            <div className="space-y-6 animate-pulse">
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
+                <div className="h-10 w-full max-w-xs bg-slate-200 dark:bg-slate-700 rounded-xl mb-4" />
+                <div className="grid grid-cols-2 gap-3 max-w-xs">
+                  <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                  <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="h-10 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                  <div className="h-10 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ────────────── GENERAL ────────────── */}
+              {activeTab === 'general' && (
             <div className="space-y-6">
               {/* Display Preferences */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
@@ -257,10 +287,14 @@ export default function SettingsPage() {
                       return (
                         <button
                           key={theme.value}
-                          onClick={() => { setPreferences(prev => ({ ...prev, theme: theme.value })); markUnsaved(); }}
+                          onClick={() => { 
+                            setPreferences(prev => ({ ...prev, theme: theme.value })); 
+                            setGlobalTheme(theme.value as 'light' | 'dark');
+                            markUnsaved(); 
+                          }}
                           className={`flex items-center gap-3 p-3.5 rounded-xl border-2 text-xs font-semibold transition-all ${
                             isSelected
-                              ? 'border-[#2F6798] bg-[#2F6798]/5 text-[#2F6798]'
+                              ? 'border-[#2F6798] bg-[#2F6798]/5 text-[#2F6798] dark:border-[#4B8AB8] dark:bg-[#4B8AB8]/10 dark:text-[#4B8AB8]'
                               : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-700/50'
                           }`}
                         >
@@ -797,6 +831,8 @@ export default function SettingsPage() {
                 })}
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

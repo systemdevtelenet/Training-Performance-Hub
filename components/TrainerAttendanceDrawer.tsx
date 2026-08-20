@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
 import { MONTH_ORDER } from '@/lib/analytics-utils';
 
@@ -99,14 +100,14 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
     }
   }, [grouped]);
 
-  if (!rendered || !displayed) return null;
+  if (!rendered || !displayed || typeof window === 'undefined') return null;
 
   const rateNum = parseFloat(displayed.rate);
   const status = getAttendanceStatus(rateNum);
 
-  return (
+  const modalContent = (
     <div
-      className={`fixed inset-0 z-50 ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      className={`fixed inset-0 z-[9999] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}
       role="dialog"
       aria-modal="true"
       aria-label={`${displayed.name} attendance details`}
@@ -114,135 +115,150 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
       <button
         aria-label="Close attendance details"
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/10 dark:bg-black/30 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'} cursor-default`}
       />
-      <aside className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-250 ease-out sm:w-[min(440px,calc(100%-2rem))] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}`}>
-        <header className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/70 p-5 shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Trainer Attendance</p>
-              <h2 className="truncate text-lg font-bold text-slate-800 dark:text-slate-100">{displayed.name}</h2>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Trainer</p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close attendance details"
-              className="rounded-lg p-2 text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 shrink-0"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+      
+      <aside className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-out sm:w-[min(500px,calc(100%-2rem))] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}`}>
+        
+        {/* Header - Solid Primary */}
+        <header className="bg-primary px-6 py-4 flex items-center justify-between shrink-0">
+          <h2 className="text-sm font-bold tracking-wide text-white uppercase">Trainer Attendance Details</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-white/80 hover:text-white transition-colors focus:outline-none">
+            <X className="h-5 w-5" />
+          </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-5">
-          <section>
-            <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Summary</h3>
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-4">
-              <div className="flex items-baseline gap-3">
-                <span className={`text-3xl font-black ${getRateColor(rateNum)}`}>{displayed.rate}</span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Attendance Rate</p>
-                  <span className={`inline-flex items-center gap-1.5 mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${status.color}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
-                    {status.label}
-                  </span>
-                </div>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
-                  style={{ width: `${Math.min(rateNum, 100)}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Present</p>
-                  <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{displayed.present}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Absent</p>
-                  <p className="text-lg font-black text-rose-600 mt-0.5">{displayed.absent}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">SUS</p>
-                  <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{displayed.suspension}</p>
-                </div>
+        <div className="flex-1 overflow-y-auto">
+          {/* Profile Section */}
+          <div className="p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 dark:border-slate-700/50">
+            {/* Avatar */}
+            <div className="w-24 h-24 shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 border-4 border-white dark:border-slate-800 shadow-md flex items-center justify-center overflow-hidden">
+              <span className="text-3xl font-black text-slate-400 dark:text-slate-500">
+                {displayed.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            
+            {/* Info & Badges */}
+            <div className="flex-1 flex flex-col items-center sm:items-start text-center sm:text-left">
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{displayed.name}</h3>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">Trainer</p>
+              
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-1.5 bg-white border ${status.color}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+                  {status.label}
+                </span>
+                <span className="px-4 py-1.5 rounded-full text-xs font-bold shadow-sm bg-primary text-white">
+                  {displayed.rate}% Rate
+                </span>
               </div>
             </div>
-          </section>
+          </div>
 
-          <section>
-            <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Timeline</h3>
-            <div className="space-y-2">
-              {grouped.map(({ quarter, months }) => {
-                const isExpanded = expandedQuarters.has(quarter);
-                const qP = months.reduce((s, m) => s + m.p, 0);
-                const qA = months.reduce((s, m) => s + m.a, 0);
-                const qTotal = qP + qA;
-                const qRate = qTotal > 0 ? ((qP / qTotal) * 100).toFixed(1) : '100.0';
-
-                return (
-                  <div key={quarter} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => toggleQuarter(quarter)}
-                      className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-700/80 transition-colors text-left"
-                      aria-expanded={isExpanded}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                        )}
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{quarter}</span>
-                        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">{months.length} month{months.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <span className="text-xs font-bold text-[#2F6798]">{qRate}%</span>
-                    </button>
-                    {isExpanded && (
-                      <div className="border-t border-slate-100 dark:border-slate-700/50">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                              <th className="text-left px-3 py-2">Month</th>
-                              <th className="text-center px-2 py-2">Present</th>
-                              <th className="text-center px-2 py-2">Absent</th>
-                              <th className="text-center px-2 py-2">SUS</th>
-                              <th className="text-right px-3 py-2">Rate</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                            {months.map(({ month, p, a, sus }) => {
-                              const mTotal = p + a + sus;
-                              const mRate = mTotal > 0 ? ((p / mTotal) * 100).toFixed(1) : '100.0';
-                              return (
-                                <tr key={month} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
-                                  <td className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">{month}</td>
-                                  <td className="px-2 py-2 text-center font-semibold text-slate-800 dark:text-slate-100">{p}</td>
-                                  <td className={`px-2 py-2 text-center font-semibold ${a > 0 ? 'text-rose-500' : 'text-slate-800 dark:text-slate-100'}`}>{a}</td>
-                                  <td className="px-2 py-2 text-center font-semibold text-slate-800 dark:text-slate-100">{sus}</td>
-                                  <td className={`px-3 py-2 text-right font-bold ${parseFloat(mRate) < 80 ? 'text-rose-500' : 'text-[#2F6798]'}`}>
-                                    {mRate}%
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+          <div className="p-6 md:p-8 pt-4 space-y-6">
+            
+            {/* Summary Blocks */}
+            <section>
+              <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Summary</h3>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-4">
+                <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                    style={{ width: `${Math.min(rateNum, 100)}%` }}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Present</p>
+                    <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{displayed.present}</p>
                   </div>
-                );
-              })}
-              {grouped.length === 0 && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 italic py-6 text-center">No attendance records available.</p>
-              )}
-            </div>
-          </section>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Absent</p>
+                    <p className="text-lg font-black text-rose-600 mt-0.5">{displayed.absent}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Suspension</p>
+                    <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{displayed.suspension}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Timeline Sections */}
+            <section>
+              <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Timeline</h3>
+              <div className="space-y-2">
+                {grouped.map(({ quarter, months }) => {
+                  const isExpanded = expandedQuarters.has(quarter);
+                  const qP = months.reduce((s, m) => s + m.p, 0);
+                  const qA = months.reduce((s, m) => s + m.a, 0);
+                  const qTotal = qP + qA;
+                  const qRate = qTotal > 0 ? ((qP / qTotal) * 100).toFixed(1) : '100.0';
+
+                  return (
+                    <div key={quarter} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => toggleQuarter(quarter)}
+                        className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-700/80 transition-colors text-left"
+                        aria-expanded={isExpanded}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                          )}
+                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{quarter}</span>
+                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{months.length} month{months.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <span className="text-sm font-bold text-primary">{qRate}%</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="border-t border-slate-200 dark:border-slate-700">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100/50 dark:bg-slate-900/30">
+                              <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                <th className="text-left px-4 py-3 border-b border-slate-200 dark:border-slate-700">Month</th>
+                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">Present</th>
+                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">Absent</th>
+                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">SUS</th>
+                                <th className="text-right px-4 py-3 border-b border-slate-200 dark:border-slate-700">Rate</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                              {months.map(({ month, p, a, sus }) => {
+                                const mTotal = p + a + sus;
+                                const mRate = mTotal > 0 ? ((p / mTotal) * 100).toFixed(1) : '100.0';
+                                return (
+                                  <tr key={month} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
+                                    <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{month}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-slate-800 dark:text-slate-100">{p}</td>
+                                    <td className={`px-3 py-3 text-center font-semibold ${a > 0 ? 'text-rose-500' : 'text-slate-800 dark:text-slate-100'}`}>{a}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-slate-800 dark:text-slate-100">{sus}</td>
+                                    <td className={`px-4 py-3 text-right font-bold ${parseFloat(mRate) < 80 ? 'text-rose-500' : 'text-[#2F6798]'}`}>
+                                      {mRate}%
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {grouped.length === 0 && (
+                  <p className="text-sm text-slate-400 dark:text-slate-500 italic py-6 text-center">No attendance records available.</p>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       </aside>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

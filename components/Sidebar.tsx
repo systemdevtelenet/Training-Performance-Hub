@@ -41,26 +41,26 @@ export default function Sidebar() {
     <>
       <aside 
         className={cn(
-          "bg-[#2F6798] flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out",
+          "bg-primary text-primary-foreground backdrop-blur-xl border-r border-primary/20 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
         <div>
-          <div className={cn("flex items-center border-b border-white/20 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
+          <div className={cn("flex items-center border-b border-primary/20 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
             {!isCollapsed && (
-              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
-                <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
-                  <Image src="/images/ctnp-logo.png" alt="CTNP" width={36} height={36} className="object-contain" />
+              <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center shadow-md shadow-black/10">
+                  <Image src="/images/ctnp-logo.png" alt="CTNP" width={36} height={36} className="object-contain drop-shadow-sm p-1" />
                 </div>
                 <div className="overflow-hidden min-w-0">
-                  <h2 className="font-bold text-sm text-white tracking-tight whitespace-nowrap truncate">Cebu Tele-Net</h2>
-                  <p className="text-[10px] text-white/70 whitespace-nowrap truncate">Operations Analytics</p>
+                  <h2 className="font-extrabold text-sm text-white tracking-tight whitespace-nowrap truncate">Cebu Tele-Net</h2>
+                  <p className="text-[10px] font-medium text-white/60 whitespace-nowrap truncate uppercase tracking-wider">Operations Analytics</p>
                 </div>
               </div>
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
+              className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
               <Menu className="h-5 w-5 shrink-0" />
@@ -77,14 +77,14 @@ export default function Sidebar() {
                   href={item.href}
                   title={isCollapsed ? item.name : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
                     isCollapsed && "justify-center px-0",
                     isActive
-                      ? "bg-white/20 text-white font-semibold"
-                      : "text-white hover:bg-white/10"
+                      ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
+                      : "text-white/70 hover:bg-white/10 hover:text-white"
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0 text-white" />
+                  <Icon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", isActive ? "text-white" : "text-white/60 group-hover:text-white")} />
                   {!isCollapsed && <span className="truncate">{item.name}</span>}
                 </Link>
               );
@@ -92,19 +92,19 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        <div className="p-3 space-y-1 border-t border-white/20">
+        <div className="p-3 space-y-1 border-t border-primary/20">
           <Link
             href="/profile"
             title={isCollapsed ? "Profile" : undefined}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors",
+              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
               isCollapsed && "justify-center px-0",
               pathname === '/profile'
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
+                ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
+                : "text-white/70 hover:bg-white/10 hover:text-white"
             )}
           >
-            <User className="h-4 w-4 shrink-0 text-white" />
+            <User className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-white" />
             {!isCollapsed && <span>Profile</span>}
           </Link>
 
@@ -112,14 +112,14 @@ export default function Sidebar() {
             href="/settings"
             title={isCollapsed ? "Settings" : undefined}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors",
+              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
               isCollapsed && "justify-center px-0",
               pathname === '/settings'
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
+                ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
+                : "text-white/70 hover:bg-white/10 hover:text-white"
             )}
           >
-            <Settings className="h-4 w-4 shrink-0 text-white" />
+            <Settings className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-white" />
             {!isCollapsed && <span>Settings</span>}
           </Link>
 
@@ -127,16 +127,16 @@ export default function Sidebar() {
             onClick={() => setShowLogoutModal(true)}
             title={isCollapsed ? "Logout" : undefined}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-white hover:bg-white/10 transition-colors text-left",
+              "group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-white/70 hover:bg-red-500/20 hover:text-red-100 transition-all duration-200 text-left hover:scale-[1.02]",
               isCollapsed && "justify-center px-0"
             )}
           >
-            <LogOut className="h-4 w-4 shrink-0 text-white" />
+            <LogOut className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-red-300" />
             {!isCollapsed && <span>Logout</span>}
           </button>
 
-          <div className={cn("pt-4 pb-2 px-3 flex items-center gap-2 text-xs text-white", isCollapsed && "justify-center px-0")}>
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <div className={cn("pt-4 pb-2 px-3 flex items-center gap-2 text-xs font-semibold text-white/60", isCollapsed && "justify-center px-0")}>
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
             {!isCollapsed && <span className="truncate">Live Systems Connected</span>}
           </div>
         </div>
