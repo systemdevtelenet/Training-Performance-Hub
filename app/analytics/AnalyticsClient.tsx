@@ -51,13 +51,13 @@ export default function AnalyticsPage() {
       {/* 1. Header & Filters */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Analytics Trends</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Showing: <span className="text-slate-700 font-bold">Jan–Aug 2026 &middot; All Accounts</span></p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Analytics Trends</h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">Jan–Aug 2026 &middot; All Accounts</span></p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <select className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
+            <select className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
               <option>All Quarters</option>
               <option>Q1 2026</option>
               <option>Q2 2026</option>
@@ -66,13 +66,13 @@ export default function AnalyticsPage() {
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
           <div className="relative">
-            <select className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
+            <select className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
               <option>All Months</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
           <div className="relative">
-            <select className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
+            <select className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer">
               <option>All Client Accounts</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -82,10 +82,10 @@ export default function AnalyticsPage() {
             <input 
               type="text" 
               placeholder="Search..."
-              className="bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs w-48"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs w-48"
             />
           </div>
-          <button className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 p-2 rounded-lg transition-colors shadow-xs" title="Reset Filters">
+          <button className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 p-2 rounded-lg transition-colors shadow-xs" title="Reset Filters">
             <RefreshCcw className="w-4 h-4" />
           </button>
         </div>
@@ -99,11 +99,11 @@ export default function AnalyticsPage() {
           { label: 'Total Losses', val: '25', trend: '↓ 8', trendLabel: 'vs prev quarter', isGood: true },
           { label: 'Active HC', val: '117', trend: '+12', trendLabel: 'vs prev quarter', isGood: true, neutral: true },
         ].map((kpi, idx) => (
-          <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+          <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110 pointer-events-none" />
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative z-10">{kpi.label}</p>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider relative z-10">{kpi.label}</p>
             <div className="mt-2 flex items-baseline gap-3 relative z-10">
-              <span className="text-3xl font-black text-slate-900 tracking-tight">{kpi.val}</span>
+              <span className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{kpi.val}</span>
             </div>
             <div className="mt-3 flex items-center gap-1.5 relative z-10">
               <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-1.5 py-0.5 rounded-md ${
@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
                 {!kpi.isGood && !kpi.neutral ? (kpi.trend.includes('↑') ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />) : null}
                 {kpi.trend}
               </span>
-              <span className="text-[10px] font-medium text-slate-400">{kpi.trendLabel}</span>
+              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{kpi.trendLabel}</span>
             </div>
           </div>
         ))}
@@ -123,7 +123,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         <div className="xl:col-span-9 space-y-6">
           {/* 3. Department Performance Chart */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 group cursor-pointer transition-shadow hover:shadow-md relative">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 group cursor-pointer transition-shadow hover:shadow-md relative">
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
               <span className="text-xs font-bold text-[#2F6798] bg-blue-50/50 px-3 py-1.5 rounded-lg flex items-center gap-1 border border-blue-100 shadow-xs">
                 ↗ Expand Chart
@@ -132,17 +132,17 @@ export default function AnalyticsPage() {
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:pr-24">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Department Performance</h3>
-                <p className="text-xs font-medium text-slate-500 mt-1">Comparing Inhouse vs PST trajectory</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Department Performance</h3>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Comparing Inhouse vs PST trajectory</p>
               </div>
               
-              <div className="flex bg-slate-100 p-1 rounded-lg shrink-0">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shrink-0">
                 {['Attrition', 'Attendance', 'Losses', 'Active HC'].map(m => (
                   <button 
                     key={m}
                     onClick={(e) => { e.stopPropagation(); setMetric(m as any); }}
                     className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${
-                      metric === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      metric === m ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     {m}
@@ -200,18 +200,18 @@ export default function AnalyticsPage() {
           </div>
 
           {/* 4. Period Breakdown Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="text-sm font-bold text-slate-800">Period Breakdown</h3>
-              <div className="flex bg-slate-200/60 p-0.5 rounded-lg">
-                <button className="px-3 py-1 bg-white shadow-xs rounded-md text-xs font-bold text-slate-800">Monthly</button>
-                <button className="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">Quarterly</button>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Period Breakdown</h3>
+              <div className="flex bg-slate-200/60 dark:bg-slate-800 p-0.5 rounded-lg">
+                <button className="px-3 py-1 bg-white dark:bg-slate-700 shadow-xs rounded-md text-xs font-bold text-slate-800 dark:text-slate-100">Monthly</button>
+                <button className="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Quarterly</button>
               </div>
             </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <thead className="bg-slate-50/80 dark:bg-slate-800/50 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                   <tr>
                     <th className="px-5 py-3 cursor-pointer hover:bg-slate-100 transition-colors">
                       <div className="flex items-center gap-1">Period <ArrowUpDown className="w-3 h-3" /></div>
@@ -230,29 +230,29 @@ export default function AnalyticsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                   {mockMonthlyData.map((row, idx) => {
                     const isBadAttrition = row.totalAttr > 15;
                     const isAttentionAttrition = row.totalAttr > 10 && row.totalAttr <= 15;
                     return (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-5 py-4 font-bold text-slate-900">{row.period} 2026</td>
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-5 py-4 font-bold text-slate-900 dark:text-slate-100">{row.period} 2026</td>
                         <td className="px-5 py-4 text-center font-bold">{row.totalHC}</td>
                         <td className="px-5 py-4 text-center">
                           <span className={row.totalLoss > 3 ? 'text-rose-600 font-bold' : ''}>{row.totalLoss}</span>
                         </td>
                         <td className="px-5 py-4 text-center">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold ${
-                            isBadAttrition ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                            isAttentionAttrition ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                            'text-slate-800'
+                            isBadAttrition ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800' :
+                            isAttentionAttrition ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' :
+                            'text-slate-800 dark:text-slate-200'
                           }`}>
                             {isBadAttrition && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
                             {isAttentionAttrition && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
                             {row.totalAttr.toFixed(1)}%
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-right font-bold text-slate-800">
+                        <td className="px-5 py-4 text-right font-bold text-slate-800 dark:text-slate-200">
                           {row.totalAttd.toFixed(1)}%
                         </td>
                       </tr>
@@ -311,8 +311,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-500" />
               Periods Requiring Attention
             </h3>
@@ -324,17 +324,19 @@ export default function AnalyticsPage() {
                 { period: 'February 2026', title: 'PST Attrition: 21.4%', subtitle: 'Losses: 3 · Active HC: 31', status: 'attention' },
               ].map((risk, idx) => (
                 <div key={idx} className={`p-4 rounded-xl border flex items-start gap-3 transition-colors cursor-default ${
-                  risk.status === 'critical' ? 'bg-rose-50/50 border-rose-100 hover:bg-rose-50' : 'bg-amber-50/50 border-amber-100 hover:bg-amber-50'
+                  risk.status === 'critical' 
+                    ? 'bg-rose-50/50 border-rose-100 hover:bg-rose-50 dark:bg-rose-900/10 dark:border-rose-900/30 dark:hover:bg-rose-900/20' 
+                    : 'bg-amber-50/50 border-amber-100 hover:bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/30 dark:hover:bg-amber-900/20'
                 }`}>
                   <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 shadow-sm ${
                     risk.status === 'critical' ? 'bg-rose-500' : 'bg-amber-500'
                   }`} />
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">{risk.period}</h4>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{risk.period}</h4>
                     <p className={`text-[11px] font-bold mt-1 ${
-                      risk.status === 'critical' ? 'text-rose-700' : 'text-amber-700'
+                      risk.status === 'critical' ? 'text-rose-700 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'
                     }`}>{risk.title}</p>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">{risk.subtitle}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{risk.subtitle}</p>
                   </div>
                 </div>
               ))}

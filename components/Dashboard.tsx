@@ -5,6 +5,7 @@ import { Search, ChevronDown, CalendarDays, Calendar, Building2 } from 'lucide-r
 
 import { getFilteredData, generateTrendAnalytics, MONTH_ORDER } from '@/lib/analytics-utils';
 import { ExecutiveSummaryView } from '@/components/ExecutiveSummaryView';
+import KpiCards from '@/components/KpiCards';
 
 import dummyPayload from '@/data/dashboard-mock.json';
 
@@ -36,6 +37,9 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Executive Summary</h2>
         </div>
       </div>
+
+      {/* KPI Cards Row */}
+      <KpiCards />
 
       {/* Global Filter Bar */}
       <div className="grid grid-cols-1 gap-4 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.15)] relative overflow-hidden">

@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { 
-  LayoutDashboard, 
-  Users, 
-  UserCheck, 
-  BarChart, 
+import {
+  LayoutDashboard,
+  Users,
+  UserCheck,
+  BarChart,
   Sparkles,
   User,
   Settings,
   LogOut,
   X,
-  Menu
+  Menu,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +25,7 @@ const navItems = [
   { name: 'Trainers', href: '/trainers', icon: UserCheck },
   { name: 'Analytics Trends', href: '/analytics', icon: BarChart },
   { name: 'AI Insights', href: '/ai-insights', icon: Sparkles },
+  { name: 'Activity Log', href: '/history', icon: ClipboardList },
 ];
 
 export default function Sidebar() {
@@ -37,16 +39,22 @@ export default function Sidebar() {
     router.push('/login');
   };
 
+  useEffect(() => {
+    const handleOpenLogout = () => setShowLogoutModal(true);
+    window.addEventListener('open-logout-modal', handleOpenLogout);
+    return () => window.removeEventListener('open-logout-modal', handleOpenLogout);
+  }, []);
+
   return (
     <>
-      <aside 
+      <aside
         className={cn(
-          "bg-primary text-primary-foreground backdrop-blur-xl border-r border-primary/20 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
+          "bg-primary dark:bg-slate-950 text-primary-foreground backdrop-blur-xl border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
         <div>
-          <div className={cn("flex items-center border-b border-primary/20 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
+          <div className={cn("flex items-center border-b border-primary/20 dark:border-slate-800 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
             {!isCollapsed && (
               <div className="flex items-center gap-3 overflow-hidden min-w-0">
                 <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center shadow-md shadow-black/10">
@@ -92,7 +100,7 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        <div className="p-3 space-y-1 border-t border-primary/20">
+        <div className="p-3 space-y-1 border-t border-primary/20 dark:border-slate-800">
           <Link
             href="/profile"
             title={isCollapsed ? "Profile" : undefined}
@@ -158,9 +166,14 @@ export default function Sidebar() {
 
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Logout</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                Are you sure you want to logout?
-              </p>
+              <div className="flex flex-col gap-1 text-center text-slate-500 dark:text-slate-400">
+                <span className="text-sm font-medium">
+                  Are you sure you want to logout?
+                </span>
+                <span className="text-xs font-normal leading-relaxed">
+                  You will need to sign in again to access the dashboard.
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">

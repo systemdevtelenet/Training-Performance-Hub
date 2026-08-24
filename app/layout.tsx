@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ThemeProvider from '@/components/ThemeProvider';
+import AiCopilotDrawer from '@/components/AiCopilotDrawer';
 
 const poppins = Poppins({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700'] });
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           )}
+          <AiCopilotDrawer />
         </ThemeProvider>
       </body>
     </html>
