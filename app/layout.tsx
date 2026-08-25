@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           )}
-          <AiCopilotDrawer />
+          {!isLoginPage && <AiCopilotDrawer />}
         </ThemeProvider>
       </body>
     </html>

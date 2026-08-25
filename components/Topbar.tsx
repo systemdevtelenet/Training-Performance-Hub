@@ -143,7 +143,7 @@ export default function Topbar() {
             <div className="absolute right-0 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
               <div className="border-b border-slate-100 p-4 dark:border-slate-800">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">N. Reguero</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Operations Analytics</p>
+                <p className="text-[0.65rem] text-slate-500 dark:text-slate-400">Operations Analytics</p>
               </div>
               <div className="p-2 space-y-1">
                 <button 
@@ -151,7 +151,7 @@ export default function Topbar() {
                     router.push('/profile');
                     setIsProfileOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
                 >
                   <User className="h-4 w-4 text-slate-400" />
                   My Profile
@@ -161,7 +161,7 @@ export default function Topbar() {
                     window.dispatchEvent(new Event('open-ai-copilot'));
                     setIsProfileOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
                 >
                   <HelpCircle className="h-4 w-4 text-slate-400" />
                   Help & Support
@@ -171,7 +171,7 @@ export default function Topbar() {
                     router.push('/settings');
                     setIsProfileOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
                 >
                   <Settings className="h-4 w-4 text-slate-400" />
                   Settings
@@ -183,7 +183,7 @@ export default function Topbar() {
                     window.dispatchEvent(new Event('open-logout-modal'));
                     setIsProfileOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
                   <LogOut className="h-4 w-4" />
                   Logout

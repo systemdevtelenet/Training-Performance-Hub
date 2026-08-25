@@ -60,31 +60,37 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
       {/* Left Column */}
       <div className="flex flex-col gap-5">
         <Card className="rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] dark:shadow-none ring-0 transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-          <h3 className="mb-5 flex items-center gap-2.5 border-b border-slate-100/80 dark:border-slate-700/80 pb-3 text-lg font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">
+          <h3 className="mb-5 flex items-center gap-2.5 border-b border-slate-100/80 dark:border-slate-700/80 pb-3 text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">
             <LayoutDashboard className="h-5 w-5 text-primary" /> Executive Performance Overview
           </h3>
 
           <div className="grid grid-cols-3 gap-3 mb-5 text-center">
             <div className="group flex flex-col items-center bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-900/80 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300">
               <Text className="text-[0.65rem] uppercase font-extrabold text-slate-500 dark:text-slate-400 tracking-wider">Headcount</Text>
-              <div className="mt-2 mb-1 h-8 w-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <UsersRound className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-8 w-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <UsersRound className="h-4 w-4 text-primary" />
+                </div>
+                <Metric className="text-2xl font-black text-slate-800 dark:text-slate-100">{data.summary.totalHeadcount}</Metric>
               </div>
-              <Metric className="text-2xl font-black text-slate-800 dark:text-slate-100">{data.summary.totalHeadcount}</Metric>
             </div>
             <div className="group flex flex-col items-center bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-900/80 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300">
               <Text className="text-[0.65rem] uppercase font-extrabold text-slate-500 dark:text-slate-400 tracking-wider">Losses</Text>
-              <div className="mt-2 mb-1 h-8 w-8 rounded-full bg-destructive/10 dark:bg-destructive/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <TrendingDown className="h-4 w-4 text-destructive" />
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-8 w-8 rounded-full bg-destructive/10 dark:bg-destructive/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <TrendingDown className="h-4 w-4 text-destructive" />
+                </div>
+                <Metric className="text-2xl font-black text-destructive">{data.summary.totalLosses}</Metric>
               </div>
-              <Metric className="text-2xl font-black text-destructive">{data.summary.totalLosses}</Metric>
             </div>
             <div className="group flex flex-col items-center bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-900/80 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300">
               <Text className="text-[0.65rem] uppercase font-extrabold text-slate-500 dark:text-slate-400 tracking-wider">Global Attrition</Text>
-              <div className="mt-2 mb-1 h-8 w-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Percent className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-8 w-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Percent className="h-4 w-4 text-primary" />
+                </div>
+                <Metric className="text-2xl font-black text-primary">{data.summary.globalRate}</Metric>
               </div>
-              <Metric className="text-2xl font-black text-primary">{data.summary.globalRate}</Metric>
             </div>
           </div>
 
@@ -124,7 +130,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
 
         {activeBatches.length > 0 && (
           <Card className="rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] dark:shadow-none ring-0">
-            <h3 className="mb-4 flex items-center gap-2.5 text-lg font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><ListTree className="h-5 w-5 text-primary" />Active Accounts & Batches in Training</h3>
+            <h3 className="mb-4 flex items-center gap-2.5 text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><ListTree className="h-5 w-5 text-primary" />Active Accounts & Batches in Training</h3>
             <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase font-bold text-[0.65rem]">
@@ -168,13 +174,13 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
       {/* Right Column */}
       <div className="flex flex-col gap-5">
         <section className="rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] dark:shadow-none">
-          <h3 className="mb-3 flex items-center gap-2.5 text-lg font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><LineChart className="h-5 w-5 text-primary" />Performance Trajectory Charts</h3>
+          <h3 className="mb-3 flex items-center gap-2.5 text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><LineChart className="h-5 w-5 text-primary" />Performance Trajectory Charts</h3>
           <AnalyticsChart title="Quarterly Attrition Trajectory" data={trendData.overall.quarters} />
           <AnalyticsChart title="Monthly Attrition Trajectory" data={trendData.overall.months} />
         </section>
 
         <Card className="rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] dark:shadow-none ring-0">
-          <h3 className="mb-4 flex items-center gap-2.5 text-lg font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><Table2 className="h-5 w-5 text-secondary" />Quarterly Analytics Breakdown</h3>
+          <h3 className="mb-4 flex items-center gap-2.5 text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight"><Table2 className="h-5 w-5 text-secondary" />Quarterly Analytics Breakdown</h3>
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase font-bold text-[0.65rem]">
               <tr>

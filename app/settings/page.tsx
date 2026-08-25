@@ -34,24 +34,44 @@ import {
   FileText,
   Zap,
   Server,
+  User,
+  Lock,
+  Edit3,
+  Trash2,
+  Camera,
+  Upload,
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
-type SettingsTab = 'general' | 'notifications' | 'thresholds' | 'roles' | 'integrations';
+type SettingsTab = 'profile' | 'security' | 'general' | 'notifications' | 'thresholds' | 'roles' | 'integrations';
 
 export default function SettingsPage() {
   const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [isHydrating, setIsHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
 
   const [preferences, setPreferences] = useState({
     theme: 'light',
     timezone: 'Asia/Manila',
     dateFormat: 'MM/DD/YYYY',
+  });
+
+  const [profile, setProfile] = useState({
+    firstName: 'Nissi-Jeh',
+    middleName: 'Nissi-Jeh',
+    lastName: 'Reguero',
+    suffix: 'N/A',
+    employeeId: 'CTN-80429',
+    systemRole: 'Admin',
+    mobileNo: '+63 912 345 6789',
+    homeAddress: 'Cebu City, Philippines'
   });
 
   const initialPrefsRef = useRef(preferences);
@@ -160,11 +180,13 @@ export default function SettingsPage() {
     setShowSaved(false);
   };
 
-  const tabs: { key: SettingsTab; label: string; icon: typeof Settings }[] = [
-    { key: 'general', label: 'General', icon: Settings },
-    { key: 'notifications', label: 'Notifications', icon: Bell },
+  const tabs: { key: SettingsTab; label: string; icon: any }[] = [
+    { key: 'profile', label: 'Profile Information', icon: User },
+    { key: 'security', label: 'Security', icon: Shield },
+    { key: 'notifications', label: 'Notification', icon: Bell },
+    { key: 'roles', label: 'Roles & Permissions', icon: Users },
+    { key: 'general', label: 'Preferences', icon: Settings },
     { key: 'thresholds', label: 'KPI Thresholds', icon: ShieldAlert },
-    { key: 'roles', label: 'User Roles', icon: Users },
     { key: 'integrations', label: 'Integrations', icon: Link2 },
   ];
 
@@ -226,26 +248,30 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Settings Navigation */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-slate-100 dark:border-slate-700 scrollbar-none">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 py-3.5 px-5 text-xs font-semibold whitespace-nowrap transition-all border-b-2 shrink-0 ${
-                activeTab === tab.key
-                  ? 'border-[#2F6798] text-[#2F6798]'
-                  : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-700/50'
-              }`}
-            >
-              <tab.icon className="w-3.5 h-3.5" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Main Settings Layout */}
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Sidebar Navigation */}
+        <div className="w-full md:w-64 shrink-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm p-3 h-fit">
+          <nav className="flex flex-col space-y-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-3 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <tab.icon className={`w-4 h-4 ${activeTab === tab.key ? 'text-[#2F6798]' : 'text-slate-400'}`} />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <div className="p-6">
+        {/* Content Area */}
+        <div className="flex-1 min-w-0">
           {/* SKELETON RENDER */}
           {isHydrating ? (
             <div className="space-y-6 animate-pulse">
@@ -267,6 +293,146 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
+              {/* ────────────── PROFILE ────────────── */}
+              {activeTab === 'profile' && (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                      {isEditingProfile ? 'Edit Profile Information' : 'Profile Information'}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Allows users to view and update their personal account details, contact info, and security credentials.</p>
+                  </div>
+                  
+                  {/* Hero Card */}
+                  <div className="bg-[#2F6798] rounded-[24px] p-5 max-w-[95%] mx-auto shadow-xl relative flex flex-col md:flex-row items-center gap-8">
+                    {/* Background decorations */}
+                    <div className="absolute inset-0 rounded-[24px] overflow-hidden pointer-events-none">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+                      <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
+                    </div>
+                    
+                    <div className="relative shrink-0">
+                      <div className="w-32 h-32 rounded-full border-[4px] border-white/20 bg-white/10 p-2 backdrop-blur-sm relative">
+                        <div className="w-full h-full rounded-full bg-slate-200 overflow-hidden flex items-center justify-center">
+                          <User className="w-12 h-12 text-slate-400" />
+                        </div>
+                        {isEditingProfile && (
+                          <>
+                            <button 
+                              onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                              className="absolute bottom-0 right-0 w-8 h-8 bg-slate-800 hover:bg-slate-700 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md transition-colors z-10"
+                            >
+                              <Camera className="w-4 h-4" />
+                            </button>
+                            {showAvatarDropdown && (
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-20 overflow-hidden">
+                                <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
+                                  <Upload className="w-3.5 h-3.5" />
+                                  Upload Photo
+                                </button>
+                                <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Remove Photo
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="relative text-white flex-1 text-center md:text-left">
+                      <h2 className="text-xl md:text-2xl font-black tracking-tight mb-2">Nissi-Jeh Reguero</h2>
+                      <p className="text-base font-medium text-white/90 mb-1">Head of Training Admin</p>
+                      <p className="text-sm font-medium text-white/70 mb-4">n.reguero@cebutele.net</p>
+                      
+                      <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 pt-3 border-t border-white/20">
+                        <div className="bg-white/10 rounded-xl px-3 py-1.5 backdrop-blur-sm border border-white/10">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Employee ID</p>
+                          <p className="text-sm font-medium text-white">CTN-80429</p>
+                        </div>
+                        <div className="bg-white/10 rounded-xl px-3 py-1.5 backdrop-blur-sm border border-white/10">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Department</p>
+                          <p className="text-sm font-medium text-white">Operations Training</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-center justify-center max-w-md mx-auto py-2">
+                    <button onClick={() => { setIsEditingProfile(!isEditingProfile); setShowAvatarDropdown(false); }} className="flex-1 w-full bg-[#2F6798] hover:bg-[#24527a] text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md shadow-[#2F6798]/20 transition-all flex items-center justify-center gap-2">
+                      <Edit3 className="w-4 h-4" />
+                      {isEditingProfile ? 'Cancel Edit' : 'Edit Profile'}
+                    </button>
+                    <button onClick={() => setShowDeleteDialog(true)} className="flex-1 w-full bg-rose-600 hover:bg-rose-700 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-2">
+                      <Trash2 className="w-4 h-4" />
+                      Delete Account
+                    </button>
+                  </div>
+
+                  {/* Form */}
+                  <div className="mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">First name</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.firstName} onChange={(e) => { setProfile({...profile, firstName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Middle Name</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.middleName} onChange={(e) => { setProfile({...profile, middleName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Last Name</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.lastName} onChange={(e) => { setProfile({...profile, lastName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Suffix Name</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.suffix} onChange={(e) => { setProfile({...profile, suffix: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                      
+                      {/* Read-Only Displays */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Employee ID</label>
+                        <input type="text" readOnly value={profile.employeeId} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default pointer-events-none" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">System Role</label>
+                        <input type="text" readOnly value={profile.systemRole} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default pointer-events-none" />
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Mobile No.</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.mobileNo} onChange={(e) => { setProfile({...profile, mobileNo: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Home Address</label>
+                        <input type="text" readOnly={!isEditingProfile} value={profile.homeAddress} onChange={(e) => { setProfile({...profile, homeAddress: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────── SECURITY ────────────── */}
+              {activeTab === 'security' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Security Settings</h3>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Manage your password and two-factor authentication.</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-4">Change Password</h4>
+                    <div className="space-y-4 max-w-md">
+                      <input type="password" placeholder="Current Password" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
+                      <input type="password" placeholder="New Password" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
+                      <button className="bg-slate-800 dark:bg-slate-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold mt-2">Update Password</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ────────────── GENERAL ────────────── */}
               {activeTab === 'general' && (
             <div className="space-y-6">
@@ -840,33 +1006,80 @@ export default function SettingsPage() {
       {/* ────────────── RESET CONFIRMATION DIALOG ────────────── */}
       {showResetDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Reset settings confirmation">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">Reset Settings?</h3>
-              <button onClick={() => setShowResetDialog(false)} className="p-1 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close">
-                <X className="w-4 h-4" />
-              </button>
+          <div className="bg-white dark:bg-slate-800 rounded-[28px] p-6 max-w-[320px] w-full shadow-2xl relative">
+            {/* Close Button */}
+            <button onClick={() => setShowResetDialog(false)} className="absolute top-4 right-4 p-2 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close">
+              <X className="w-4 h-4" />
+            </button>
+            
+            {/* Icon */}
+            <div className="w-16 h-16 mx-auto bg-[#2F6798] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#2F6798]/30 mt-4 mb-5">
+              <AlertTriangle className="w-8 h-8" />
             </div>
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-              </div>
-              <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+            
+            {/* Text Content */}
+            <div className="text-center space-y-1.5 mb-8">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Reset Settings?</h3>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-relaxed px-2 mt-2">
                 This will restore all configurable settings to their default values. Your current customizations will be lost.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-2.5 pt-1">
+            
+            {/* Actions */}
+            <div className="flex justify-center gap-3">
               <button
                 onClick={() => setShowResetDialog(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmReset}
-                className="px-4 py-2 rounded-xl bg-[#2F6798] text-white text-xs font-bold hover:bg-[#24527a] transition-colors"
+                className="px-6 py-2.5 rounded-full bg-[#2F6798] hover:bg-[#24527a] text-white text-sm font-bold shadow-md shadow-[#2F6798]/20 transition-colors"
               >
-                Reset Settings
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────── DELETE ACCOUNT CONFIRMATION DIALOG ────────────── */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Delete account confirmation">
+          <div className="bg-white dark:bg-slate-800 rounded-[28px] p-6 max-w-[320px] w-full shadow-2xl relative">
+            {/* Close Button */}
+            <button onClick={() => setShowDeleteDialog(false)} className="absolute top-4 right-4 p-2 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close">
+              <X className="w-4 h-4" />
+            </button>
+            
+            {/* Icon */}
+            <div className="w-16 h-16 mx-auto bg-rose-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-rose-600/30 mt-4 mb-5">
+              <Trash2 className="w-8 h-8" />
+            </div>
+            
+            {/* Text Content */}
+            <div className="text-center space-y-1.5 mb-8">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Delete Account</h3>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-2">Are you sure you want to delete this account?</p>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed px-2">
+                User access to Training Performance Hub will be revoked. Historical logs and metrics will be kept for records.
+              </p>
+            </div>
+            
+            {/* Actions */}
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold shadow-md shadow-rose-600/20 transition-colors"
+              >
+                Delete
               </button>
             </div>
           </div>

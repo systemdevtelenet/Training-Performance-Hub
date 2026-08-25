@@ -63,14 +63,14 @@ export default function DateFilter() {
                     setSelectedRange(option);
                     setIsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs text-left transition-colors ${
                     selectedRange === option
                       ? 'bg-blue-100 text-[#2F6798] dark:bg-blue-900/40 dark:text-blue-400 font-bold'
                       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/80 font-medium'
                   }`}
                 >
-                  <span>{option}</span>
-                  {selectedRange === option && <Check className="h-3.5 w-3.5" />}
+                  <span className="flex-1 pr-2 leading-snug">{option}</span>
+                  {selectedRange === option && <Check className="h-3.5 w-3.5 shrink-0" />}
                 </button>
               ))}
             </div>
@@ -81,7 +81,7 @@ export default function DateFilter() {
             {/* Header row: Title and Calendar Icon */}
             <div className="flex items-start justify-between mb-6">
               <div className="flex flex-col gap-2 mt-1">
-                <h2 className="text-xl leading-none font-black text-slate-900 dark:text-slate-50 tracking-tight">Select Date</h2>
+                <h2 className="text-lg leading-none font-black text-slate-900 dark:text-slate-50 tracking-tight">Select Date</h2>
                 
                 <div className="flex gap-2">
                   {/* Month Dropdown */}
