@@ -32,3 +32,12 @@ create table if not exists trainers (
 
 create index if not exists trainees_name_idx on trainees (name);
 create index if not exists trainers_name_idx on trainers (name);
+
+create table if not exists activity_logs (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text not null,
+  icon_type text not null,
+  author text not null,
+  created_at timestamptz default now()
+);

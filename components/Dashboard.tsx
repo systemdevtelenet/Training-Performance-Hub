@@ -6,20 +6,19 @@ import { Search, ChevronDown, CalendarDays, Calendar, Building2 } from 'lucide-r
 import { getFilteredData, generateTrendAnalytics, MONTH_ORDER } from '@/lib/analytics-utils';
 import { ExecutiveSummaryView } from '@/components/ExecutiveSummaryView';
 import KpiCards from '@/components/KpiCards';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
-import dummyPayload from '@/data/dashboard-mock.json';
-
-export default function Dashboard() {
+export default function Dashboard({ initialData }: { initialData: any }) {
   const [filters, setFilters] = useState({ month: 'ALL', quarter: 'ALL', account: 'ALL', search: '' });
 
   const processedData = useMemo(() => {
     try {
-      if (!dummyPayload) {
-        console.warn('dummyPayload is not available');
+      if (!initialData) {
+        console.warn('initialData is not available');
         return { trendData: { inhouse: { months: [], quarters: [] }, pst: { months: [], quarters: [] }, overall: { months: [], quarters: [] } } };
       }
-      const filtered = getFilteredData(dummyPayload, filters);
-      const trendData = generateTrendAnalytics(dummyPayload, filters);
+      const filtered = getFilteredData(initialData, filters);
+      const trendData = generateTrendAnalytics(initialData, filters);
       return { ...filtered, trendData };
     } catch (error) {
       console.error('Error processing data:', error);
@@ -42,36 +41,47 @@ export default function Dashboard() {
       <KpiCards />
 
       {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 gap-4 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.15)] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-secondary/5 dark:from-primary/10 dark:to-secondary/10 pointer-events-none" />
+      <div className="grid grid-cols-1 gap-4 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.15)] relative z-20">
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/5 to-secondary/5 dark:from-primary/10 dark:to-secondary/10 pointer-events-none" />
         <div className="relative z-10">
           <label htmlFor="quarter" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><CalendarDays className="h-3.5 w-3.5 text-primary" />Quarter</label>
-          <div className="relative group">
-            <select id="quarter" value={filters.quarter} onChange={(e) => setFilters(prev => ({ ...prev, quarter: e.target.value }))} className="h-11 w-full appearance-none rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-4 pr-10 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm cursor-pointer">
-              <option value="ALL">All Quarters</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          </div>
+          <CustomSelect 
+            id="quarter" 
+            value={filters.quarter} 
+            onChange={(val) => setFilters(prev => ({ ...prev, quarter: val }))} 
+            options={[
+              { value: 'ALL', label: 'All Quarters' },
+              { value: 'Q1', label: 'Q1' },
+              { value: 'Q2', label: 'Q2' },
+              { value: 'Q3', label: 'Q3' },
+              { value: 'Q4', label: 'Q4' },
+            ]}
+          />
         </div>
 
         <div className="relative z-10">
           <label htmlFor="month" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><Calendar className="h-3.5 w-3.5 text-primary" />Month</label>
-          <div className="relative group">
-            <select id="month" value={filters.month} onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value }))} className="h-11 w-full appearance-none rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-4 pr-10 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm cursor-pointer">
-              <option value="ALL">All Months</option>{MONTH_ORDER.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          </div>
+          <CustomSelect 
+            id="month" 
+            value={filters.month} 
+            onChange={(val) => setFilters(prev => ({ ...prev, month: val }))} 
+            options={[
+              { value: 'ALL', label: 'All Months' },
+              ...MONTH_ORDER.map(m => ({ value: m, label: m }))
+            ]}
+          />
         </div>
 
         <div className="relative z-10">
           <label htmlFor="account" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><Building2 className="h-3.5 w-3.5 text-primary" />Client Account</label>
-          <div className="relative group">
-            <select id="account" value={filters.account} onChange={(e) => setFilters(prev => ({ ...prev, account: e.target.value }))} className="h-11 w-full appearance-none rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-4 pr-10 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm cursor-pointer">
-              <option value="ALL">All Client Accounts</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          </div>
+          <CustomSelect 
+            id="account" 
+            value={filters.account} 
+            onChange={(val) => setFilters(prev => ({ ...prev, account: val }))} 
+            options={[
+              { value: 'ALL', label: 'All Client Accounts' }
+            ]}
+          />
         </div>
 
         <div className="relative z-10">
@@ -85,7 +95,7 @@ export default function Dashboard() {
 
       {/* Main Executive Summary View */}
       <div className="mt-4">
-        <ExecutiveSummaryView data={processedData} rawData={dummyPayload} filters={filters} />
+        <ExecutiveSummaryView data={processedData} rawData={initialData} filters={filters} />
       </div>
 
     </div>

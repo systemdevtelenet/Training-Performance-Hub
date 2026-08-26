@@ -1,8 +1,9 @@
 import Dashboard from '@/components/Dashboard';
+import { getDashboardData } from '@/lib/data-fetcher';
 
 export default async function Page() {
-  // Simulate network delay to trigger loading skeleton
-  await new Promise(resolve => setTimeout(resolve, 800));
+  // Fetch cached data from Supabase
+  const dashboardData = await getDashboardData();
   
-  return <Dashboard />;
+  return <Dashboard initialData={dashboardData} />;
 }
