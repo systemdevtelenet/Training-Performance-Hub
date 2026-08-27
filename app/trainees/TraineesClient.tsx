@@ -1,60 +1,118 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, ChevronDown, RefreshCw, Download, Printer } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
 
-const inhouseBatches = [
-  { name: 'General -1', hc: 15, attr: '20.0%' },
-  { name: 'General -2', hc: 1, attr: '0.0%' },
-  { name: 'General -3', hc: 5, attr: '0.0%' },
-  { name: 'General -4', hc: 11, attr: '9.1%' },
-  { name: 'General -5', hc: 2, attr: '0.0%' },
-  { name: 'General -6', hc: 5, attr: '0.0%' },
-  { name: 'General -10', hc: 1, attr: '100.0%' },
-  { name: 'General -12', hc: 1, attr: '0.0%' },
-  { name: 'General -14', hc: 1, attr: '0.0%' },
-  { name: 'General -15', hc: 2, attr: '0.0%' },
-  { name: 'General -16', hc: 1, attr: '0.0%' },
-];
+export type Trainee = {
+  id: string;
+  name: string;
+  status: string;
+  month: string;
+  quarter: string;
+  p: number;
+  a: number;
+  isEndorsed: boolean;
+  isLoss: boolean;
+  assignedTrainer: string;
+  batchName: string;
+  accountName: string;
+  trainingType?: 'INHOUSE' | 'PST';
+};
 
-const pstBatches = [
-  { name: 'HAMMERHEAD -1', trainer: 'TR NINA', hc: 10, attr: '30.0%' },
-  { name: 'HAMMERHEAD -2', trainer: 'TR NINA', hc: 6, attr: '16.7%' },
-  { name: 'CTS -1', trainer: 'TR MAEGAN', hc: 3, attr: '0.0%' },
-  { name: 'COVA -1', trainer: 'Mitch', hc: 2, attr: '0.0%' },
-  { name: 'COVA -2', trainer: 'Mitch', hc: 1, attr: '0.0%' },
-  { name: 'COVA -3', trainer: 'Mitch', hc: 1, attr: '0.0%' },
-  { name: 'XPN-CXL -79', trainer: 'TR JOVEN', hc: 1, attr: '0.0%' },
-  { name: 'XPN - NEGO -70', trainer: 'TR VINCENT', hc: 3, attr: '0.0%' },
-  { name: 'FLEXAR - T1 -1', trainer: 'TR BIANCA', hc: 10, attr: '20.0%' },
-  { name: 'FLEXAR - T1 -2', trainer: 'TR BIANCA', hc: 2, attr: '0.0%' },
-  { name: 'FLEXAR - T1 -3', trainer: 'TR BIANCA', hc: 2, attr: '50.0%' },
-];
-
-const clientAccounts = [
-  { name: 'COVA', hc: 4, attr: '0.0%' },
-  { name: 'CTS', hc: 3, attr: '0.0%' },
-  { name: 'DEFERIT', hc: 20, attr: '20.0%' },
-  { name: 'FLEET', hc: 9, attr: '33.3%' },
-  { name: 'FLEXAR - T1', hc: 18, attr: '16.7%' },
-  { name: 'FLEXAR - T2', hc: 13, attr: '15.4%' },
-  { name: 'General', hc: 77, attr: '6.5%' },
-  { name: 'HAMMERHEAD', hc: 16, attr: '25.0%' },
-  { name: 'ONO', hc: 2, attr: '50.0%' },
-  { name: 'RM-CXL', hc: 3, attr: '33.3%' },
-  { name: 'RM-NEGO', hc: 4, attr: '25.0%' },
-];
-
-export default function TraineesPage() {
+export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
   const [selectedCard, setSelectedCard] = useState<DrawerTrainee | null>(null);
+
+  const { inhouseBatches, pstBatches, clientAccounts } = useMemo(() => {
+    const inhouseMap: Record<string, any> = {};
+    const pstMap: Record<string, any> = {};
+    const accountMap: Record<string, any> = {};
+
+    initialTrainees.forEach((t) => {
+      const acctName = t.accountName || 'Unknown Account';
+      // Client Accounts Aggregation
+      if (!accountMap[acctName]) {
+        accountMap[acctName] = { name: acctName, hc: 0, lossCount: 0, members: [] };
+      }
+      accountMap[acctName].hc += 1;
+      if (t.isLoss) accountMap[acctName].lossCount += 1;
+      accountMap[acctName].members.push(t);
+
+      // Inhouse vs PST
+      const isInhouse = t.trainingType === 'INHOUSE';
+      
+      const targetMap = isInhouse ? inhouseMap : pstMap;
+      const batchKey = t.batchName || 'Unknown Batch';
+      
+      if (!targetMap[batchKey]) {
+        targetMap[batchKey] = {
+          name: batchKey,
+          trainer: t.assignedTrainer || 'Unassigned',
+          hc: 0,
+          lossCount: 0,
+          members: []
+        };
+      }
+      targetMap[batchKey].hc += 1;
+      if (t.isLoss) targetMap[batchKey].lossCount += 1;
+      targetMap[batchKey].members.push(t);
+      
+      if (targetMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer) {
+         targetMap[batchKey].trainer = t.assignedTrainer;
+      }
+    });
+
+    const formatAttr = (lossCount: number, hc: number) => {
+      if (hc === 0) return '0.0%';
+      return ((lossCount / hc) * 100).toFixed(1) + '%';
+    };
+
+    const inhouse = Object.values(inhouseMap).map(b => ({
+      ...b,
+      attr: formatAttr(b.lossCount, b.hc)
+    }));
+
+    const pst = Object.values(pstMap).map(b => ({
+      ...b,
+      attr: formatAttr(b.lossCount, b.hc)
+    }));
+
+    const clients = Object.values(accountMap).map(c => ({
+      ...c,
+      attr: formatAttr(c.lossCount, c.hc)
+    }));
+
+    // Sort by name alphabetically
+    const sortByName = (a: any, b: any) => a.name.localeCompare(b.name);
+    
+    return { 
+      inhouseBatches: inhouse.sort(sortByName), 
+      pstBatches: pst.sort(sortByName), 
+      clientAccounts: clients.sort(sortByName) 
+    };
+  }, [initialTrainees]);
+
   const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string) => {
     setSelectedCard({ name: item.name, batchName: item.name, accountName, trainingType, assignedTrainer: trainer, headcount: item.hc, attritionRate: item.attr, contextLabel });
   };
 
+  const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {
+    const displayStatus = status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING');
+    const upperStatus = displayStatus.toUpperCase();
+    
+    if (upperStatus === 'ENDORSED') {
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200 text-emerald-600 bg-emerald-50">ENDORSED</span>;
+    }
+    if (upperStatus === 'ONGOING' || upperStatus === 'ACTIVE') {
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200 text-amber-600 bg-amber-50">{upperStatus}</span>;
+    }
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50">{upperStatus}</span>;
+  };
+
+  // Helper removed as we are not rendering tables here anymore
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -131,12 +189,14 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {inhouseBatches.map((item, idx) => (
-              <button key={idx} type="button" onClick={() => openCard(item, 'Batch Information', 'Inhouse Training', 'Inhouse Training')} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-                <span className="text-xs font-bold text-[#2F6798]">{item.name}</span>
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
-                </span>
-              </button>
+              <div key={idx} className="flex flex-col gap-1 mb-2">
+                <button type="button" onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+                  <span className="text-xs font-bold text-[#2F6798]">{item.name}</span>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                  </span>
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -151,17 +211,19 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {pstBatches.map((item, idx) => (
-              <button key={idx} type="button" onClick={() => openCard(item, 'Batch Information', 'PST Training', 'PST Training', item.trainer)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
-                    {item.trainer}
+              <div key={idx} className="flex flex-col gap-1 mb-2">
+                <button type="button" onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
+                      {item.trainer}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                   </span>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -176,12 +238,14 @@ export default function TraineesPage() {
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {clientAccounts.map((item, idx) => (
-              <button key={idx} type="button" onClick={() => openCard(item, 'Client Account Information', 'Client Account', item.name)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
-                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
-                </span>
-              </button>
+              <div key={idx} className="flex flex-col gap-1 mb-2">
+                <button type="button" onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                  </span>
+                </button>
+              </div>
             ))}
           </div>
         </div>

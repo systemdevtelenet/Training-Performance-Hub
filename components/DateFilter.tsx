@@ -22,6 +22,13 @@ export default function DateFilter() {
   const [selectedRange, setSelectedRange] = useState('Today');
   const [viewDate, setViewDate] = useState(new Date()); 
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [realTimeDate, setRealTimeDate] = useState(new Date());
+
+  useEffect(() => {
+    // Ensure we pull the real-time system date on the client to avoid SSR hydration mismatches
+    setRealTimeDate(new Date());
+  }, []);
+
   
   // Custom dropdown states
   const [isMonthOpen, setIsMonthOpen] = useState(false);
@@ -112,10 +119,9 @@ export default function DateFilter() {
   const startYear = 1990;
   const years = Array.from({ length: (currentYear + 5) - startYear + 1 }, (_, i) => startYear + i);
 
-  // Derive display values for the header
-  const headerDate = selectedDate || new Date();
-  const displayTitle = format(headerDate, 'MMMM d'); // e.g., "August 14"
-  const displayIconYear = format(headerDate, 'yyyy'); // e.g., "2026"
+  // Derive display values for the header (Always system date per user request)
+  const displayTitle = format(realTimeDate, 'MMMM d'); // e.g., "August 28"
+  const displayIconYear = format(realTimeDate, 'yyyy'); // e.g., "2026"
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -271,7 +277,14 @@ export default function DateFilter() {
                                 today.getMonth() === viewDate.getMonth() && 
                                 today.getFullYear() === viewDate.getFullYear();
 
-                const showBlueCircle = isSelected || (isToday && !selectedDate);
+                // Per user request:
+                // 1. Current date (Today) gets solid circular background
+                // 2. Any other selected day gets a circular border outline
+                const circleClasses = isToday
+                  ? 'bg-[#2F6798] text-white dark:bg-blue-600 dark:text-white'
+                  : isSelected
+                    ? 'border border-[#2F6798] text-[#2F6798] dark:border-blue-400 dark:text-blue-400'
+                    : 'text-slate-700 dark:text-slate-300 group-hover:bg-slate-100 dark:group-hover:bg-slate-800';
                 
                 return (
                   <button
@@ -279,13 +292,7 @@ export default function DateFilter() {
                     onClick={() => handleDayClick(day)}
                     className="relative flex h-7 items-center justify-center group"
                   >
-                    <div className={`flex items-center justify-center h-6 w-6 rounded-full transition-colors ${
-                      showBlueCircle 
-                        ? 'bg-[#2F6798] text-white dark:bg-blue-600 dark:text-white' 
-                        : isToday 
-                          ? 'border border-[#2F6798] text-[#2F6798] dark:border-blue-400 dark:text-blue-400'
-                          : 'text-slate-700 dark:text-slate-300 group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
-                    }`}>
+                    <div className={`flex items-center justify-center h-6 w-6 rounded-full transition-colors ${circleClasses}`}>
                       <span className="text-xs font-bold">
                         {day.toString().padStart(2, '0')}
                       </span>
