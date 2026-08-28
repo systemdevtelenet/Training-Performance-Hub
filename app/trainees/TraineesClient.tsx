@@ -21,7 +21,7 @@ export type Trainee = {
 };
 
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
-  const [selectedCard, setSelectedCard] = useState<DrawerTrainee | null>(null);
+  const [selectedCard, setSelectedCard] = useState<any | null>(null);
 
   const { inhouseBatches, pstBatches, clientAccounts } = useMemo(() => {
     const inhouseMap: Record<string, any> = {};
@@ -93,7 +93,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [initialTrainees]);
 
   const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string) => {
-    setSelectedCard({ name: item.name, batchName: item.name, accountName, trainingType, assignedTrainer: trainer, headcount: item.hc, attritionRate: item.attr, contextLabel });
+    setSelectedCard({ 
+      isBatch: true,
+      name: item.name, 
+      batchName: item.name, 
+      accountName, 
+      trainingType, 
+      assignedTrainer: trainer, 
+      headcount: item.hc, 
+      attritionRate: item.attr, 
+      contextLabel,
+      members: item.members 
+    });
   };
 
   const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {

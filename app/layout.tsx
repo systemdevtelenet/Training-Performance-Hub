@@ -3,6 +3,7 @@
 import './globals.css';
 import { Poppins } from 'next/font/google';
 import { usePathname } from 'next/navigation';
+import { Suspense } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ThemeProvider from '@/components/ThemeProvider';
@@ -42,7 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </main>
           ) : (
             <div className="flex min-h-screen w-full">
-              <Sidebar />
+              <Suspense fallback={<div className="w-64 shrink-0 bg-primary h-screen" />}>
+                <Sidebar />
+              </Suspense>
               <div className="flex-1 flex flex-col min-w-0">
                 <Topbar />
                 <main className="flex-1 p-6 overflow-y-auto">

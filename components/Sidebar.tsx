@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
   LayoutDashboard,
@@ -15,14 +15,26 @@ import {
   LogOut,
   X,
   Menu,
-  ClipboardList
+  ClipboardList,
+  ChevronDown,
+  ChevronUp,
+  Circle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Trainees', href: '/trainees', icon: Users },
-  { name: 'Trainers', href: '/trainers', icon: UserCheck },
+  { 
+    name: 'Trainers', 
+    href: '/trainers', 
+    icon: UserCheck,
+    subItems: [
+      { name: 'Directory', href: '/trainers' },
+      { name: 'Attendance', href: '/trainers?tab=attendance' },
+      { name: 'Reliability', href: '/trainers?tab=reliability' }
+    ]
+  },
   { name: 'Analytics Trends', href: '/analytics', icon: BarChart },
   { name: 'AI Insights', href: '/ai-insights', icon: Sparkles },
   { name: 'Activity Log', href: '/history', icon: ClipboardList },
@@ -30,9 +42,13 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    '/trainers': true
+  });
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
@@ -79,6 +95,64 @@ export default function Sidebar() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
+              const isExpanded = expandedMenus[item.href];
+              
+              if (item.subItems) {
+                return (
+                  <div key={item.href} className="space-y-1">
+                    <button
+                      onClick={() => {
+                        if (isCollapsed) setIsCollapsed(false);
+                        setExpandedMenus(prev => ({ ...prev, [item.href]: !prev[item.href] }));
+                      }}
+                      title={isCollapsed ? item.name : undefined}
+                      className={cn(
+                        "w-full group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
+                        isCollapsed && "justify-center px-0",
+                        isActive
+                          ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", isActive ? "text-white" : "text-white/60 group-hover:text-white")} />
+                        {!isCollapsed && <span className="truncate">{item.name}</span>}
+                      </div>
+                      {!isCollapsed && (
+                        isExpanded ? <ChevronUp className="h-4 w-4 text-white/60" /> : <ChevronDown className="h-4 w-4 text-white/60" />
+                      )}
+                    </button>
+                    
+                    {!isCollapsed && isExpanded && (
+                      <div className="pl-9 pr-2 py-1 space-y-1">
+                        {item.subItems.map(subItem => {
+                          const currentTab = searchParams?.get('tab');
+                          const subUrl = new URL(subItem.href, 'http://localhost');
+                          const subTab = subUrl.searchParams.get('tab');
+                          const isSubActive = (subTab === currentTab) || (!subTab && !currentTab);
+                          
+                          return (
+                            <Link
+                              key={subItem.href}
+                              href={subItem.href}
+                              className={cn(
+                                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200",
+                                isSubActive
+                                  ? "bg-white/20 text-white"
+                                  : "text-white/60 hover:bg-white/10 hover:text-white"
+                              )}
+                            >
+                              <Circle className={cn("h-1.5 w-1.5", isSubActive ? "fill-white text-white" : "fill-transparent text-white/40")} />
+                              {subItem.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.href}
