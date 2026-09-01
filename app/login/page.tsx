@@ -134,15 +134,10 @@ export default function LoginPage() {
         return;
       }
 
-      // 5. Account Status & Role Access check
-      // (Using the user metadata we injected during the migration script)
-      const role = data.user?.user_metadata?.role;
-      if (!role) {
-        await authClient.auth.signOut();
-        setErrors(prev => ({ ...prev, general: 'Access denied. Your account lacks necessary permissions.' }));
-        setIsSubmitLoading(false);
-        return;
-      }
+      // Removed legacy user_metadata role check.
+      // Roles are now securely fetched from the user_roles table via RoleProvider.
+      // All authenticated users in the allowed domains are granted access, 
+      // and their permissions are strictly limited by their role.
 
       // Success! Reset attempts and redirect
       setFailedAttempts(0);

@@ -1,29 +1,48 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { 
-  Search, 
-  ChevronDown, 
+import { createPortal } from 'react-dom';
+import {
+  Search,
+  ChevronDown,
   ChevronRight,
-  RefreshCw, 
-  Download, 
+  RefreshCw,
+  Download,
   Users,
   Check,
   Info,
-  Loader2
+  Loader2,
+  TrendingUp,
+  BarChart3,
+  ArrowUpDown,
+  ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
+  X,
+  Calendar
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
+import { useRole } from '@/components/providers/RoleProvider';
 
 type TrainerTab = 'directory' | 'attendance' | 'reliability';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
+  const { role, email } = useRole();
   const searchParams = useSearchParams();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Filter for employees: they can only see themselves
+  const filteredInitialTrainers = useMemo(() => {
+    if (role === 'EMPLOYEE' && email) {
+      return initialTrainers.filter(t => t.email === email);
+    }
+    return initialTrainers;
+  }, [initialTrainers, role, email]);
 
   // Simulate initial data fetching delay
   useEffect(() => {
@@ -40,7 +59,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      
+
       {/* Top Header & Global Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
@@ -51,7 +70,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button 
+          <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -112,8 +131,8 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
         ) : (
           <>
             <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
-              {activeTab === 'directory' && <DirectoryView trainers={initialTrainers} />}
-              {activeTab === 'attendance' && <AttendanceView />}
+              {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
+              {activeTab === 'attendance' && <AttendanceView initialTrainers={filteredInitialTrainers} />}
               {activeTab === 'reliability' && <ReliabilityView />}
             </div>
           </>
@@ -123,11 +142,12 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   );
 }
 
-{/* Master-Detail Directory Component */}
+{/* Master-Detail Directory Component */ }
 function DirectoryView({ trainers }: { trainers: any[] }) {
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedLeave, setSelectedLeave] = useState<{ type: string, dates: string[] } | null>(null);
 
   const trainersList = trainers;
 
@@ -140,9 +160,9 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
 
   const filteredTrainers = useMemo(() => {
     return trainersList.filter(t => {
-      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            t.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (t.accounts || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.accounts || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -202,7 +222,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
               Trainers Directory <span className="text-slate-400 dark:text-slate-500 font-normal">({filteredTrainers.length})</span>
             </h2>
           </div>
-          
+
           <div className="relative mb-3 shrink-0">
             <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -219,7 +239,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
               const isActive = statusFilter === status;
               const isAll = status === 'ALL';
               let colorClasses = '';
-              
+
               if (isActive) {
                 if (isAll) colorClasses = 'bg-[#2F6798] text-white border-[#2F6798] shadow-sm';
                 else if (status === 'ACTIVE') colorClasses = 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/20';
@@ -237,7 +257,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                   className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border flex items-center gap-1.5 ${colorClasses}`}
                 >
                   {!isAll && !isActive && <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(status)}`} />}
-                  {isAll ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()} 
+                  {isAll ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()}
                   <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${isActive ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>{statusCounts[status]}</span>
                 </button>
               );
@@ -251,16 +271,14 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                 <button
                   key={trainer.id}
                   onClick={() => setSelectedTrainerId(trainer.id)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                    isSelected
+                  className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${isSelected
                       ? 'bg-[#2F6798]/5 border-[#2F6798]/30 shadow-sm'
                       : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${
-                      isSelected ? 'bg-[#2F6798] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
-                    }`}>
+                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${isSelected ? 'bg-[#2F6798] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
+                      }`}>
                       {trainer.name.charAt(0)}
                     </div>
                     <div className="min-w-0">
@@ -298,232 +316,238 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
           ) : (
             <>
               {/* Profile Header */}
-              <div className="relative overflow-hidden pb-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 dark:bg-slate-700/30 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
-                <div className="flex items-center gap-5 relative z-10">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#2F6798] to-[#1f4b73] text-white flex items-center justify-center font-bold text-3xl shadow-md shrink-0">
-                    {active.name ? active.name.charAt(0) : '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 truncate">{active.name || 'Unknown'}</h2>
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border shadow-sm ${getStatusBadge(active.status || '')}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(active.status || '')}`} />
-                        {active.status || 'N/A'}
-                      </span>
+              <div className="relative overflow-hidden pb-8 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-900/10 rounded-bl-full -mr-20 -mt-20 pointer-events-none" />
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
+                  <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0">
+                      {active.name ? active.name.charAt(0) : '?'}
                     </div>
-                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                      {active.role || 'N/A'}
-                    </p>
-                <div className="flex items-center gap-4 mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
-                    <span>{active.accounts || 'No Account'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
-                    <span>{active.tasks || 'No Tasks'}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="hidden sm:flex flex-col gap-2 shrink-0">
-                <button className="px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors">
-                  View Attendance
-                </button>
-                <button className="px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors">
-                  View Reliability
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Performance Snapshot */}
-          <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Performance Snapshot</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-slate-100 dark:divide-slate-700">
-              <div className="px-2">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Attendance</p>
-                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.attendanceRate || 'N/A'}</p>
-                <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.attendanceRate, 'attendance').color}`}>
-                  {getKPIStatus(active.attendanceRate, 'attendance').label}
-                </p>
-              </div>
-              <div className="px-4">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Reliability</p>
-                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.reliabilityRate || 'N/A'}</p>
-                <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.reliabilityRate, 'reliability').color}`}>
-                  {getKPIStatus(active.reliabilityRate, 'reliability').label}
-                </p>
-              </div>
-              <div className="px-4">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Success Rate</p>
-                <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.overallSuccess || 'N/A'}</p>
-                <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.overallSuccess, 'success').color}`}>
-                  {getKPIStatus(active.overallSuccess, 'success').label}
-                </p>
-              </div>
-              <div className="px-4 relative group">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  Avg Attrition
-                  <span className="cursor-help">
-                    <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
-                  </span>
-                </p>
-                <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20">
-                  Percentage of trainees who leave or are lost from the training process.
-                </div>
-                {(() => {
-                  if (!active.batches || active.batches.length === 0) return (
-                    <>
-                      <p className="text-xl font-black text-slate-800 dark:text-slate-100">N/A</p>
-                      <p className="text-[10px] font-bold mt-1 text-slate-400 dark:text-slate-500">N/A</p>
-                    </>
-                  );
-                  const totalAttr = active.batches.reduce((sum, b) => sum + parseFloat(b.attrition), 0);
-                  const avgAttr = (totalAttr / active.batches.length).toFixed(1) + '%';
-                  return (
-                    <>
-                      <p className="text-xl font-black text-slate-800 dark:text-slate-100">{avgAttr}</p>
-                      <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(avgAttr, 'attrition').color}`}>
-                        {getKPIStatus(avgAttr, 'attrition').label}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-3 mb-1.5">
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{active.name || 'Unknown'}</h2>
+                        <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-sm ${getStatusBadge(active.status || '')}`}>
+                          {active.status || 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">
+                        {active.role || 'N/A'}
                       </p>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
 
-          {/* Profile Information & Leave Breakdown Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 space-y-4 h-full">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Profile Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Employee ID</span>
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.id}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Start Date</span>
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.startDate || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Accounts</span>
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.accounts || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Primary Task</span>
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{active.tasks || 'N/A'}</p>
+                      <div className="flex items-center gap-3 w-full overflow-hidden">
+                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Employee ID</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.id}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Start Date</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.startDate || 'N/A'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Accounts</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.accounts || 'N/A'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Primary Task</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.tasks || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex flex-col gap-2 shrink-0 self-start mt-2">
+                    <button className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 group">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#2F6798] group-hover:scale-125 transition-transform" />
+                      View Attendance
+                    </button>
+                    <button className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 group">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:scale-125 transition-transform" />
+                      View Reliability
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 h-full flex flex-col">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-1 flex items-center justify-between">
-                Attendance & Leave
-                <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500 normal-case bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-700">
-                  Click box for records
-                </span>
-              </h3>
-              
-              <div className="grid grid-cols-4 gap-2 text-center mt-3 flex-1 content-start">
-                {[
-                  { label: 'ABS', val: active.leaves?.absence ?? 0, highlight: false },
-                  { label: 'SL', val: active.leaves?.sl ?? 0, highlight: true },
-                  { label: 'VL', val: active.leaves?.vl ?? 0, highlight: true },
-                  { label: 'HOL', val: active.leaves?.hol ?? 0, highlight: true },
-                  { label: 'BL', val: active.leaves?.bl ?? 0, highlight: false },
-                  { label: 'MED', val: active.leaves?.med ?? 0, highlight: false },
-                  { label: 'SUS', val: active.leaves?.sus ?? 0, highlight: false },
-                  { label: 'OTHER', val: (active.leaves?.ml ?? 0) + (active.leaves?.pl ?? 0), highlight: false },
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${
-                      item.highlight
-                        ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
-                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
-                    }`}
-                  >
-                    <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400'}`}>{item.label}</span>
-                    <span className={`text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800 dark:text-slate-100'}`}>{item.val}</span>
+              {/* Performance Snapshot */}
+              <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Performance Snapshot</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-slate-100 dark:divide-slate-700">
+                  <div className="px-2">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Attendance</p>
+                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.attendanceRate || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.attendanceRate, 'attendance').color}`}>
+                      {getKPIStatus(active.attendanceRate, 'attendance').label}
+                    </p>
+                  </div>
+                  <div className="px-4">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Reliability</p>
+                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.reliabilityRate || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.reliabilityRate, 'reliability').color}`}>
+                      {getKPIStatus(active.reliabilityRate, 'reliability').label}
+                    </p>
+                  </div>
+                  <div className="px-4">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Success Rate</p>
+                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.overallSuccess || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.overallSuccess, 'success').color}`}>
+                      {getKPIStatus(active.overallSuccess, 'success').label}
+                    </p>
+                  </div>
+                  <div className="px-4 relative group">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      Avg Attrition
+                      <span className="cursor-help">
+                        <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
+                      </span>
+                    </p>
+                    <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20">
+                      Percentage of trainees who leave or are lost from the training process.
+                    </div>
+                    {(() => {
+                      if (!active.batches || active.batches.length === 0) return (
+                        <>
+                          <p className="text-xl font-black text-slate-800 dark:text-slate-100">N/A</p>
+                          <p className="text-[10px] font-bold mt-1 text-slate-400 dark:text-slate-500">N/A</p>
+                        </>
+                      );
+                      const totalAttr = active.batches.reduce((sum: number, b: any) => sum + parseFloat(b.attrition), 0);
+                      const avgAttr = (totalAttr / active.batches.length).toFixed(1) + '%';
+                      return (
+                        <>
+                          <p className="text-xl font-black text-slate-800 dark:text-slate-100">{avgAttr}</p>
+                          <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(avgAttr, 'attrition').color}`}>
+                            {getKPIStatus(avgAttr, 'attrition').label}
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Attendance & Leave Breakdown */}
+              <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  Attendance & Leave Breakdown
+                  <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500 normal-case bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-700">
+                    Click box for records
+                  </span>
+                </h3>
+
+                <div className="grid grid-cols-4 sm:grid-cols-9 gap-2 text-center mt-3">
+                  {[
+                    { label: 'ABS', val: active.leaves?.absence ?? 0 },
+                    { label: 'SL', val: active.leaves?.sl ?? 0 },
+                    { label: 'VL', val: active.leaves?.vl ?? 0 },
+                    { label: 'BL', val: active.leaves?.bl ?? 0 },
+                    { label: 'MED', val: active.leaves?.med ?? 0 },
+                    { label: 'SUS', val: active.leaves?.sus ?? 0 },
+                    { label: 'HOL', val: active.leaves?.hol ?? 0 },
+                    { label: 'ML', val: active.leaves?.ml ?? 0 },
+                    { label: 'PL', val: active.leaves?.pl ?? 0 },
+                    { label: 'UND', val: active.leaves?.und ?? 0 },
+                  ].map((item) => ({ ...item, highlight: item.val > 0 })).map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedLeave({ type: item.label, dates: active.leaves?.records?.[item.label] || [] })}
+                      className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${item.highlight
+                          ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
+                          : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
+                        }`}
+                    >
+                      <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400'}`}>{item.label}</span>
+                      <span className={`text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800 dark:text-slate-100'}`}>{item.val}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+
+            </>
+          )}
+
+          {/* Right Side Popup Drawer for Leave Dates */}
+          {selectedLeave && typeof document !== 'undefined' && createPortal(
+            <div className={`fixed inset-0 z-[9999] pointer-events-auto`}>
+              <button aria-label="Close modal" onClick={() => setSelectedLeave(null)} className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 opacity-100 cursor-default`} />
+
+              <aside role="dialog" aria-modal="true" className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 ease-out sm:w-[min(500px,calc(100%-2rem))] translate-x-0`}>
+
+                <header className="bg-[#2F6798] px-6 py-4 flex items-center justify-between shrink-0">
+                  <h2 className="text-sm font-bold tracking-wide text-white uppercase">
+                    {(({
+                      'ABS': 'ABSENCE DETAILS',
+                      'SL': 'SICK LEAVE DETAILS',
+                      'VL': 'VACATION LEAVE DETAILS',
+                      'BL': 'BEREAVEMENT LEAVE DETAILS',
+                      'MED': 'MEDICAL LEAVE DETAILS',
+                      'SUS': 'SUSPENSION DETAILS',
+                      'HOL': 'HOLIDAY DETAILS',
+                      'ML': 'MATERNITY LEAVE DETAILS',
+                      'PL': 'PATERNITY LEAVE DETAILS',
+                      'UND': 'UNDERTIME DETAILS'
+                    }) as Record<string, string>)[selectedLeave.type] || `${selectedLeave.type} DETAILS`}
+                  </h2>
+                  <button type="button" onClick={() => setSelectedLeave(null)} aria-label="Close" className="text-white/80 hover:text-white transition-colors focus:outline-none">
+                    <X className="h-5 w-5" />
                   </button>
-                ))}
-              </div>
-            </div>
-          </div>
+                </header>
 
-          {/* Handled Batches */}
-          <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                Handled Batches ({active.batches?.length || 0})
-              </h3>
-            </div>
+                <div className="p-6 md:p-8 flex-1 overflow-y-auto no-scrollbar">
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                    {(({
+                      'ABS': 'Absence Summary',
+                      'SL': 'Sick Leave Summary',
+                      'VL': 'Vacation Leave Summary',
+                      'BL': 'Bereavement Leave Summary',
+                      'MED': 'Medical Leave Summary',
+                      'SUS': 'Suspension Summary',
+                      'HOL': 'Holiday Summary',
+                      'ML': 'Maternity Leave Summary',
+                      'PL': 'Paternity Leave Summary',
+                      'UND': 'Undertime Summary'
+                    }) as Record<string, string>)[selectedLeave.type] || `${selectedLeave.type} Summary`}
+                  </h3>
+                  <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6">Trainer: {active?.name}</p>
 
-            {active.batches && active.batches.length > 0 ? (
-              <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700/80">
-                    <tr>
-                      <th className="px-4 py-3">Batch Info</th>
-                      <th className="px-4 py-3 text-center">Trainees</th>
-                      <th className="px-4 py-3 text-center">Losses</th>
-                      <th className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1 relative group/attr">
-                          Attrition Rate
-                          <span className="cursor-help">
-                            <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
-                          </span>
-                          <div className="absolute bottom-full mb-2 hidden group-hover/attr:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20 pointer-events-none">
-                            Percentage of trainees who leave or are lost from the training process within the selected batch/period.
+                  <div className="grid grid-cols-2 gap-4 w-full mb-8">
+                    <div className="flex flex-col p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-[#2F6798]">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Days</span>
+                      </div>
+                      <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{selectedLeave.dates.length}</span>
+                    </div>
+                  </div>
+
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#2F6798]" />
+                    Recorded Dates
+                  </h4>
+
+                  {selectedLeave.dates.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedLeave.dates.map((d, i) => (
+                        <div key={i} className="flex w-full items-center p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-rose-500" />
+                            </div>
+                            <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{d}</span>
                           </div>
                         </div>
-                      </th>
-                      <th className="px-4 py-3 text-right">Success Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300 font-medium bg-white dark:bg-slate-800">
-                    {active.batches.map((row, idx) => {
-                      const isSuccessGood = parseFloat(row.success) >= 90;
-                      const isAttritionBad = parseFloat(row.attrition) > 20;
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors cursor-pointer group">
-                          <td className="px-4 py-3">
-                            <p className="font-bold text-slate-800 dark:text-slate-100">Batch {row.batch}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{row.account} &middot; {row.dept}</p>
-                          </td>
-                          <td className="px-4 py-3 text-center font-bold">{row.trainees}</td>
-                          <td className="px-4 py-3 text-center font-bold text-rose-500">{row.losses}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`font-bold ${isAttritionBad ? 'text-rose-600' : 'text-slate-800 dark:text-slate-100'}`}>
-                              {row.attrition}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block border group-hover:shadow-xs transition-shadow ${
-                                isSuccessGood
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : 'bg-rose-50 text-rose-700 border-rose-200'
-                              }`}
-                            >
-                              {row.success}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="border border-slate-100 dark:border-slate-700 rounded-xl p-8 text-center bg-slate-50 dark:bg-slate-800/40">
-                    <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No active batches assigned for this trainer.</p>
-                  </div>
-                )}
-              </div>
-            </>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No recorded dates for this leave type.</p>
+                  )}
+                </div>
+              </aside>
+            </div>,
+            document.body
           )}
         </div>
       </div>
@@ -531,77 +555,19 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
   );
 }
 
-{/* Attendance View Component */}
-function AttendanceView() {
-  const attendanceData = useMemo<TrainerAttendanceData[]>(() => [
-    { name: 'Nina Joy Briones', present: 89, absent: 1, suspension: 0, rate: '98.9%', timeline: [
-      { name: 'Nina Joy Briones', month: 'January', quarter: 'Q1', p: 12, a: 0 },
-      { name: 'Nina Joy Briones', month: 'February', quarter: 'Q1', p: 11, a: 0 },
-      { name: 'Nina Joy Briones', month: 'March', quarter: 'Q1', p: 13, a: 0 },
-      { name: 'Nina Joy Briones', month: 'April', quarter: 'Q2', p: 12, a: 1 },
-      { name: 'Nina Joy Briones', month: 'May', quarter: 'Q2', p: 14, a: 0 },
-      { name: 'Nina Joy Briones', month: 'June', quarter: 'Q2', p: 13, a: 0 },
-      { name: 'Nina Joy Briones', month: 'July', quarter: 'Q3', p: 14, a: 0 },
-    ]},
-    { name: 'Michelle Yncierto', present: 137, absent: 11, suspension: 0, rate: '92.6%', timeline: [
-      { name: 'Michelle Yncierto', month: 'January', quarter: 'Q1', p: 20, a: 2 },
-      { name: 'Michelle Yncierto', month: 'February', quarter: 'Q1', p: 18, a: 1 },
-      { name: 'Michelle Yncierto', month: 'March', quarter: 'Q1', p: 21, a: 2 },
-      { name: 'Michelle Yncierto', month: 'April', quarter: 'Q2', p: 20, a: 2 },
-      { name: 'Michelle Yncierto', month: 'May', quarter: 'Q2', p: 22, a: 2 },
-      { name: 'Michelle Yncierto', month: 'June', quarter: 'Q2', p: 21, a: 1 },
-      { name: 'Michelle Yncierto', month: 'July', quarter: 'Q3', p: 21, a: 1 },
-    ]},
-    { name: 'Rohla Mie Baswa', present: 39, absent: 19, suspension: 0, rate: '67.2%', timeline: [
-      { name: 'Rohla Mie Baswa', month: 'January', quarter: 'Q1', p: 8, a: 5 },
-      { name: 'Rohla Mie Baswa', month: 'February', quarter: 'Q1', p: 7, a: 4 },
-      { name: 'Rohla Mie Baswa', month: 'March', quarter: 'Q1', p: 9, a: 3 },
-      { name: 'Rohla Mie Baswa', month: 'April', quarter: 'Q2', p: 8, a: 4 },
-      { name: 'Rohla Mie Baswa', month: 'May', quarter: 'Q2', p: 7, a: 3 },
-    ]},
-    { name: 'Vincent Luis Celdran', present: 148, absent: 0, suspension: 0, rate: '100.0%', timeline: [
-      { name: 'Vincent Luis Celdran', month: 'January', quarter: 'Q1', p: 22, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'February', quarter: 'Q1', p: 20, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'March', quarter: 'Q1', p: 23, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'April', quarter: 'Q2', p: 21, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'May', quarter: 'Q2', p: 22, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'June', quarter: 'Q2', p: 20, a: 0 },
-      { name: 'Vincent Luis Celdran', month: 'July', quarter: 'Q3', p: 20, a: 0 },
-    ]},
-    { name: 'Maegan Marie Cabardo', present: 50, absent: 1, suspension: 0, rate: '98.0%', timeline: [
-      { name: 'Maegan Marie Cabardo', month: 'January', quarter: 'Q1', p: 8, a: 0 },
-      { name: 'Maegan Marie Cabardo', month: 'February', quarter: 'Q1', p: 7, a: 1 },
-      { name: 'Maegan Marie Cabardo', month: 'March', quarter: 'Q1', p: 8, a: 0 },
-      { name: 'Maegan Marie Cabardo', month: 'April', quarter: 'Q2', p: 9, a: 0 },
-      { name: 'Maegan Marie Cabardo', month: 'May', quarter: 'Q2', p: 9, a: 0 },
-      { name: 'Maegan Marie Cabardo', month: 'June', quarter: 'Q2', p: 9, a: 0 },
-    ]},
-    { name: 'Ronelyn Baguio', present: 134, absent: 9, suspension: 0, rate: '93.7%', timeline: [
-      { name: 'Ronelyn Baguio', month: 'January', quarter: 'Q1', p: 19, a: 2 },
-      { name: 'Ronelyn Baguio', month: 'February', quarter: 'Q1', p: 18, a: 1 },
-      { name: 'Ronelyn Baguio', month: 'March', quarter: 'Q1', p: 20, a: 2 },
-      { name: 'Ronelyn Baguio', month: 'April', quarter: 'Q2', p: 21, a: 1 },
-      { name: 'Ronelyn Baguio', month: 'May', quarter: 'Q2', p: 20, a: 2 },
-      { name: 'Ronelyn Baguio', month: 'June', quarter: 'Q2', p: 19, a: 1 },
-      { name: 'Ronelyn Baguio', month: 'July', quarter: 'Q3', p: 17, a: 0 },
-    ]},
-    { name: 'Joven Aniñon', present: 83, absent: 10, suspension: 0, rate: '89.2%', timeline: [
-      { name: 'Joven Aniñon', month: 'January', quarter: 'Q1', p: 12, a: 2 },
-      { name: 'Joven Aniñon', month: 'February', quarter: 'Q1', p: 11, a: 1 },
-      { name: 'Joven Aniñon', month: 'March', quarter: 'Q1', p: 13, a: 2 },
-      { name: 'Joven Aniñon', month: 'April', quarter: 'Q2', p: 12, a: 2 },
-      { name: 'Joven Aniñon', month: 'May', quarter: 'Q2', p: 13, a: 2 },
-      { name: 'Joven Aniñon', month: 'June', quarter: 'Q2', p: 11, a: 1 },
-    ]},
-    { name: 'Francisjell Yongco', present: 63, absent: 0, suspension: 0, rate: '100.0%', timeline: [
-      { name: 'Francisjell Yongco', month: 'January', quarter: 'Q1', p: 9, a: 0 },
-      { name: 'Francisjell Yongco', month: 'February', quarter: 'Q1', p: 8, a: 0 },
-      { name: 'Francisjell Yongco', month: 'March', quarter: 'Q1', p: 10, a: 0 },
-      { name: 'Francisjell Yongco', month: 'April', quarter: 'Q2', p: 9, a: 0 },
-      { name: 'Francisjell Yongco', month: 'May', quarter: 'Q2', p: 9, a: 0 },
-      { name: 'Francisjell Yongco', month: 'June', quarter: 'Q2', p: 8, a: 0 },
-    ]},
-  ], []);
+{/* Attendance View Component */ }
+function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
+  const attendanceData = useMemo<TrainerAttendanceData[]>(() => {
+    return initialTrainers.map(t => ({
+      name: t.name,
+      present: t.present || 0,
+      absent: t.leaves?.absence || 0,
+      suspension: t.leaves?.sus || 0,
+      rate: t.attendanceRate || '0%',
+      timeline: t.timeline || []
+    }));
+  }, [initialTrainers]);
+
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -745,7 +711,6 @@ function AttendanceView() {
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                 className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
               >
-              >
                 <option value="rate">Sort by Rate</option>
                 <option value="name">Sort by Name</option>
                 <option value="present">Sort by Present</option>
@@ -775,11 +740,10 @@ function AttendanceView() {
                 key={trainer.name}
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
-                  isSelected
+                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
                     ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
                     : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
-                }`}
+                  }`}
                 aria-label={`${trainer.name}, attendance rate ${trainer.rate}`}
               >
                 <div className="flex-1 min-w-0">
@@ -827,28 +791,34 @@ function AttendanceView() {
   );
 }
 
-{/* Reliability View Component */}
+{/* Reliability View Component */ }
 function ReliabilityView() {
   const reliabilityData = useMemo<TrainerReliabilityData[]>(() => [
-    { name: 'Nina Joy Briones', present: 89, absent: 1, losses: 4, rate: '94.7%', lossBreakdown: { sl: 2, vl: 1, other: 1 }, timeline: [
-      { month: 'January', quarter: 'Q1', p: 20, a: 0, losses: 1 },
-      { month: 'February', quarter: 'Q1', p: 19, a: 1, losses: 2 },
-      { month: 'March', quarter: 'Q1', p: 22, a: 0, losses: 0 },
-      { month: 'April', quarter: 'Q2', p: 28, a: 0, losses: 1 },
-    ]},
-    { name: 'Michelle Yncierto', present: 137, absent: 11, losses: 13, rate: '85.1%', lossBreakdown: { sl: 6, vl: 4, other: 3 }, timeline: [
-      { month: 'January', quarter: 'Q1', p: 35, a: 3, losses: 4 },
-      { month: 'February', quarter: 'Q1', p: 32, a: 4, losses: 5 },
-      { month: 'March', quarter: 'Q1', p: 36, a: 2, losses: 2 },
-      { month: 'April', quarter: 'Q2', p: 34, a: 2, losses: 2 },
-    ]},
-    { name: 'Rohla Mie Baswa', present: 39, absent: 19, losses: 66, rate: '31.5%', lossBreakdown: { sl: 20, vl: 15, other: 31 }, timeline: [
-      { month: 'January', quarter: 'Q1', p: 8, a: 5, losses: 15 },
-      { month: 'February', quarter: 'Q1', p: 7, a: 4, losses: 18 },
-      { month: 'March', quarter: 'Q1', p: 9, a: 3, losses: 12 },
-      { month: 'April', quarter: 'Q2', p: 8, a: 4, losses: 10 },
-      { month: 'May', quarter: 'Q2', p: 7, a: 3, losses: 11 },
-    ]},
+    {
+      name: 'Nina Joy Briones', present: 89, absent: 1, losses: 4, rate: '94.7%', lossBreakdown: { sl: 2, vl: 1, other: 1 }, timeline: [
+        { month: 'January', quarter: 'Q1', p: 20, a: 0, losses: 1 },
+        { month: 'February', quarter: 'Q1', p: 19, a: 1, losses: 2 },
+        { month: 'March', quarter: 'Q1', p: 22, a: 0, losses: 0 },
+        { month: 'April', quarter: 'Q2', p: 28, a: 0, losses: 1 },
+      ]
+    },
+    {
+      name: 'Michelle Yncierto', present: 137, absent: 11, losses: 13, rate: '85.1%', lossBreakdown: { sl: 6, vl: 4, other: 3 }, timeline: [
+        { month: 'January', quarter: 'Q1', p: 35, a: 3, losses: 4 },
+        { month: 'February', quarter: 'Q1', p: 32, a: 4, losses: 5 },
+        { month: 'March', quarter: 'Q1', p: 36, a: 2, losses: 2 },
+        { month: 'April', quarter: 'Q2', p: 34, a: 2, losses: 2 },
+      ]
+    },
+    {
+      name: 'Rohla Mie Baswa', present: 39, absent: 19, losses: 66, rate: '31.5%', lossBreakdown: { sl: 20, vl: 15, other: 31 }, timeline: [
+        { month: 'January', quarter: 'Q1', p: 8, a: 5, losses: 15 },
+        { month: 'February', quarter: 'Q1', p: 7, a: 4, losses: 18 },
+        { month: 'March', quarter: 'Q1', p: 9, a: 3, losses: 12 },
+        { month: 'April', quarter: 'Q2', p: 8, a: 4, losses: 10 },
+        { month: 'May', quarter: 'Q2', p: 7, a: 3, losses: 11 },
+      ]
+    },
     { name: 'Vincent Luis Celdran', present: 148, absent: 0, losses: 14, rate: '91.4%', lossBreakdown: { sl: 5, vl: 5, other: 4 }, timeline: [] },
     { name: 'Maegan Marie Cabardo', present: 50, absent: 1, losses: 4, rate: '90.9%', lossBreakdown: { sl: 2, vl: 1, other: 1 }, timeline: [] },
     { name: 'Ronelyn Baguio', present: 134, absent: 9, losses: 21, rate: '81.7%', lossBreakdown: { sl: 10, vl: 5, other: 6 }, timeline: [] },
@@ -892,7 +862,7 @@ function ReliabilityView() {
     let reliable = 0;
     let attention = 0;
     let critical = 0;
-    
+
     reliabilityData.forEach(t => {
       const rate = parseFloat(t.rate);
       sumRate += rate;
@@ -900,7 +870,7 @@ function ReliabilityView() {
       else if (rate >= 80) attention++;
       else critical++;
     });
-    
+
     const avgRate = (sumRate / totalTrainers).toFixed(1) + '%';
     return { avgRate, reliable, attention, critical };
   }, [reliabilityData]);
@@ -994,7 +964,6 @@ function ReliabilityView() {
                 onChange={(e) => setSortBy(e.target.value as 'low' | 'high')}
                 className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
               >
-              >
                 <option value="low">Sort: Low → High</option>
                 <option value="high">Sort: High → Low</option>
               </select>
@@ -1022,11 +991,10 @@ function ReliabilityView() {
                 key={trainer.name}
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${
-                  isSelected
+                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
                     ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
                     : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
-                }`}
+                  }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">

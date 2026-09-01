@@ -18,29 +18,39 @@ import {
   ClipboardList,
   ChevronDown,
   ChevronUp,
-  Circle
+  Circle,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRole, UserRole } from '@/components/providers/RoleProvider';
 
-const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Trainees', href: '/trainees', icon: Users },
-  { 
-    name: 'Trainers', 
-    href: '/trainers', 
-    icon: UserCheck,
-    subItems: [
-      { name: 'Directory', href: '/trainers' },
-      { name: 'Attendance', href: '/trainers?tab=attendance' },
-      { name: 'Reliability', href: '/trainers?tab=reliability' }
-    ]
-  },
-  { name: 'Analytics Trends', href: '/analytics', icon: BarChart },
-  { name: 'AI Insights', href: '/ai-insights', icon: Sparkles },
-  { name: 'Activity Log', href: '/history', icon: ClipboardList },
-];
+const getNavItems = (role: UserRole) => {
+  const items = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE', 'GUEST'] },
+    { name: 'Trainees', href: '/trainees', icon: Users, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
+    { 
+      name: 'Trainers', 
+      href: '/trainers', 
+      icon: UserCheck,
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE'],
+      subItems: [
+        { name: 'Directory', href: '/trainers' },
+        { name: 'Attendance', href: '/trainers?tab=attendance' },
+        { name: 'Reliability', href: '/trainers?tab=reliability' }
+      ]
+    },
+    { name: 'Analytics Trends', href: '/analytics', icon: BarChart, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
+    { name: 'Traffic Lights', href: '/traffic-lights', icon: Activity, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
+    { name: 'AI Insights', href: '/ai-insights', icon: Sparkles, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
+    { name: 'Activity Log', href: '/history', icon: ClipboardList, roles: ['SUPER_ADMIN'] },
+  ];
+
+  return items.filter(item => item.roles.includes(role));
+};
 
 export default function Sidebar() {
+  const { role } = useRole();
+  const navItems = getNavItems(role);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();

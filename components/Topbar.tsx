@@ -5,10 +5,13 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useRouter } from 'next/navigation';
 import DateFilter from '@/components/DateFilter';
 import NotificationDropdown from '@/components/NotificationDropdown';
+import RoleSwitcher from '@/components/RoleSwitcher';
 import { useState, useEffect, useRef } from 'react';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme();
+  const { email } = useRole();
   const router = useRouter();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,6 +128,7 @@ export default function Topbar() {
           )}
         </div>
 
+        <RoleSwitcher />
         <DateFilter />
         
         <NotificationDropdown />
@@ -134,15 +138,15 @@ export default function Topbar() {
           <div 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer hover:opacity-90 hover:scale-105 transition-all ring-2 ring-white dark:ring-slate-800"
-            title="N. Reguero"
+            title={email || "User"}
           >
-            NR
+            {email ? email.charAt(0).toUpperCase() : "U"}
           </div>
 
           {isProfileOpen && (
             <div className="absolute right-0 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
               <div className="border-b border-slate-100 p-4 dark:border-slate-800">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">N. Reguero</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{email || "User"}</p>
                 <p className="text-[0.65rem] text-slate-500 dark:text-slate-400">Operations Analytics</p>
               </div>
               <div className="p-2 space-y-1">

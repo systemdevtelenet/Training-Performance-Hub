@@ -13,6 +13,8 @@ const AiCopilotDrawer = dynamic(() => import('@/components/AiCopilotDrawer'), { 
 
 const poppins = Poppins({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700'] });
 
+import { RoleProvider } from '@/components/providers/RoleProvider';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
@@ -37,24 +39,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans antialiased bg-background text-foreground min-h-screen transition-colors duration-200">
         <ThemeProvider>
-          {isLoginPage ? (
-            <main className="w-full h-screen overflow-hidden">
-              {children}
-            </main>
-          ) : (
-            <div className="flex min-h-screen w-full">
-              <Suspense fallback={<div className="w-64 shrink-0 bg-primary h-screen" />}>
-                <Sidebar />
-              </Suspense>
-              <div className="flex-1 flex flex-col min-w-0">
-                <Topbar />
-                <main className="flex-1 p-6 overflow-y-auto">
-                  {children}
-                </main>
+          <RoleProvider>
+            {isLoginPage ? (
+              <main className="w-full h-screen overflow-hidden">
+                {children}
+              </main>
+            ) : (
+              <div className="flex min-h-screen w-full">
+                <Suspense fallback={<div className="w-64 shrink-0 bg-primary h-screen" />}>
+                  <Sidebar />
+                </Suspense>
+                <div className="flex-1 flex flex-col min-w-0">
+                  <Topbar />
+                  <main className="flex-1 p-6 overflow-y-auto">
+                    {children}
+                  </main>
+                </div>
               </div>
-            </div>
-          )}
-          {!isLoginPage && <AiCopilotDrawer />}
+            )}
+            {!isLoginPage && <AiCopilotDrawer />}
+          </RoleProvider>
         </ThemeProvider>
       </body>
     </html>

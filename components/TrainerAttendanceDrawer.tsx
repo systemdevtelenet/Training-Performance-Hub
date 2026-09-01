@@ -11,6 +11,8 @@ export interface TrainerAttendanceRecord {
   quarter: string;
   p: number;
   a: number;
+  sus: number;
+  rate: string;
 }
 
 export interface TrainerAttendanceData {
@@ -149,7 +151,7 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
                   {status.label}
                 </span>
                 <span className="px-4 py-1.5 rounded-full text-xs font-bold shadow-sm bg-primary text-white">
-                  {displayed.rate}% Rate
+                  {displayed.rate} Rate
                 </span>
               </div>
             </div>
