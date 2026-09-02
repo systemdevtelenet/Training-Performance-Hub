@@ -4,15 +4,17 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
 import { MONTH_ORDER } from '@/lib/analytics-utils';
+import { useRole } from '@/components/providers/RoleProvider';
+import { useRouter } from 'next/navigation';
 
 export interface TrainerAttendanceRecord {
-  name: string;
+  attendance_id?: number;
+  trainer_id?: number;
+  date: string;
   month: string;
-  quarter: string;
-  p: number;
-  a: number;
-  sus: number;
-  rate: string;
+  day: number;
+  weekday: string;
+  status: string;
 }
 
 export interface TrainerAttendanceData {
@@ -47,6 +49,12 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
   const [open, setOpen] = useState(Boolean(trainer));
   const [displayed, setDisplayed] = useState<TrainerAttendanceData | null>(trainer);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  const [isUpdating, setIsUpdating] = useState<number | null>(null);
+  
+  const { actualRole, role: simulatedRole } = useRole();
+  const router = useRouter();
+  
+  const isAdmin = actualRole === 'SUPER_ADMIN' || simulatedRole === 'SUPER_ADMIN' || simulatedRole === 'HOT_ADMIN';
 
   useEffect(() => {
     if (trainer) {
@@ -77,28 +85,58 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
     });
   }, []);
 
+  const handleStatusChange = async (attendanceId: number | undefined, newStatus: string) => {
+    if (!attendanceId) return;
+    setIsUpdating(attendanceId);
+    try {
+      const res = await fetch('/api/attendance/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance_id: attendanceId, status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update attendance');
+      
+      // Update local state to reflect change immediately
+      setDisplayed(prev => {
+        if (!prev) return prev;
+        const newTimeline = prev.timeline.map(record => 
+          record.attendance_id === attendanceId ? { ...record, status: newStatus } : record
+        );
+        return { ...prev, timeline: newTimeline };
+      });
+      
+      // Refresh the page data
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update attendance status. Please try again.');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
   const grouped = useMemo(() => {
     if (!displayed) return [];
-    const qMap = new Map<string, { months: Map<string, { p: number; a: number; sus: number }> }>();
+    
+    // Group records by month name
+    const mMap = new Map<string, TrainerAttendanceRecord[]>();
     for (const r of displayed.timeline) {
-      if (!qMap.has(r.quarter)) qMap.set(r.quarter, { months: new Map() });
-      const q = qMap.get(r.quarter)!;
-      if (!q.months.has(r.month)) q.months.set(r.month, { p: 0, a: 0, sus: 0 });
-      const m = q.months.get(r.month)!;
-      m.p += r.p;
-      m.a += r.a;
+      if (!mMap.has(r.month)) mMap.set(r.month, []);
+      mMap.get(r.month)!.push(r);
     }
-    return Array.from(qMap.entries()).map(([quarter, { months }]) => ({
-      quarter,
-      months: Array.from(months.entries())
-        .sort((a, b) => MONTH_ORDER.indexOf(a[0]) - MONTH_ORDER.indexOf(b[0]))
-        .map(([month, data]) => ({ month, ...data })),
-    }));
+    
+    // Sort months and records
+    return Array.from(mMap.entries())
+      .sort((a, b) => MONTH_ORDER.indexOf(a[0]) - MONTH_ORDER.indexOf(b[0]))
+      .map(([month, records]) => ({
+        month,
+        records: records.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      }));
   }, [displayed]);
 
   useEffect(() => {
     if (grouped.length > 0 && expandedQuarters.size === 0) {
-      setExpandedQuarters(new Set(grouped.map(g => g.quarter)));
+      setExpandedQuarters(new Set(grouped.map(g => g.month)));
     }
   }, [grouped]);
 
@@ -190,18 +228,17 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
             <section>
               <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Timeline</h3>
               <div className="space-y-2">
-                {grouped.map(({ quarter, months }) => {
-                  const isExpanded = expandedQuarters.has(quarter);
-                  const qP = months.reduce((s, m) => s + m.p, 0);
-                  const qA = months.reduce((s, m) => s + m.a, 0);
-                  const qTotal = qP + qA;
-                  const qRate = qTotal > 0 ? ((qP / qTotal) * 100).toFixed(1) : '100.0';
+                {grouped.map(({ month, records }) => {
+                  const isExpanded = expandedQuarters.has(month);
+                  const mP = records.filter(r => r.status?.toUpperCase() === 'P').length;
+                  const mWorking = records.filter(r => !['RD', 'HOL'].includes(r.status?.toUpperCase())).length;
+                  const mRate = mWorking > 0 ? ((mP / mWorking) * 100).toFixed(1) : '100.0';
 
                   return (
-                    <div key={quarter} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                    <div key={month} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
                       <button
                         type="button"
-                        onClick={() => toggleQuarter(quarter)}
+                        onClick={() => toggleQuarter(month)}
                         className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-700/80 transition-colors text-left"
                         aria-expanded={isExpanded}
                       >
@@ -211,35 +248,58 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
                           ) : (
                             <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
                           )}
-                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{quarter}</span>
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{months.length} month{months.length !== 1 ? 's' : ''}</span>
+                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{month}</span>
+                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{records.length} record{records.length !== 1 ? 's' : ''}</span>
                         </div>
-                        <span className="text-sm font-bold text-primary">{qRate}%</span>
+                        <span className="text-sm font-bold text-primary">{mRate}%</span>
                       </button>
                       {isExpanded && (
-                        <div className="border-t border-slate-200 dark:border-slate-700">
+                        <div className="border-t border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto">
                           <table className="w-full text-sm">
-                            <thead className="bg-slate-100/50 dark:bg-slate-900/30">
+                            <thead className="bg-slate-100/50 dark:bg-slate-900/30 sticky top-0 z-10 backdrop-blur-sm">
                               <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                <th className="text-left px-4 py-3 border-b border-slate-200 dark:border-slate-700">Month</th>
-                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">Present</th>
-                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">Absent</th>
-                                <th className="text-center px-3 py-3 border-b border-slate-200 dark:border-slate-700">SUS</th>
-                                <th className="text-right px-4 py-3 border-b border-slate-200 dark:border-slate-700">Rate</th>
+                                <th className="text-left px-4 py-3 border-b border-slate-200 dark:border-slate-700">Date</th>
+                                <th className="text-left px-3 py-3 border-b border-slate-200 dark:border-slate-700">Day</th>
+                                <th className="text-right px-4 py-3 border-b border-slate-200 dark:border-slate-700">Status</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                              {months.map(({ month, p, a, sus }) => {
-                                const mTotal = p + a + sus;
-                                const mRate = mTotal > 0 ? ((p / mTotal) * 100).toFixed(1) : '100.0';
+                              {records.map((r) => {
+                                const statusColor = r.status === 'P' ? 'text-emerald-600' : 
+                                                    r.status === 'A' ? 'text-rose-500' : 
+                                                    'text-slate-500';
                                 return (
-                                  <tr key={month} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
-                                    <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{month}</td>
-                                    <td className="px-3 py-3 text-center font-semibold text-slate-800 dark:text-slate-100">{p}</td>
-                                    <td className={`px-3 py-3 text-center font-semibold ${a > 0 ? 'text-rose-500' : 'text-slate-800 dark:text-slate-100'}`}>{a}</td>
-                                    <td className="px-3 py-3 text-center font-semibold text-slate-800 dark:text-slate-100">{sus}</td>
-                                    <td className={`px-4 py-3 text-right font-bold ${parseFloat(mRate) < 80 ? 'text-rose-500' : 'text-[#2F6798]'}`}>
-                                      {mRate}%
+                                  <tr key={r.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
+                                    <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{new Date(r.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                                    <td className="px-3 py-3 font-medium text-slate-500 dark:text-slate-400">{r.weekday}</td>
+                                    <td className={`px-4 py-3 text-right font-bold ${statusColor}`}>
+                                      {isAdmin ? (
+                                        <div className="flex justify-end items-center gap-2">
+                                          {isUpdating === r.attendance_id && (
+                                            <span className="w-3 h-3 rounded-full border-2 border-slate-300 border-t-primary animate-spin" />
+                                          )}
+                                          <select 
+                                            value={r.status}
+                                            onChange={(e) => handleStatusChange(r.attendance_id, e.target.value)}
+                                            disabled={isUpdating === r.attendance_id}
+                                            className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 font-bold"
+                                          >
+                                            <option value="P">P - Present</option>
+                                            <option value="A">A - Absent</option>
+                                            <option value="RD">RD - Rest Day</option>
+                                            <option value="HOL">HOL - Holiday</option>
+                                            <option value="SL">SL - Sick Leave</option>
+                                            <option value="VL">VL - Vacation Leave</option>
+                                            <option value="BL">BL - Bereavement Leave</option>
+                                            <option value="MED">MED - Medical</option>
+                                            <option value="SUS">SUS - Suspension</option>
+                                            <option value="ML">ML - Maternity Leave</option>
+                                            <option value="PL">PL - Paternity Leave</option>
+                                          </select>
+                                        </div>
+                                      ) : (
+                                        r.status
+                                      )}
                                     </td>
                                   </tr>
                                 );

@@ -62,9 +62,9 @@ async function syncAuthUsers() {
 
   for (const emp of validEmployees) {
     const email = emp.email.trim();
-    // Prefix with CTN to satisfy Supabase's 6-character minimum requirement
+    // Prefix with CTNP- to satisfy Supabase's 6-character minimum requirement
     const baseCode = String(emp.password).trim();
-    const password = baseCode.length >= 6 ? baseCode : `CTN${baseCode}`; 
+    const password = baseCode.length >= 6 ? baseCode : `CTNP-${baseCode}`;
 
     // Attempt to create user in Auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({

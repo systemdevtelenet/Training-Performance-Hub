@@ -9,11 +9,6 @@ export default function RoleSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Only SUPER_ADMIN can see and use this switcher
-  if (actualRole !== 'SUPER_ADMIN') {
-    return null;
-  }
-
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -23,6 +18,11 @@ export default function RoleSwitcher() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Only SUPER_ADMIN can see and use this switcher
+  if (actualRole !== 'SUPER_ADMIN') {
+    return null;
+  }
 
   const roles: { value: UserRole | null; label: string }[] = [
     { value: null, label: 'Super Admin (Original)' },

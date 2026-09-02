@@ -1,27 +1,28 @@
 'use client';
 
 import './globals.css';
-import { Poppins } from 'next/font/google';
+import { Open_Sans } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ThemeProvider from '@/components/ThemeProvider';
 import dynamic from 'next/dynamic';
+import { Toaster } from 'react-hot-toast';
 
 const AiCopilotDrawer = dynamic(() => import('@/components/AiCopilotDrawer'), { ssr: false });
 
-const poppins = Poppins({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700'] });
+const openSans = Open_Sans({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700', '800'] });
 
 import { RoleProvider } from '@/components/providers/RoleProvider';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  
+
   const isLoginPage = pathname === '/login';
 
   return (
-    <html lang="en" className={`${poppins.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${openSans.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {!isLoginPage && <AiCopilotDrawer />}
           </RoleProvider>
         </ThemeProvider>
+        <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       </body>
     </html>
   );

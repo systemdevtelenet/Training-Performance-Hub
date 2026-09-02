@@ -19,7 +19,10 @@ import {
   ChevronDown,
   ChevronUp,
   Circle,
-  Activity
+  Activity,
+  Calendar,
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, UserRole } from '@/components/providers/RoleProvider';
@@ -34,9 +37,9 @@ const getNavItems = (role: UserRole) => {
       icon: UserCheck,
       roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE'],
       subItems: [
-        { name: 'Directory', href: '/trainers' },
-        { name: 'Attendance', href: '/trainers?tab=attendance' },
-        { name: 'Reliability', href: '/trainers?tab=reliability' }
+        { name: 'Directory', href: '/trainers', icon: FileText },
+        { name: 'Attendance', href: '/trainers?tab=attendance', icon: Calendar },
+        { name: 'Reliability', href: '/trainers?tab=reliability', icon: ShieldCheck }
       ]
     },
     { name: 'Analytics Trends', href: '/analytics', icon: BarChart, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
@@ -75,7 +78,7 @@ export default function Sidebar() {
     <>
       <aside
         className={cn(
-          "bg-primary dark:bg-slate-950 text-primary-foreground backdrop-blur-xl border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
+          "bg-primary dark:bg-[#1A1C1E] text-primary-foreground backdrop-blur-xl border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
@@ -117,7 +120,7 @@ export default function Sidebar() {
                       }}
                       title={isCollapsed ? item.name : undefined}
                       className={cn(
-                        "w-full group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
+                        "w-full group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
                         isCollapsed && "justify-center px-0",
                         isActive
                           ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
@@ -140,19 +143,20 @@ export default function Sidebar() {
                           const subUrl = new URL(subItem.href, 'http://localhost');
                           const subTab = subUrl.searchParams.get('tab');
                           const isSubActive = (subTab === currentTab) || (!subTab && !currentTab);
+                          const SubIcon = subItem.icon || Circle;
                           
                           return (
                             <Link
                               key={subItem.href}
                               href={subItem.href}
                               className={cn(
-                                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200",
+                                "flex items-center gap-3 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-200",
                                 isSubActive
                                   ? "bg-white/20 text-white"
                                   : "text-white/60 hover:bg-white/10 hover:text-white"
                               )}
                             >
-                              <Circle className={cn("h-1.5 w-1.5", isSubActive ? "fill-white text-white" : "fill-transparent text-white/40")} />
+                              <SubIcon className={cn("h-3.5 w-3.5 shrink-0", isSubActive ? "text-white" : "text-white/40")} />
                               {subItem.name}
                             </Link>
                           );
@@ -169,7 +173,7 @@ export default function Sidebar() {
                   href={item.href}
                   title={isCollapsed ? item.name : undefined}
                   className={cn(
-                    "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
+                    "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
                     isCollapsed && "justify-center px-0",
                     isActive
                       ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
@@ -189,7 +193,7 @@ export default function Sidebar() {
             href="/profile"
             title={isCollapsed ? "Profile" : undefined}
             className={cn(
-              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
+              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
               isCollapsed && "justify-center px-0",
               pathname === '/profile'
                 ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
@@ -204,7 +208,7 @@ export default function Sidebar() {
             href="/settings"
             title={isCollapsed ? "Settings" : undefined}
             className={cn(
-              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.02]",
+              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
               isCollapsed && "justify-center px-0",
               pathname === '/settings'
                 ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
@@ -219,7 +223,7 @@ export default function Sidebar() {
             onClick={() => setShowLogoutModal(true)}
             title={isCollapsed ? "Logout" : undefined}
             className={cn(
-              "group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-white/70 hover:bg-red-500/20 hover:text-red-100 transition-all duration-200 text-left hover:scale-[1.02]",
+              "group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-white/70 hover:bg-red-500/20 hover:text-red-100 transition-all duration-200 text-left hover:scale-[1.02]",
               isCollapsed && "justify-center px-0"
             )}
           >

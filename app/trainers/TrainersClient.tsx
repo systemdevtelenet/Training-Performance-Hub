@@ -561,8 +561,8 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
     return initialTrainers.map(t => ({
       name: t.name,
       present: t.present || 0,
-      absent: t.leaves?.absence || 0,
-      suspension: t.leaves?.sus || 0,
+      absent: t.absent ?? t.leaves?.absence ?? 0,
+      suspension: t.suspension ?? t.leaves?.sus ?? 0,
       rate: t.attendanceRate || '0%',
       timeline: t.timeline || []
     }));
@@ -791,42 +791,60 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
   );
 }
 
-{/* Reliability View Component */ }
-function ReliabilityView() {
-  const reliabilityData = useMemo<TrainerReliabilityData[]>(() => [
-    {
-      name: 'Nina Joy Briones', present: 89, absent: 1, losses: 4, rate: '94.7%', lossBreakdown: { sl: 2, vl: 1, other: 1 }, timeline: [
-        { month: 'January', quarter: 'Q1', p: 20, a: 0, losses: 1 },
-        { month: 'February', quarter: 'Q1', p: 19, a: 1, losses: 2 },
-        { month: 'March', quarter: 'Q1', p: 22, a: 0, losses: 0 },
-        { month: 'April', quarter: 'Q2', p: 28, a: 0, losses: 1 },
-      ]
-    },
-    {
-      name: 'Michelle Yncierto', present: 137, absent: 11, losses: 13, rate: '85.1%', lossBreakdown: { sl: 6, vl: 4, other: 3 }, timeline: [
-        { month: 'January', quarter: 'Q1', p: 35, a: 3, losses: 4 },
-        { month: 'February', quarter: 'Q1', p: 32, a: 4, losses: 5 },
-        { month: 'March', quarter: 'Q1', p: 36, a: 2, losses: 2 },
-        { month: 'April', quarter: 'Q2', p: 34, a: 2, losses: 2 },
-      ]
-    },
-    {
-      name: 'Rohla Mie Baswa', present: 39, absent: 19, losses: 66, rate: '31.5%', lossBreakdown: { sl: 20, vl: 15, other: 31 }, timeline: [
-        { month: 'January', quarter: 'Q1', p: 8, a: 5, losses: 15 },
-        { month: 'February', quarter: 'Q1', p: 7, a: 4, losses: 18 },
-        { month: 'March', quarter: 'Q1', p: 9, a: 3, losses: 12 },
-        { month: 'April', quarter: 'Q2', p: 8, a: 4, losses: 10 },
-        { month: 'May', quarter: 'Q2', p: 7, a: 3, losses: 11 },
-      ]
-    },
-    { name: 'Vincent Luis Celdran', present: 148, absent: 0, losses: 14, rate: '91.4%', lossBreakdown: { sl: 5, vl: 5, other: 4 }, timeline: [] },
-    { name: 'Maegan Marie Cabardo', present: 50, absent: 1, losses: 4, rate: '90.9%', lossBreakdown: { sl: 2, vl: 1, other: 1 }, timeline: [] },
-    { name: 'Ronelyn Baguio', present: 134, absent: 9, losses: 21, rate: '81.7%', lossBreakdown: { sl: 10, vl: 5, other: 6 }, timeline: [] },
-    { name: 'Joven Aniñon', present: 83, absent: 10, losses: 11, rate: '79.8%', lossBreakdown: { sl: 5, vl: 4, other: 2 }, timeline: [] },
-    { name: 'Francisjell Yongco', present: 63, absent: 0, losses: 1, rate: '98.4%', lossBreakdown: { sl: 0, vl: 1, other: 0 }, timeline: [] },
-    { name: 'Jeremy Rigodon', present: 144, absent: 3, losses: 15, rate: '88.9%', lossBreakdown: { sl: 8, vl: 4, other: 3 }, timeline: [] },
-    { name: 'Nissi-Jeh Reguero', present: 148, absent: 0, losses: 17, rate: '89.7%', lossBreakdown: { sl: 7, vl: 6, other: 4 }, timeline: [] },
-  ], []);
+function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
+  const reliabilityData = useMemo<TrainerReliabilityData[]>(() => {
+    return initialTrainers.map(t => {
+      let sl = t.leaves?.sl || 0;
+      let vl = t.leaves?.vl || 0;
+      let med = t.leaves?.med || 0;
+      let sus = t.leaves?.sus || 0;
+      let other = (t.leaves?.absence || 0) + (t.leaves?.und || 0) + (t.leaves?.pl || 0) + (t.leaves?.bl || 0) + (t.leaves?.ml || 0);
+
+      // Losses can be whatever logic applies (e.g., absence + sus + etc.)
+      // For now, mirroring simple addition:
+      let losses = t.absent + t.suspension;
+      
+      // Calculate the timeline grouped by month/quarter
+      const monthMap = new Map();
+      
+      const getQuarter = (monthName: string) => {
+        const m = monthName.toLowerCase();
+        if (['january', 'february', 'march'].includes(m)) return 'Q1';
+        if (['april', 'may', 'june'].includes(m)) return 'Q2';
+        if (['july', 'august', 'september'].includes(m)) return 'Q3';
+        return 'Q4';
+      };
+
+      (t.timeline || []).forEach((r: any) => {
+        if (!monthMap.has(r.month)) {
+          monthMap.set(r.month, {
+            month: r.month,
+            quarter: getQuarter(r.month),
+            p: 0,
+            a: 0,
+            losses: 0
+          });
+        }
+        const m = monthMap.get(r.month);
+        const s = r.status?.toUpperCase();
+        if (s === 'P') m.p++;
+        else if (s === 'A' || s === 'SUS' || s === 'ABS' || s === 'UND') {
+          m.a++;
+          m.losses++;
+        }
+      });
+      
+      return {
+        name: t.name,
+        present: t.present || 0,
+        absent: t.absent || 0,
+        losses: losses,
+        rate: t.reliabilityRate || '0.0%',
+        lossBreakdown: { sl, vl, other: med + sus + other },
+        timeline: Array.from(monthMap.values())
+      };
+    });
+  }, [initialTrainers]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');

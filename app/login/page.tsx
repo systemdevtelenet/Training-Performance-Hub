@@ -181,18 +181,16 @@ export default function LoginPage() {
       <div className="w-full max-w-3xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[440px] relative z-10">
 
         {/* Left Hero Panel */}
-        <div className="bg-[#2F6798]/95 p-8 flex flex-col items-center justify-center text-white text-center space-y-6 relative">
-          <div className="relative flex items-center justify-center">
-            <div className="w-[104px] h-[104px] rounded-full border-4 border-white/30 flex items-center justify-center bg-white/10 backdrop-blur-sm overflow-hidden shrink-0">
-              <Image src="/images/ctnp-logo.png" alt="CTNP Logo" width={96} height={96} className="object-contain pointer-events-none select-none" />
-            </div>
+        <div className="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm p-8 flex flex-col items-center justify-center text-center space-y-8 relative border-r border-slate-200/50 dark:border-slate-700/50">
+          <div className="relative flex items-center justify-center w-full max-w-[280px]">
+            <Image src="/images/ctnp-logo-full.png" alt="CTNP Logo Full" width={320} height={140} className="object-contain pointer-events-none select-none w-full h-auto drop-shadow-sm" priority />
           </div>
 
-          <div className="space-y-1 pointer-events-none select-none">
-            <h1 className="text-xl font-black tracking-wider uppercase whitespace-nowrap">
+          <div className="space-y-1.5 pointer-events-none select-none">
+            <h1 className="text-[1.1rem] leading-tight font-black tracking-wider uppercase text-primary">
               CEBU TELE-NET PHILIPPINES
             </h1>
-            <p className="text-xs text-blue-100 font-medium tracking-wide">
+            <p className="text-xs font-bold tracking-wide text-primary/80 uppercase">
               Training Performance Hub
             </p>
           </div>

@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/utils/supabase/client';
 import { Loader2, Search, RefreshCw, AlertTriangle, ShieldCheck, Download, Activity, Check } from 'lucide-react';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export default function TrafficLightsClient() {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
+  const { actualRole, role: simulatedRole } = useRole();
+  const currentRole = simulatedRole || actualRole;
   
-  const [account, setAccount] = useState('rm');
+  const [account, setAccount] = useState(currentRole === 'HOT_ADMIN' ? 'trainers' : 'rm');
   const [quarter, setQuarter] = useState('q1');
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -15,11 +18,12 @@ export default function TrafficLightsClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const accounts = [
+  const allAccounts = [
     { id: 'rm', name: 'RM' },
     { id: 'xpn', name: 'XPN' },
     { id: 'fleet', name: 'Fleet' },
     { id: 'leaders', name: 'Leaders' },
+    { id: 'trainers', name: 'Trainers' },
     { id: 'dft', name: 'DFT' },
     { id: 'js', name: 'JS' },
     { id: 'ono', name: 'ONO' },
@@ -29,6 +33,10 @@ export default function TrafficLightsClient() {
     { id: 'mm_transpo', name: 'MM Transpo' },
     { id: 'other_acc', name: 'Other Acc' },
   ];
+
+  const accounts = currentRole === 'HOT_ADMIN' 
+    ? [{ id: 'trainers', name: 'Trainers' }] 
+    : allAccounts;
 
   const quarters = [
     { id: 'q1', name: 'Q1 2026' },

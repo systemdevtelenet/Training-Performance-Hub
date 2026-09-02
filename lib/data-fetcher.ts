@@ -83,108 +83,111 @@ export const getDashboardData = unstable_cache(
 
 export const getTrainersData = unstable_cache(
   async () => {
-    const { data: trainers, error } = await supabaseAdmin
-      .from('trainers_profile')
+    const { data: trainers, error: trainersError } = await supabaseAdmin
+      .from('trainers')
       .select('*');
 
-    if (error) {
-      console.error('Error fetching trainers_profile:', error);
+    if (trainersError) {
+      console.error('Error fetching trainers:', trainersError);
       return [];
     }
 
-    const { data: attendanceData, error: attError } = await supabaseAdmin
-      .from('trainers_attendance_strat')
+    const { data: trainersProfile, error: profileError } = await supabaseAdmin
+      .from('trainers_profile')
       .select('*');
 
-    if (attError) {
-      console.error('Error fetching trainers_attendance_strat:', attError);
+    if (profileError) {
+      console.error('Error fetching trainers_profile:', profileError);
     }
     
+    // Map employee_num to trainers_profile row to get name, etc.
+    const profileMap = new Map();
+    if (trainersProfile) {
+      for (const p of trainersProfile) {
+        if (p.employee_num) {
+          profileMap.set(p.employee_num, p);
+        }
+      }
+    }
+
+    // Fetch all attendance records using pagination (Supabase 1000 row limit)
+    let allAttendanceData: any[] = [];
+    let hasMore = true;
+    let page = 0;
+    const PAGE_SIZE = 1000;
+
+    while (hasMore) {
+      const { data, error: attError } = await supabaseAdmin
+        .from('trainer_attendance_strat')
+        .select('*')
+        .order('attendance_date', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (attError) {
+        console.error('Error fetching trainer_attendance_strat:', attError);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allAttendanceData = allAttendanceData.concat(data);
+        page++;
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+    
+    // Build map using trainer_id as key
     const attendanceMap = new Map();
-    if (attendanceData) {
-      let currentHeader: any = null;
-      const daysCols = [
-        'thursday', 'friday', 'saturday', 'sunday', 'monday', 'tuesday', 'wednesday',
-        'thursday_1', 'friday_1', 'saturday_1', 'sunday_1', 'monday_1', 'tuesday_1', 'wednesday_1',
-        'thursday_2', 'friday_2', 'saturday_2', 'sunday_2', 'monday_2', 'tuesday_2', 'wednesday_2',
-        'thursday_3', 'friday_3', 'saturday_3', 'sunday_3', 'monday_3', 'tuesday_3', 'wednesday_3',
-        'thursday_4', 'friday_4', 'saturday_4'
-      ];
+    if (allAttendanceData.length > 0) {
+      for (const row of allAttendanceData) {
+        const tId = row.trainer_id;
+        if (!tId) continue;
 
-      for (const row of attendanceData) {
-        // Detect header row by checking if name is missing but thursday has a date-like string
-        if (!row.name && row.thursday && typeof row.thursday === 'string' && row.thursday.trim().length > 0) {
-          currentHeader = row;
-        } else if (row.name) {
-          const name = row.name.trim();
-          if (!attendanceMap.has(name)) {
-            attendanceMap.set(name, {
-              absent: 0,
-              suspension: 0,
-              runningRates: [],
-              timeline: [],
-              records: { ABS: [], SL: [], VL: [], BL: [], MED: [], SUS: [], HOL: [], ML: [], PL: [], UND: [] }
-            });
-          }
-          const current = attendanceMap.get(name);
+        if (!attendanceMap.has(tId)) {
+          attendanceMap.set(tId, {
+            timeline: [],
+            records: { ABS: [], SL: [], VL: [], BL: [], MED: [], SUS: [], HOL: [], ML: [], PL: [], UND: [] }
+          });
+        }
+        const current = attendanceMap.get(tId);
+        
+        // Month names
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        let monthName = 'Unknown';
+        if (row.attendance_month) {
+          monthName = monthNames[row.attendance_month - 1] || 'Unknown';
+        } else if (row.attendance_date) {
+          monthName = monthNames[new Date(row.attendance_date).getMonth()] || 'Unknown';
+        }
+
+        // Push record to timeline
+        current.timeline.push({
+          attendance_id: row.attendance_id,
+          trainer_id: tId,
+          date: row.attendance_date,
+          month: monthName,
+          day: row.attendance_day,
+          weekday: row.weekday_name,
+          status: row.status
+        });
+
+        if (row.status && typeof row.status === 'string') {
+          const s = row.status.trim().toUpperCase();
+          const dText = row.attendance_date;
           
-          if (row.running && row.running.includes('%')) {
-             current.runningRates.push(parseFloat(row.running));
-          }
-
-          if (currentHeader) {
-            // Determine month from the first available day in the header
-            let monthName = 'Unknown';
-            let quarterName = 'Q1';
-            const firstDate = currentHeader.thursday || currentHeader.monday || currentHeader.tuesday || '';
-            if (firstDate && typeof firstDate === 'string') {
-              const mMatch = firstDate.trim().toUpperCase().match(/^[A-Z]{3,}/);
-              if (mMatch) {
-                const mStr = mMatch[0];
-                if (['JAN', 'FEB', 'MAR'].includes(mStr)) { quarterName = 'Q1'; }
-                else if (['APR', 'MAY', 'JUN'].includes(mStr)) { quarterName = 'Q2'; }
-                else if (['JUL', 'AUG', 'SEP'].includes(mStr)) { quarterName = 'Q3'; }
-                else if (['OCT', 'NOV', 'DEC'].includes(mStr)) { quarterName = 'Q4'; }
-                
-                const monthMap: Record<string, string> = { JAN: 'January', FEB: 'February', MAR: 'March', APR: 'April', MAY: 'May', JUN: 'June', JUL: 'July', AUG: 'August', SEP: 'September', OCT: 'October', NOV: 'November', DEC: 'December' };
-                monthName = monthMap[mStr] || mStr;
-              }
-            }
-
-            // Push to timeline for this row
-            const pres = parseInt(row.actual || row.present) || 0;
-            const abs = parseInt(row.absent) || 0;
-            const sus = parseInt(row.suspension) || 0;
-            current.timeline.push({
-              name: name,
-              month: monthName,
-              quarter: quarterName,
-              p: pres,
-              a: abs,
-              sus: sus,
-              rate: row.running || '0%'
-            });
-
-            for (const col of daysCols) {
-              const status = row[col];
-              const dateText = currentHeader[col];
-              if (status && dateText && typeof status === 'string') {
-                const s = status.trim().toUpperCase();
-                const dText = dateText.trim();
-                
-                if (s === 'A' || s.includes('ABS')) current.records.ABS.push(dText);
-                else if (s.includes('SL')) current.records.SL.push(dText);
-                else if (s.includes('VL')) current.records.VL.push(dText);
-                else if (s.includes('BL')) current.records.BL.push(dText);
-                else if (s.includes('MED')) current.records.MED.push(dText);
-                else if (s.includes('SUS')) current.records.SUS.push(dText);
-                else if (s.includes('HOL')) current.records.HOL.push(dText);
-                else if (s.includes('ML')) current.records.ML.push(dText);
-                else if (s.includes('PL')) current.records.PL.push(dText);
-                else if (s.includes('UND') || s.includes('UT')) current.records.UND.push(dText);
-              }
-            }
-          }
+          if (s === 'A' || s.includes('ABS')) current.records.ABS.push(dText);
+          else if (s.includes('SL')) current.records.SL.push(dText);
+          else if (s.includes('VL')) current.records.VL.push(dText);
+          else if (s.includes('BL')) current.records.BL.push(dText);
+          else if (s.includes('MED')) current.records.MED.push(dText);
+          else if (s.includes('SUS')) current.records.SUS.push(dText);
+          else if (s.includes('HOL')) current.records.HOL.push(dText);
+          else if (s.includes('ML')) current.records.ML.push(dText);
+          else if (s.includes('PL')) current.records.PL.push(dText);
+          else if (s.includes('UND') || s.includes('UT')) current.records.UND.push(dText);
         }
       }
     }
@@ -193,10 +196,11 @@ export const getTrainersData = unstable_cache(
 
     // Map DB rows to standard format
     const mapped = trainers.map(t => {
-      const attRow = attendanceMap.get(t.name?.trim());
+      const profile = profileMap.get(t.employee_num) || {};
+      const attRow = attendanceMap.get(t.trainer_id);
       
-      let leaves = typeof t.leaves === 'string' ? JSON.parse(t.leaves) : (t.leaves || { absence: 0, sl: 0, vl: 0, bl: 0, med: 0, sus: 0, hol: 0, ml: 0, pl: 0, und: 0, records: {} });
-      let attendanceRate = t.attendance_rate ? `${t.attendance_rate}%` : '0.0%';
+      let leaves = { absence: 0, sl: 0, vl: 0, bl: 0, med: 0, sus: 0, hol: 0, ml: 0, pl: 0, und: 0, records: {} };
+      let attendanceRate = '0.0%';
 
       if (attRow) {
         leaves = {
@@ -212,37 +216,47 @@ export const getTrainersData = unstable_cache(
           und: attRow.records.UND.length,
           records: attRow.records
         };
-        // For attendanceRate, fallback to trainers_profile if runningRates is empty
-        if (attRow.runningRates.length > 0) {
-           const avg = attRow.runningRates.reduce((a: number, b: number) => a + b, 0) / attRow.runningRates.length;
-           attendanceRate = `${avg.toFixed(1)}%`;
-        }
       }
 
-      // Calculate present from timeline or fallback to 0
+      // Calculate present, absent, sus from true timeline
       let totalPresent = 0;
+      let totalAbsent = 0;
+      let totalSus = 0;
       let timeline = [];
       if (attRow) {
         timeline = attRow.timeline;
-        totalPresent = attRow.timeline.reduce((sum: number, r: any) => sum + (r.p || 0), 0);
+        totalPresent = attRow.timeline.filter((r: any) => r.status?.toUpperCase() === 'P').length;
+        totalAbsent = leaves.absence;
+        totalSus = leaves.sus;
+        
+        // Calculate true attendance rate
+        const workingDays = attRow.timeline.filter((r: any) => !['RD', 'HOL'].includes(r.status?.toUpperCase())).length;
+        if (workingDays > 0) {
+           attendanceRate = `${((totalPresent / workingDays) * 100).toFixed(1)}%`;
+        }
       }
       
+      const batches = typeof profile.batches === 'string' ? JSON.parse(profile.batches) : (profile.batches || []);
+
       return {
         id: t.employee_num || Math.random().toString(),
-        name: t.name || 'Unknown',
-        email: t.gmail_account || '',
+        trainer_id: t.trainer_id,
+        name: profile.name || 'Unknown',
+        email: profile.gmail_account || '',
         role: t.position || 'UNASSIGNED',
         status: t.status || 'ACTIVE',
         startDate: t.start_date || 'N/A',
-        accounts: t.accounts || '',
+        accounts: profile.accounts || '',
         tasks: t.assigned_task || '',
         attendanceRate: attendanceRate,
-        reliabilityRate: t.reliability_rate ? `${t.reliability_rate}%` : '0.0%',
-        overallSuccess: t.success_rate ? `${t.success_rate}%` : '0.0%',
+        reliabilityRate: profile.reliability_rate ? `${profile.reliability_rate}%` : '0.0%',
+        overallSuccess: profile.success_rate ? `${profile.success_rate}%` : '0.0%',
         leaves: leaves,
-        batches: typeof t.batches === 'string' ? JSON.parse(t.batches) : (t.batches || []),
+        batches: batches,
         timeline: timeline,
-        present: totalPresent
+        present: totalPresent,
+        absent: totalAbsent,
+        suspension: totalSus
       };
     });
 
