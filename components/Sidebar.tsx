@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -29,30 +29,30 @@ import { useRole, UserRole } from '@/components/providers/RoleProvider';
 
 const getNavItems = (role: UserRole) => {
   const items = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE', 'GUEST'] },
-    { name: 'Trainees', href: '/trainees', icon: Users, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'EMPLOYEE', 'GUEST'] },
+    { name: 'Trainees', href: '/trainees', icon: Users, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
     { 
       name: 'Trainers', 
       href: '/trainers', 
       icon: UserCheck,
-      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE'],
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'EMPLOYEE'],
       subItems: [
         { name: 'Directory', href: '/trainers', icon: FileText },
         { name: 'Attendance', href: '/trainers?tab=attendance', icon: Calendar },
         { name: 'Reliability', href: '/trainers?tab=reliability', icon: ShieldCheck }
       ]
     },
-    { name: 'Analytics Trends', href: '/analytics', icon: BarChart, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
-    { name: 'Traffic Lights', href: '/traffic-lights', icon: Activity, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
-    { name: 'AI Insights', href: '/ai-insights', icon: Sparkles, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'] },
-    { name: 'Activity Log', href: '/history', icon: ClipboardList, roles: ['SUPER_ADMIN'] },
+    { name: 'Analytics Trends', href: '/analytics', icon: BarChart, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
+    { name: 'Traffic Lights', href: '/traffic-lights', icon: Activity, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
+    { name: 'AI Insights', href: '/ai-insights', icon: Sparkles, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
+    { name: 'Activity Log', href: '/history', icon: ClipboardList, roles: ['SUPER_ADMIN', 'VIEW_ADMIN'] },
   ];
 
   return items.filter(item => item.roles.includes(role));
 };
 
 export default function Sidebar() {
-  const { role } = useRole();
+  const { role, email } = useRole();
   const navItems = getNavItems(role);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -63,9 +63,33 @@ export default function Sidebar() {
     '/trainers': true
   });
 
-  const handleConfirmLogout = () => {
+  const profile = useMemo(() => {
+    const emailStr = (email || '').toLowerCase();
+    if (emailStr.includes('bosssilver') || role === 'VIEW_ADMIN') {
+      return { name: 'Boss Silver', title: 'Executive Admin (View Only)', initials: 'BS', email: email || 'bosssilver.telenet@gmail.com' };
+    }
+    if (emailStr.includes('nreguero') || role === 'HOT_ADMIN') {
+      return { name: 'Nissi-Jeh Reguero', title: 'Head of Training', initials: 'NJ', email: email || 'nreguero.telenet@gmail.com' };
+    }
+    if (emailStr.includes('ralasagas') || role === 'QAS_ADMIN') {
+      return { name: 'Raza Alasagas', title: 'QAS Head', initials: 'RA', email: email || 'ralasagas.telenet@gmail.com' };
+    }
+    if (email) {
+      const handle = email.split('@')[0];
+      const parts = handle.split(/[\._]/);
+      const name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      const initials = parts.map(p => p.charAt(0).toUpperCase()).join('').slice(0, 2);
+      return { name, title: role || 'Operations User', initials: initials || 'U', email };
+    }
+    return { name: 'Nissi-Jeh Reguero', title: 'Head of Training', initials: 'NJ', email: 'nreguero.telenet@gmail.com' };
+  }, [email, role]);
+
+  const handleConfirmLogout = async () => {
     setShowLogoutModal(false);
-    router.push('/login');
+    const { createClient } = await import('@/utils/supabase/client');
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login?logout=true');
   };
 
   useEffect(() => {
@@ -78,12 +102,12 @@ export default function Sidebar() {
     <>
       <aside
         className={cn(
-          "bg-primary dark:bg-[#1A1C1E] text-primary-foreground backdrop-blur-xl border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50",
+          "bg-primary dark:bg-[#1A1C1E] text-primary-foreground border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-[width] duration-200 ease-out will-change-[width] shadow-md z-50 overflow-x-hidden",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
         <div>
-          <div className={cn("flex items-center border-b border-primary/20 dark:border-slate-800 transition-all", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
+          <div className={cn("flex items-center border-b border-primary/20 dark:border-slate-800 transition-none", isCollapsed ? "justify-center p-4" : "justify-between p-4")}>
             {!isCollapsed && (
               <div className="flex items-center gap-3 overflow-hidden min-w-0">
                 <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center shadow-md shadow-black/10">
@@ -97,7 +121,7 @@ export default function Sidebar() {
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+              className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
               <Menu className="h-5 w-5 shrink-0" />
@@ -112,18 +136,21 @@ export default function Sidebar() {
               
               if (item.subItems) {
                 return (
-                  <div key={item.href} className="space-y-1">
+                  <div key={item.href} className="relative group space-y-1">
                     <button
                       onClick={() => {
-                        if (isCollapsed) setIsCollapsed(false);
-                        setExpandedMenus(prev => ({ ...prev, [item.href]: !prev[item.href] }));
+                        if (isCollapsed) {
+                          setIsCollapsed(false);
+                          setExpandedMenus(prev => ({ ...prev, [item.href]: true }));
+                        } else {
+                          setExpandedMenus(prev => ({ ...prev, [item.href]: !prev[item.href] }));
+                        }
                       }}
-                      title={isCollapsed ? item.name : undefined}
                       className={cn(
-                        "w-full group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150",
                         isCollapsed && "justify-center px-0",
                         isActive
-                          ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
+                          ? "bg-white/20 text-white font-bold"
                           : "text-white/70 hover:bg-white/10 hover:text-white"
                       )}
                     >
@@ -137,30 +164,67 @@ export default function Sidebar() {
                     </button>
                     
                     {!isCollapsed && isExpanded && (
-                      <div className="pl-9 pr-2 py-1 space-y-1">
+                      <div className="ml-5 pl-3 my-1 border-l border-white/20 space-y-1">
                         {item.subItems.map(subItem => {
                           const currentTab = searchParams?.get('tab');
                           const subUrl = new URL(subItem.href, 'http://localhost');
                           const subTab = subUrl.searchParams.get('tab');
                           const isSubActive = (subTab === currentTab) || (!subTab && !currentTab);
-                          const SubIcon = subItem.icon || Circle;
+                          const SubIcon = subItem.icon || FileText;
                           
                           return (
                             <Link
                               key={subItem.href}
                               href={subItem.href}
                               className={cn(
-                                "flex items-center gap-3 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-200",
+                                "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
                                 isSubActive
-                                  ? "bg-white/20 text-white"
+                                  ? "bg-white/20 text-white font-bold"
                                   : "text-white/60 hover:bg-white/10 hover:text-white"
                               )}
                             >
-                              <SubIcon className={cn("h-3.5 w-3.5 shrink-0", isSubActive ? "text-white" : "text-white/40")} />
-                              {subItem.name}
+                              <SubIcon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", isSubActive ? "text-white" : "text-white/60")} />
+                              <span className="truncate">{subItem.name}</span>
                             </Link>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* Collapsed Hover Popover Menu Card */}
+                    {isCollapsed && (
+                      <div className="absolute left-full top-0 ml-3.5 w-60 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-2.5 backdrop-blur-xl animate-in fade-in slide-in-from-left-2">
+                        <div className="px-3 py-2 border-b border-white/15 mb-1.5 flex items-center justify-between">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-white/80">{item.name}</span>
+                          <span className="text-[10px] font-semibold text-white/50">{item.subItems.length} views</span>
+                        </div>
+                        <div className="space-y-1">
+                          {item.subItems.map(subItem => {
+                            const currentTab = searchParams?.get('tab');
+                            const subUrl = new URL(subItem.href, 'http://localhost');
+                            const subTab = subUrl.searchParams.get('tab');
+                            const isSubActive = (subTab === currentTab) || (!subTab && !currentTab);
+                            const SubIcon = subItem.icon || FileText;
+
+                            return (
+                              <Link
+                                key={subItem.href}
+                                href={subItem.href}
+                                className={cn(
+                                  "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+                                  isSubActive
+                                    ? "bg-white/25 text-white font-bold shadow-xs"
+                                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                                )}
+                              >
+                                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/15", isSubActive ? "bg-white/30 text-white" : "bg-white/10 text-white/70")}>
+                                  <SubIcon className="h-3.5 w-3.5" />
+                                </div>
+                                <span className="truncate">{subItem.name}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -168,72 +232,120 @@ export default function Sidebar() {
               }
 
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={isCollapsed ? item.name : undefined}
-                  className={cn(
-                    "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
-                    isCollapsed && "justify-center px-0",
-                    isActive
-                      ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
+                <div key={item.href} className="relative group">
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150",
+                      isCollapsed && "justify-center px-0",
+                      isActive
+                        ? "bg-white/20 text-white font-bold"
+                        : "text-white/70 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <Icon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", isActive ? "text-white" : "text-white/60 group-hover:text-white")} />
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  </Link>
+
+                  {/* Collapsed Floating Tooltip Popover */}
+                  {isCollapsed && (
+                    <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-xl px-3.5 py-2 text-xs font-bold shadow-2xl backdrop-blur-xl whitespace-nowrap animate-in fade-in slide-in-from-left-2">
+                      {item.name}
+                    </div>
                   )}
-                >
-                  <Icon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", isActive ? "text-white" : "text-white/60 group-hover:text-white")} />
-                  {!isCollapsed && <span className="truncate">{item.name}</span>}
-                </Link>
+                </div>
               );
             })}
           </nav>
         </div>
 
-        <div className="p-3 space-y-1 border-t border-primary/20 dark:border-slate-800">
-          <Link
-            href="/profile"
-            title={isCollapsed ? "Profile" : undefined}
-            className={cn(
-              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
-              isCollapsed && "justify-center px-0",
-              pathname === '/profile'
-                ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
-                : "text-white/70 hover:bg-white/10 hover:text-white"
-            )}
-          >
-            <User className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-white" />
-            {!isCollapsed && <span>Profile</span>}
-          </Link>
+        {/* Sidebar Footer - Settings & User Profile Card */}
+        <div className="p-3 border-t border-primary/20 dark:border-slate-800 space-y-2">
+          <div className="relative group">
+            <Link
+              href="/settings"
+              title={isCollapsed ? "Settings" : undefined}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150",
+                isCollapsed && "justify-center px-0",
+                pathname === '/settings'
+                  ? "bg-white/20 text-white font-bold"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Settings className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-white" />
+              {!isCollapsed && <span>Settings</span>}
+            </Link>
 
-          <Link
-            href="/settings"
-            title={isCollapsed ? "Settings" : undefined}
-            className={cn(
-              "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 hover:scale-[1.02]",
-              isCollapsed && "justify-center px-0",
-              pathname === '/settings'
-                ? "bg-white/15 text-white shadow-[inset_2px_0_0_0_#fff]"
-                : "text-white/70 hover:bg-white/10 hover:text-white"
+            {isCollapsed && (
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-xl px-3.5 py-2 text-xs font-bold shadow-2xl backdrop-blur-xl whitespace-nowrap animate-in fade-in slide-in-from-left-2">
+                Settings
+              </div>
             )}
-          >
-            <Settings className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-white" />
-            {!isCollapsed && <span>Settings</span>}
-          </Link>
+          </div>
 
-          <button
-            onClick={() => setShowLogoutModal(true)}
-            title={isCollapsed ? "Logout" : undefined}
-            className={cn(
-              "group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-white/70 hover:bg-red-500/20 hover:text-red-100 transition-all duration-200 text-left hover:scale-[1.02]",
-              isCollapsed && "justify-center px-0"
+          {/* User Profile Card with Avatar & Collapsed Hover Menu */}
+          <div className="relative group">
+            <div className={cn("flex items-center justify-between p-2.5 rounded-2xl bg-white/10 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700/50 shadow-xs cursor-pointer transition-all hover:bg-white/15", isCollapsed && "justify-center p-2")}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs">
+                  {profile.initials}
+                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col min-w-0 pr-1">
+                    <span className="text-xs font-bold text-white truncate leading-tight">{profile.name}</span>
+                    <span className="text-[10px] font-medium text-white/60 truncate leading-tight">{profile.title}</span>
+                  </div>
+                )}
+              </div>
+              {!isCollapsed && (
+                <button
+                  onClick={() => setShowLogoutModal(true)}
+                  title="Logout"
+                  className="p-1.5 rounded-xl text-white/60 hover:text-red-300 hover:bg-red-500/20 transition-all shrink-0 cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Collapsed Hover User Menu Card (Matches User Screenshot) */}
+            {isCollapsed && (
+              <div className="absolute left-full bottom-0 ml-3.5 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-in fade-in slide-in-from-left-2 space-y-2">
+                <div className="flex items-center gap-3 pb-2 border-b border-white/15">
+                  <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm">
+                    {profile.initials}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-white truncate">{profile.name}</span>
+                    <span className="text-[10px] text-white/60 truncate">{profile.email} &middot; {profile.title}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Link
+                    href="/settings"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    <Settings className="h-4 w-4 text-white/60" />
+                    <span>Settings</span>
+                  </Link>
+
+                  <button
+                    onClick={() => setShowLogoutModal(true)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all text-left cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4 text-red-300" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-white/10 text-[10px] text-white/40 flex items-center justify-between px-1">
+                  <span>Training Performance Hub v1.0</span>
+                  <span>Terms & Support</span>
+                </div>
+              </div>
             )}
-          >
-            <LogOut className="h-4 w-4 shrink-0 transition-colors duration-200 text-white/60 group-hover:text-red-300" />
-            {!isCollapsed && <span>Logout</span>}
-          </button>
-
-          <div className={cn("pt-4 pb-2 px-3 flex items-center gap-2 text-xs font-semibold text-white/60", isCollapsed && "justify-center px-0")}>
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            {!isCollapsed && <span className="truncate">Live Systems Connected</span>}
           </div>
         </div>
       </aside>

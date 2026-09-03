@@ -72,6 +72,14 @@ export default function DateFilter() {
   const emptyCells = Array.from({ length: firstDayOfMonth }, (_, i) => i);
   const prevMonthDays = getDaysInMonth(subDays(startOfMonth(viewDate), 1));
   
+  const dispatchGlobalDateChange = (rangeName: string, dateObj?: Date) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('global-date-change', {
+        detail: { range: rangeName, date: dateObj }
+      }));
+    }
+  };
+
   const handlePresetSelect = (option: string) => {
     setSelectedRange(option);
     
@@ -90,13 +98,16 @@ export default function DateFilter() {
     
     setSelectedDate(newDate);
     setViewDate(newDate);
+    dispatchGlobalDateChange(option, newDate);
     setIsOpen(false);
   };
 
   const handleDayClick = (day: number) => {
     const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
     setSelectedDate(newDate);
-    setSelectedRange(format(newDate, 'MMMM d, yyyy'));
+    const formatted = format(newDate, 'MMMM d, yyyy');
+    setSelectedRange(formatted);
+    dispatchGlobalDateChange(formatted, newDate);
   };
 
   const handleMonthSelect = (monthIndex: number) => {

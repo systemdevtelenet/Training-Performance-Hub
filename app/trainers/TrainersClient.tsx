@@ -133,7 +133,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
             <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
               {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
               {activeTab === 'attendance' && <AttendanceView initialTrainers={filteredInitialTrainers} />}
-              {activeTab === 'reliability' && <ReliabilityView />}
+              {activeTab === 'reliability' && <ReliabilityView initialTrainers={filteredInitialTrainers} />}
             </div>
           </>
         )}
@@ -793,16 +793,29 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
 
 function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
   const reliabilityData = useMemo<TrainerReliabilityData[]>(() => {
+    const lossCodes = ['SL', 'VL', 'ML', 'PL', 'HOL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
+
     return initialTrainers.map(t => {
       let sl = t.leaves?.sl || 0;
       let vl = t.leaves?.vl || 0;
       let med = t.leaves?.med || 0;
       let sus = t.leaves?.sus || 0;
-      let other = (t.leaves?.absence || 0) + (t.leaves?.und || 0) + (t.leaves?.pl || 0) + (t.leaves?.bl || 0) + (t.leaves?.ml || 0);
+      let hol = t.leaves?.hol || 0;
+      let ml = t.leaves?.ml || 0;
+      let pl = t.leaves?.pl || 0;
+      let bl = t.leaves?.bl || 0;
+      let absence = t.leaves?.absence || 0;
+      let und = t.leaves?.und || 0;
 
-      // Losses can be whatever logic applies (e.g., absence + sus + etc.)
-      // For now, mirroring simple addition:
-      let losses = t.absent + t.suspension;
+      // Count all user-specified loss types (SL, VL, ML, PL, HOL, SUS, MED, BL, ABS, UND)
+      let losses = t.losses ?? (sl + vl + med + sus + hol + ml + pl + bl + absence + und);
+      let present = t.present || 0;
+
+      const totalEvaluated = present + losses;
+      let rateStr = t.reliabilityRate || '100.0%';
+      if (totalEvaluated > 0) {
+        rateStr = `${((present / totalEvaluated) * 100).toFixed(1)}%`;
+      }
       
       // Calculate the timeline grouped by month/quarter
       const monthMap = new Map();
@@ -826,9 +839,10 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
           });
         }
         const m = monthMap.get(r.month);
-        const s = r.status?.toUpperCase();
-        if (s === 'P') m.p++;
-        else if (s === 'A' || s === 'SUS' || s === 'ABS' || s === 'UND') {
+        const s = (r.status || '').toUpperCase();
+        if (s === 'P') {
+          m.p++;
+        } else if (lossCodes.some(lc => s.includes(lc))) {
           m.a++;
           m.losses++;
         }
@@ -836,11 +850,11 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
       
       return {
         name: t.name,
-        present: t.present || 0,
-        absent: t.absent || 0,
+        present: present,
+        absent: t.absent || absence,
         losses: losses,
-        rate: t.reliabilityRate || '0.0%',
-        lossBreakdown: { sl, vl, other: med + sus + other },
+        rate: rateStr,
+        lossBreakdown: { sl, vl, other: med + sus + hol + ml + pl + bl + und },
         timeline: Array.from(monthMap.values())
       };
     });
@@ -882,14 +896,14 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
     let critical = 0;
 
     reliabilityData.forEach(t => {
-      const rate = parseFloat(t.rate);
+      const rate = parseFloat(t.rate) || 0;
       sumRate += rate;
       if (rate >= 90) reliable++;
       else if (rate >= 80) attention++;
       else critical++;
     });
 
-    const avgRate = (sumRate / totalTrainers).toFixed(1) + '%';
+    const avgRate = totalTrainers > 0 ? (sumRate / totalTrainers).toFixed(1) + '%' : '0.0%';
     return { avgRate, reliable, attention, critical };
   }, [reliabilityData]);
 

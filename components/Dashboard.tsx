@@ -38,7 +38,7 @@ export default function Dashboard({ initialData }: { initialData: any }) {
       </div>
 
       {/* KPI Cards Row */}
-      <KpiCards />
+      <KpiCards metrics={initialData?.metrics} />
 
       {/* Global Filter Bar */}
       <div className="grid grid-cols-1 gap-4 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.15)] relative z-20">
@@ -79,7 +79,8 @@ export default function Dashboard({ initialData }: { initialData: any }) {
             value={filters.account} 
             onChange={(val) => setFilters(prev => ({ ...prev, account: val }))} 
             options={[
-              { value: 'ALL', label: 'All Client Accounts' }
+              { value: 'ALL', label: 'All Client Accounts' },
+              ...(initialData?.allAccounts || []).map((acc: string) => ({ value: acc, label: acc }))
             ]}
           />
         </div>

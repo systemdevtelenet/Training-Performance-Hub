@@ -1,19 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl!, supabaseKey!);
+import { getTrafficLightData } from '../lib/actions/traffic-lights';
 
 async function check() {
-  const { data, error } = await supabase.from('traffic_light_mon_rm_q1').select('*').limit(1);
-  if (error) {
-    console.error(error);
-  } else {
-    console.log(JSON.stringify(data, null, 2));
+  const { data, error } = await getTrafficLightData('fleet', 'q2');
+  console.log('getTrafficLightData fleet q2 result count:', data?.length, 'error:', error);
+  if (data && data.length > 0) {
+    console.log('First employee:', data[0].teams);
   }
 }
 check();

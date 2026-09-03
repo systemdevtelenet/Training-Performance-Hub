@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Sun, Moon, Search, UserCheck, LayoutDashboard, FileText, User, Settings, LogOut, HelpCircle } from 'lucide-react';
+import { Bell, Sun, Moon, Search, UserCheck, LayoutDashboard, FileText, User, Settings, LogOut, HelpCircle, CheckCircle2, X } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useRouter } from 'next/navigation';
 import DateFilter from '@/components/DateFilter';
@@ -16,8 +16,35 @@ export default function Topbar() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showLoginToast, setShowLoginToast] = useState(false);
+  const [toastProgress, setToastProgress] = useState(100);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  // Check session flag for login toast with auto-expiration
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('show_login_toast') === 'true') {
+      sessionStorage.removeItem('show_login_toast');
+      setShowLoginToast(true);
+      setToastProgress(100);
+
+      const startTime = Date.now();
+      const duration = 3500; // 3.5 seconds auto-dismiss
+
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
+        setToastProgress(remaining);
+
+        if (elapsed >= duration) {
+          clearInterval(interval);
+          setShowLoginToast(false);
+        }
+      }, 30);
+
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -46,6 +73,39 @@ export default function Topbar() {
 
   return (
     <>
+      {/* Top-Right Login Success Toast */}
+      {showLoginToast && (
+        <div className="fixed top-6 right-6 z-[100] flex flex-col bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-emerald-500 rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm overflow-hidden">
+          <div className="flex items-start gap-3 p-4">
+            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0 pr-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                Welcome Back
+              </h4>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                You have successfully logged into the hub.
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowLoginToast(false)} 
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 shrink-0 cursor-pointer"
+              title="Close notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Animated Countdown Bar */}
+          <div className="h-1 w-full bg-emerald-50 dark:bg-emerald-950 overflow-hidden">
+            <div 
+              className="h-full bg-emerald-500 transition-all duration-75 ease-linear"
+              style={{ width: `${toastProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <header className="h-16 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40 transition-colors shadow-sm dark:shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
       <div>
         <h1 className="text-lg font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400">
@@ -61,14 +121,14 @@ export default function Topbar() {
             <input 
               ref={searchInputRef}
               type="text"
-              placeholder="Search..."
+              placeholder="Type name or batch..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-              className="w-64 lg:w-80 h-9 rounded-full border border-slate-200 bg-slate-50 pl-9 pr-12 text-sm text-slate-700 shadow-sm transition-all focus:border-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 dark:border-slate-700/80 dark:bg-slate-800/50 dark:text-slate-200 dark:focus:bg-slate-900"
+              className="w-64 lg:w-80 rounded-xl border border-slate-200/80 bg-white/80 pl-9 pr-12 py-2.5 text-xs font-medium text-slate-700 shadow-2xs outline-none transition-all hover:border-slate-300 focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/10 dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-slate-600"
             />
-            <kbd className="pointer-events-none absolute right-2 hidden h-5 select-none items-center gap-1 rounded border border-slate-200 bg-white px-1.5 font-mono text-[10px] font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 sm:flex">
+            <kbd className="pointer-events-none absolute right-2.5 hidden h-5 select-none items-center gap-1 rounded border border-slate-200 bg-white/90 px-1.5 font-mono text-[10px] font-medium text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 sm:flex">
               <span className="text-xs">⌘</span>K
             </kbd>
           </div>

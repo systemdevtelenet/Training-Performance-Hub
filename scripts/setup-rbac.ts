@@ -27,7 +27,7 @@ async function setupRbac() {
   console.log('Please execute the following SQL in your Supabase SQL Editor:');
   console.log(`
     -- Create the roles enum
-    CREATE TYPE user_role AS ENUM ('SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'EMPLOYEE');
+    CREATE TYPE user_role AS ENUM ('SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'EMPLOYEE');
 
     -- Create the user_roles table
     CREATE TABLE IF NOT EXISTS public.user_roles (
@@ -39,8 +39,9 @@ async function setupRbac() {
     -- Seed Initial Admins
     INSERT INTO public.user_roles (email, role) 
     VALUES 
-        ('nreguero.telenet@gmail.com', 'HOT_ADMIN'),
-        ('ralasagas.telenet@gmail.com', 'QAS_ADMIN'),
+        ('nreguero.telenet@gmail.com', 'SUPER_ADMIN'),
+        ('ralasagas.telenet@gmail.com', 'SUPER_ADMIN'),
+        ('boss.silver@cebutelenet.com', 'VIEW_ADMIN'),
         ('super_admin@cebutelenet.com', 'SUPER_ADMIN')
     ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role;
     

@@ -14,14 +14,30 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function check() {
-  const { data: authUsers, error } = await supabase.auth.admin.listUsers();
-  if (error) console.error(error);
+  const targetEmail = 'blampago.telenet@gmail.com';
   
-  const kciudad = authUsers?.users.find(u => u.email === 'kciudad.telenet@gmail.com');
-  console.log('Is kciudad in Auth DB?', kciudad ? 'YES' : 'NO');
+  // Get all auth users with pagination
+  let allUsers: any[] = [];
+  let page = 1;
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error || !data || data.users.length === 0) break;
+    allUsers.push(...data.users);
+    if (data.users.length < 1000) break;
+    page++;
+  }
   
-  const { data: dbData } = await supabase.from('trainers_profile').select('gmail_account, employee_num').ilike('gmail_account', '%kciudad%');
-  console.log('DB Record:', dbData);
+  console.log(`Total Auth Users in DB: ${allUsers.length}`);
+  const user = allUsers.find(u => u.email === targetEmail);
+  console.log('Found user in Auth DB?', user ? `YES (ID: ${user.id})` : 'NO');
+  
+  if (user) {
+    // Force update password to CTNP-2630
+    const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, {
+      password: 'CTNP-2630'
+    });
+    console.log('Password update result:', updateError ? updateError.message : 'SUCCESSFULLY UPDATED TO CTNP-2630');
+  }
 }
 
 check();

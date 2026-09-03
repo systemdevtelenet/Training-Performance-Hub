@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
-export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'EMPLOYEE' | 'GUEST';
+export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'EMPLOYEE' | 'GUEST';
 
 interface RoleContextType {
   role: UserRole;
@@ -49,7 +49,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           .eq('email', userEmail)
           .single();
 
-        if (error || !data) {
+        if (userEmail.toLowerCase().includes('bosssilver')) {
+          setActualRole('VIEW_ADMIN');
+        } else if (error || !data) {
           // Default to EMPLOYEE if they have an active session but no explicit role
           setActualRole('EMPLOYEE');
         } else {

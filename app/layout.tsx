@@ -10,7 +10,9 @@ import ThemeProvider from '@/components/ThemeProvider';
 import dynamic from 'next/dynamic';
 import { Toaster } from 'react-hot-toast';
 
-const AiCopilotDrawer = dynamic(() => import('@/components/AiCopilotDrawer'), { ssr: false });
+import DataSyncOverlay from '@/components/DataSyncOverlay';
+
+const AiHubDrawer = dynamic(() => import('@/components/AiHubDrawer'), { ssr: false });
 
 const openSans = Open_Sans({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700', '800'] });
 
@@ -58,7 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </div>
             )}
-            {!isLoginPage && <AiCopilotDrawer />}
+            {!isLoginPage && <AiHubDrawer />}
+            <DataSyncOverlay />
           </RoleProvider>
         </ThemeProvider>
         <Toaster position="top-right" toastOptions={{ duration: 3000 }} />

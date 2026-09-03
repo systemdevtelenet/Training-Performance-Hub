@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { createClient, createAuthClient } from '@/utils/supabase/client';
@@ -12,12 +12,22 @@ const ALLOWED_DOMAINS = ['cebutelenet.com', 'telenet@gmail.com'];
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60 * 1000; // 60 seconds
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', rememberMe: false });
+  const [showLogoutToast, setShowLogoutToast] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('logout') === 'true') {
+      setShowLogoutToast(true);
+      const timer = setTimeout(() => setShowLogoutToast(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
   
   // Validation and Loading States
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -141,14 +151,17 @@ export default function LoginPage() {
 
       // Success! Reset attempts and redirect
       setFailedAttempts(0);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('show_login_toast', 'true');
+      }
       
-      // Log this activity
-      await logActivity({
+      // Log this activity asynchronously without delaying redirect
+      logActivity({
         title: 'User Login',
         description: `${formData.email} successfully logged into the hub.`,
         iconType: 'success',
         author: 'System Auth',
-      });
+      }).catch(console.error);
 
       router.push('/');
     } catch (error) {
@@ -176,6 +189,37 @@ export default function LoginPage() {
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative">
       <div className="absolute inset-0 bg-[url('/images/ctnp-bg-image-1.png')] bg-cover bg-center" />
       <div className="absolute inset-0 bg-black/50" />
+
+      {/* Top-Right Logout Success Toast */}
+      {showLogoutToast && (
+        <div className="fixed top-6 right-6 z-[100] flex items-start gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-[#2F6798] px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm">
+          <div className="w-6 h-6 rounded-full bg-[#2F6798] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+            <CheckCircle2 className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0 pr-2">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
+              Signed Out
+            </h4>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+              You have safely logged out of your account.
+            </p>
+          </div>
+          <button onClick={() => setShowLogoutToast(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {/* Pure White Full Screen Loading Overlay */}
+      {(isSubmitLoading || isGoogleLoading) && (
+        <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-white animate-in fade-in duration-150">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-full border-4 border-slate-100 border-t-[#2F6798] animate-spin" />
+            <p className="text-sm font-bold text-slate-600 tracking-tight">
+              {isGoogleLoading ? 'Connecting to Google...' : 'Authenticating...'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Centered Split Modal */}
       <div className="w-full max-w-3xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[440px] relative z-10">
@@ -317,5 +361,17 @@ export default function LoginPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-900">
+        <Loader2 className="w-8 h-8 text-[#2F6798] animate-spin" />
+      </div>
+    }>
+      <LoginFormContent />
+    </Suspense>
   );
 }

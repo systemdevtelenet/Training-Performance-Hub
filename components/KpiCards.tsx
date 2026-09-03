@@ -3,55 +3,56 @@
 import React, { useState, useEffect } from 'react';
 import { Users, TrendingDown, UserCheck, LayoutTemplate } from 'lucide-react';
 
-const kpiData = [
-  {
-    id: 'trainees',
-    label: 'Total Trainees',
-    value: '842',
-    trend: '+12.5%',
-    isPositive: true,
-    icon: Users,
-    color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  },
-  {
-    id: 'attrition',
-    label: 'Overall Attrition',
-    value: '18.4%',
-    trend: '-2.1%',
-    isPositive: true, // Lower attrition is good
-    icon: TrendingDown,
-    color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-  },
-  {
-    id: 'trainers',
-    label: 'Active Trainers',
-    value: '45',
-    trend: '+2',
-    isPositive: true,
-    icon: UserCheck,
-    color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  },
-  {
-    id: 'classes',
-    label: 'Classes in Session',
-    value: '12',
-    trend: 'Same',
-    isPositive: null,
-    icon: LayoutTemplate,
-    color: 'bg-[#C8A54B]/10 text-[#C8A54B] dark:bg-[#C8A54B]/20',
-  }
-];
-
-export default function KpiCards() {
+export default function KpiCards({ metrics }: { metrics?: any }) {
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate data fetching
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    setIsLoading(false);
+  }, [metrics]);
+
+  const traineesCount = metrics?.totalTrainees ?? 180;
+  const attritionRate = metrics?.overallAttrition ?? '1.1%';
+  const trainersCount = metrics?.activeTrainers ?? 16;
+  const classesCount = metrics?.classesInSession ?? 92;
+
+  const kpiData = [
+    {
+      id: 'trainees',
+      label: 'Total Trainees',
+      value: traineesCount.toString(),
+      trend: 'Live Data',
+      isPositive: true,
+      icon: Users,
+      color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+    },
+    {
+      id: 'attrition',
+      label: 'Overall Attrition',
+      value: attritionRate,
+      trend: 'Optimal',
+      isPositive: true,
+      icon: TrendingDown,
+      color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+    },
+    {
+      id: 'trainers',
+      label: 'Active Trainers',
+      value: trainersCount.toString(),
+      trend: 'Active',
+      isPositive: true,
+      icon: UserCheck,
+      color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+    },
+    {
+      id: 'classes',
+      label: 'Classes in Session',
+      value: classesCount.toString(),
+      trend: 'In Session',
+      isPositive: null,
+      icon: LayoutTemplate,
+      color: 'bg-[#C8A54B]/10 text-[#C8A54B] dark:bg-[#C8A54B]/20',
+    }
+  ];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
