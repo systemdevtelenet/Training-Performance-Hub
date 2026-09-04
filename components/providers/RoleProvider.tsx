@@ -3,20 +3,24 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
-export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'EMPLOYEE' | 'GUEST';
+export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
 
 interface RoleContextType {
   role: UserRole;
   email: string | null;
+  userName: string | null;
+  assignedTrainer: string | null;
   isLoading: boolean;
   setSimulatedRole: (role: UserRole | null) => void;
-  actualRole: UserRole; // Expose actual role too so the switcher knows if it's allowed
+  actualRole: UserRole;
 }
 
 const RoleContext = createContext<RoleContextType>({
   role: 'GUEST',
   actualRole: 'GUEST',
   email: null,
+  userName: null,
+  assignedTrainer: null,
   isLoading: true,
   setSimulatedRole: () => { },
 });
@@ -25,6 +29,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [actualRole, setActualRole] = useState<UserRole>('GUEST');
   const [simulatedRole, setSimulatedRole] = useState<UserRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [assignedTrainer, setAssignedTrainer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
@@ -42,20 +48,53 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         const userEmail = session.user.email;
         setEmail(userEmail);
 
-        // Fetch role from our new user_roles table
-        const { data, error } = await supabase
+        // 1. Fetch role from user_roles table
+        const { data: roleData } = await supabase
           .from('user_roles')
           .select('role')
           .eq('email', userEmail)
           .single();
 
+        // 2. Fetch trainer profile if exists
+        const { data: trainerData } = await supabase
+          .from('trainers_profile')
+          .select('name, position')
+          .eq('gmail_account', userEmail)
+          .maybeSingle();
+
+        // 3. Fetch employee details if exists
+        const { data: empData } = await supabase
+          .from('employees')
+          .select('employee_name')
+          .eq('employee_email', userEmail)
+          .maybeSingle();
+
+        // Determine user's full name
+        const resolvedName = trainerData?.name || empData?.employee_name || session.user.user_metadata?.name || null;
+        setUserName(resolvedName);
+
+        // 4. If employee/trainee, find assigned trainer from inhouse/product_spec_training
+        if (resolvedName) {
+          const { data: ih } = await supabase
+            .from('inhouse')
+            .select('assignedTrainer, trainer')
+            .ilike('name', `%${resolvedName}%`)
+            .limit(1)
+            .maybeSingle();
+
+          const foundTrainer = ih?.assignedTrainer || ih?.trainer || null;
+          setAssignedTrainer(foundTrainer);
+        }
+
+        // Determine effective actual role
         if (userEmail.toLowerCase().includes('bosssilver')) {
           setActualRole('VIEW_ADMIN');
-        } else if (error || !data) {
-          // Default to EMPLOYEE if they have an active session but no explicit role
-          setActualRole('EMPLOYEE');
+        } else if (roleData?.role) {
+          setActualRole(roleData.role as UserRole);
+        } else if (trainerData) {
+          setActualRole('TRAINER');
         } else {
-          setActualRole(data.role as UserRole);
+          setActualRole('EMPLOYEE');
         }
       } catch (e) {
         console.error('Error fetching role:', e);
@@ -72,6 +111,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setActualRole('GUEST');
         setEmail(null);
+        setUserName(null);
+        setAssignedTrainer(null);
         setSimulatedRole(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchRole();
@@ -87,7 +128,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const activeRole = (actualRole === 'SUPER_ADMIN' && simulatedRole) ? simulatedRole : actualRole;
 
   return (
-    <RoleContext.Provider value={{ role: activeRole, actualRole, email, isLoading, setSimulatedRole }}>
+    <RoleContext.Provider value={{ role: activeRole, actualRole, email, userName, assignedTrainer, isLoading, setSimulatedRole }}>
       {children}
     </RoleContext.Provider>
   );
