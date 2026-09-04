@@ -192,9 +192,17 @@ export default function AiHubDrawer() {
     };
   }, []);
 
-  // Listen for external open commands (e.g. from Topbar)
+  // Listen for external open commands (e.g. from Topbar or Analytics AI bar)
   useEffect(() => {
-    const handleOpen = () => setIsOpen(true);
+    const handleOpen = (e: Event) => {
+      setIsOpen(true);
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.prompt) {
+        setTimeout(() => {
+          handleSendQuery(customEvent.detail.prompt);
+        }, 100);
+      }
+    };
     window.addEventListener('open-ai-copilot', handleOpen);
     return () => window.removeEventListener('open-ai-copilot', handleOpen);
   }, []);

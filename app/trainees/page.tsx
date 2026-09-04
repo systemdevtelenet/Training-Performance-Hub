@@ -13,21 +13,32 @@ export default async function TraineesPage() {
   if (err2) console.error('Error fetching PST:', err2);
 
   // Map INHOUSE rows to Trainee type
-  const mappedInhouse = (inhouseData || []).map((row: any) => ({
-    id: row.id || Math.random().toString(),
-    name: row.name || 'Unknown',
-    status: row.status || 'Inhouse',
-    month: row.month || '',
-    quarter: row.quarter || '',
-    p: 0, // Calculate later based on days
-    a: 0,
-    isEndorsed: row.endorsed_date ? true : false,
-    isLoss: row.status === 'LOSS' || row.status === 'ATTRITION',
-    assignedTrainer: 'Unassigned',
-    batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
-    accountName: row.account || 'General',
-    trainingType: 'INHOUSE' as const
-  }));
+  const mappedInhouse = (inhouseData || []).map((row: any) => {
+    const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+    let pCount = 0;
+    let aCount = 0;
+    for (const col of inhouseAttCols) {
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val === 'P') pCount++;
+      if (val === 'A') aCount++;
+    }
+
+    return {
+      id: row.id || Math.random().toString(),
+      name: row.name || 'Unknown',
+      status: row.status || 'Inhouse',
+      month: row.month || '',
+      quarter: row.quarter || '',
+      p: pCount,
+      a: aCount,
+      isEndorsed: row.endorsed_date ? true : false,
+      isLoss: row.status === 'LOSS' || row.status === 'ATTRITION',
+      assignedTrainer: 'Unassigned',
+      batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
+      accountName: row.account || row.acount || 'General',
+      trainingType: 'INHOUSE' as const
+    };
+  });
 
   // Map PST rows to Trainee type
   const mappedPst = (pstData || []).map((row: any) => {
@@ -40,6 +51,10 @@ export default async function TraineesPage() {
       if (val === 'A') aCount++;
     }
 
+    const acct = (row.account || row.acount || 'PST Account').trim();
+    const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
+    const batchName = `${acct} -${rawWave || '1'}`;
+
     return {
       id: row.id || Math.random().toString(),
       name: row.name || 'Unknown',
@@ -51,8 +66,8 @@ export default async function TraineesPage() {
       isEndorsed: row.endorsed_date ? true : false,
       isLoss: row.status === 'LOSS' || row.status === 'ATTRITION',
       assignedTrainer: row.assigned_trainer || 'Unassigned',
-      batchName: row.wave ? `Wave ${row.wave}` : 'PST Wave',
-      accountName: row.account || 'PST Account',
+      batchName: batchName,
+      accountName: acct,
       trainingType: 'PST' as const
     };
   });

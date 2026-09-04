@@ -5,10 +5,13 @@ import { Search, ChevronDown, CalendarDays, Calendar, Building2 } from 'lucide-r
 
 import { getFilteredData, generateTrendAnalytics, MONTH_ORDER } from '@/lib/analytics-utils';
 import { ExecutiveSummaryView } from '@/components/ExecutiveSummaryView';
+import { EmployeeDashboardView } from '@/components/EmployeeDashboardView';
+import { useRole } from '@/components/providers/RoleProvider';
 import KpiCards from '@/components/KpiCards';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
 export default function Dashboard({ initialData }: { initialData: any }) {
+  const { role } = useRole();
   const [filters, setFilters] = useState({ month: 'ALL', quarter: 'ALL', account: 'ALL', search: '' });
 
   const processedData = useMemo(() => {
@@ -24,7 +27,16 @@ export default function Dashboard({ initialData }: { initialData: any }) {
       console.error('Error processing data:', error);
       return { trendData: { inhouse: { months: [], quarters: [] }, pst: { months: [], quarters: [] }, overall: { months: [], quarters: [] } } };
     }
-  }, [filters]);
+  }, [initialData, filters]);
+
+  // If user is a regular employee / trainee, show personalized trainee portal dashboard
+  if (role === 'EMPLOYEE') {
+    return (
+      <div className="space-y-4 text-[#363435] dark:text-slate-200">
+        <EmployeeDashboardView rawData={initialData} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 text-[#363435] dark:text-slate-200">

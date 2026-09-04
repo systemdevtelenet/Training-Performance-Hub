@@ -29,23 +29,49 @@ import { useRole, UserRole } from '@/components/providers/RoleProvider';
 
 const getNavItems = (role: UserRole) => {
   const items = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'EMPLOYEE', 'GUEST'] },
-    { name: 'Trainees', href: '/trainees', icon: Users, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
+    { 
+      name: 'Dashboard', 
+      href: '/', 
+      icon: LayoutDashboard, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE', 'GUEST'] 
+    },
+    { 
+      name: 'Trainees', 
+      href: '/trainees', 
+      icon: Users, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'] 
+    },
     { 
       name: 'Trainers', 
       href: '/trainers', 
       icon: UserCheck,
-      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'EMPLOYEE'],
-      subItems: [
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'],
+      subItems: role === 'EMPLOYEE' ? [
+        { name: 'Directory', href: '/trainers', icon: FileText }
+      ] : [
         { name: 'Directory', href: '/trainers', icon: FileText },
         { name: 'Attendance', href: '/trainers?tab=attendance', icon: Calendar },
         { name: 'Reliability', href: '/trainers?tab=reliability', icon: ShieldCheck }
       ]
     },
-    { name: 'Analytics Trends', href: '/analytics', icon: BarChart, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
-    { name: 'Traffic Lights', href: '/traffic-lights', icon: Activity, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
-    { name: 'AI Insights', href: '/ai-insights', icon: Sparkles, roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] },
-    { name: 'Activity Log', href: '/history', icon: ClipboardList, roles: ['SUPER_ADMIN', 'VIEW_ADMIN'] },
+    { 
+      name: 'Analytics & AI Insights', 
+      href: '/analytics', 
+      icon: BarChart, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] 
+    },
+    { 
+      name: 'Traffic Lights', 
+      href: '/traffic-lights', 
+      icon: Activity, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'] 
+    },
+    { 
+      name: 'Activity Log', 
+      href: '/history', 
+      icon: ClipboardList, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] 
+    },
   ];
 
   return items.filter(item => item.roles.includes(role));
@@ -176,6 +202,7 @@ export default function Sidebar() {
                             <Link
                               key={subItem.href}
                               href={subItem.href}
+                              prefetch={true}
                               className={cn(
                                 "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
                                 isSubActive
@@ -210,6 +237,7 @@ export default function Sidebar() {
                               <Link
                                 key={subItem.href}
                                 href={subItem.href}
+                                prefetch={true}
                                 className={cn(
                                   "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
                                   isSubActive
@@ -235,6 +263,7 @@ export default function Sidebar() {
                 <div key={item.href} className="relative group">
                   <Link
                     href={item.href}
+                    prefetch={true}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150",
                       isCollapsed && "justify-center px-0",

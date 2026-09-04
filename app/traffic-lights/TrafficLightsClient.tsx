@@ -1,24 +1,28 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Loader2, 
-  Search, 
-  RefreshCw, 
-  ShieldCheck, 
-  Activity, 
-  Users, 
-  CheckCircle2, 
-  AlertTriangle, 
+import {
+  Loader2,
+  Search,
+  RefreshCw,
+  ShieldCheck,
+  Activity,
+  Users,
+  CheckCircle2,
+  AlertTriangle,
   XCircle,
   Save,
   X,
   Layers,
-  ChevronDown
+  ChevronDown,
+  ChevronUp,
+  Building2,
+  Calendar
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { getTrafficLightData, updateTrafficLightCell } from '@/lib/actions/traffic-lights';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { cn } from '@/lib/utils';
 
 // Custom Popover Dropdown for Traffic Light Status Cells
 function StatusSelect({
@@ -78,9 +82,8 @@ function StatusSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full text-[10px] font-bold uppercase tracking-wider py-1.5 pl-3 pr-7 rounded-xl text-left relative transition-all outline-none ${getStatusBadgeStyle(value)} ${
-          isPending ? 'ring-2 ring-[#2F6798]' : ''
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.01]'}`}
+        className={`w-full text-[10px] font-bold uppercase tracking-wider py-1.5 pl-3 pr-7 rounded-xl text-left relative transition-all outline-none ${getStatusBadgeStyle(value)} ${isPending ? 'ring-2 ring-[#2F6798]' : ''
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.01]'}`}
       >
         <span className="truncate block pr-2">{displayLabel}</span>
         <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -96,9 +99,8 @@ function StatusSelect({
                 onChange(opt.value);
                 setIsOpen(false);
               }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl transition-all text-left ${opt.color} ${
-                (value || '').toUpperCase() === opt.value.toUpperCase() ? 'bg-slate-100 dark:bg-slate-700/80' : ''
-              }`}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl transition-all text-left ${opt.color} ${(value || '').toUpperCase() === opt.value.toUpperCase() ? 'bg-slate-100 dark:bg-slate-700/80' : ''
+                }`}
             >
               <span>{opt.dot}</span>
               <span>{opt.label}</span>
@@ -138,6 +140,19 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | null>(null);
+
+  // Close custom dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-dropdown]')) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Track pending status edits before saving
   const [pendingEdits, setPendingEdits] = useState<Record<string, { rowIndex: number; colKey: string; newValue: string }>>({});
@@ -313,7 +328,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     let currentTeamName = '';
     return data.filter(row => {
       const nameVal = String(row[columns[0]] || '').trim();
-      
+
       if (nameVal.toUpperCase().startsWith('TEAM')) {
         currentTeamName = nameVal;
         if (selectedTeam !== 'ALL' && selectedTeam !== currentTeamName) {
@@ -337,15 +352,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   return (
     <div className="space-y-3.5 w-full max-w-full px-0 pb-8">
-      
+
       {/* Top-Right Success Toast Notification */}
       {toast && (
-        <div className={`fixed top-6 right-6 z-[100] flex items-start gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 px-4 py-3 rounded-xl shadow-2xl transition-all animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm ${
-          toast.type === 'success' ? 'border-l-4 border-l-emerald-500' : toast.type === 'info' ? 'border-l-4 border-l-[#2F6798]' : 'border-l-4 border-l-rose-500'
-        }`}>
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${
-            toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'info' ? 'bg-[#2F6798]' : 'bg-rose-500'
+        <div className={`fixed top-6 right-6 z-[100] flex items-start gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 px-4 py-3 rounded-xl shadow-2xl transition-all animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm ${toast.type === 'success' ? 'border-l-4 border-l-emerald-500' : toast.type === 'info' ? 'border-l-4 border-l-[#2F6798]' : 'border-l-4 border-l-rose-500'
           }`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'info' ? 'bg-[#2F6798]' : 'bg-rose-500'
+            }`}>
             <CheckCircle2 className="w-4 h-4 text-white" />
           </div>
           <div className="flex-1 min-w-0 pr-2">
@@ -451,55 +464,184 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         </div>
       </div>
 
-      {/* Control / Filter Bar */}
-      <div className="flex flex-col md:flex-row gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shadow-sm items-center">
-        <div className="w-full md:w-56">
-          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Client Account</label>
-          <CustomSelect 
-            value={account} 
-            options={accounts.map(acc => ({ value: acc.id, label: acc.name }))}
-            onChange={(val) => setAccount(val)}
-          />
+      {/* Global Filter Bar (Matches Trainees & Trainers Design) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+
+        {/* Client Account Dropdown */}
+        <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Building2 className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>CLIENT ACCOUNT</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          >
+            <span className="truncate">{accounts.find(a => a.id === account)?.name || account}</span>
+            {openDropdown === 'account' ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            )}
+          </button>
+
+          {openDropdown === 'account' && (
+            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+              {accounts.map((acc) => {
+                const isSelected = account === acc.id;
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => {
+                      setAccount(acc.id);
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
+                      isSelected
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    {acc.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div className="w-full md:w-40">
-          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Quarter Period</label>
-          <CustomSelect 
-            value={quarter} 
-            options={quarters.map(q => ({ value: q.id, label: q.name }))}
-            onChange={(val) => setQuarter(val)}
-          />
+        {/* Quarter Period Dropdown */}
+        <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>QUARTER PERIOD</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenDropdown(prev => prev === 'quarter' ? null : 'quarter')}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          >
+            <span className="truncate">{quarters.find(q => q.id === quarter)?.name || quarter}</span>
+            {openDropdown === 'quarter' ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            )}
+          </button>
+
+          {openDropdown === 'quarter' && (
+            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
+              {quarters.map((q) => {
+                const isSelected = quarter === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => {
+                      setQuarter(q.id);
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                      isSelected
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    {q.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
+        {/* Team Filter Dropdown (Optional if teams exist) */}
         {teamsList.length > 0 && (
-          <div className="w-full md:w-60">
-            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1 flex items-center gap-1">
-              <Layers className="w-3 h-3 text-[#2F6798]" /> Team Filter
-            </label>
-            <CustomSelect 
-              value={selectedTeam} 
-              options={[
-                { value: 'ALL', label: `All Teams (${teamsList.length})` },
-                ...teamsList.map(t => ({ value: t.name, label: `${t.name} (${t.count})` }))
-              ]}
-              onChange={(val) => setSelectedTeam(val)}
-            />
+          <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
+            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>TEAM FILTER</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(prev => prev === 'team' ? null : 'team')}
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+            >
+              <span className="truncate">
+                {selectedTeam === 'ALL' ? `All Teams (${teamsList.length})` : selectedTeam}
+              </span>
+              {openDropdown === 'team' ? (
+                <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+              )}
+            </button>
+
+            {openDropdown === 'team' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTeam('ALL');
+                    setOpenDropdown(null);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                    selectedTeam === 'ALL'
+                      ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  )}
+                >
+                  All Teams ({teamsList.length})
+                </button>
+                {teamsList.map((t) => {
+                  const isSelected = selectedTeam === t.name;
+                  return (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTeam(t.name);
+                        setOpenDropdown(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
+                        isSelected
+                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      {t.name} ({t.count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        <div className="w-full md:flex-1">
-          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Search Employee</label>
+        {/* Search Employee Field */}
+        <div className={cn("col-span-1 sm:col-span-2", teamsList.length > 0 ? "lg:col-span-4" : "lg:col-span-7")}>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Search className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>SEARCH EMPLOYEE</span>
+          </div>
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input 
-              type="text" 
+            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
               placeholder="Type name or batch..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white/80 pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 shadow-2xs outline-none transition-all hover:border-slate-300 focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/10 dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-slate-600"
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
             />
           </div>
         </div>
+
       </div>
 
       {/* Interactive Team Navigation Tabs */}
@@ -507,11 +649,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none border-b border-slate-200/50 dark:border-slate-800">
           <button
             onClick={() => setSelectedTeam('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-              selectedTeam === 'ALL'
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${selectedTeam === 'ALL'
                 ? 'bg-[#2F6798] text-white shadow-xs'
                 : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
-            }`}
+              }`}
           >
             All Teams
             <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedTeam === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
@@ -523,11 +664,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             <button
               key={t.name}
               onClick={() => setSelectedTeam(t.name)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                selectedTeam === t.name
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${selectedTeam === t.name
                   ? 'bg-[#2F6798] text-white shadow-xs'
                   : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
-              }`}
+                }`}
             >
               {t.name}
               <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedTeam === t.name ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
@@ -556,13 +696,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               <thead className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   {columns.map((col, idx) => (
-                    <th 
-                      key={col} 
-                      className={`px-4 py-3.5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ${
-                        idx === 0 
-                          ? 'sticky left-0 bg-slate-50 dark:bg-slate-900 z-30 min-w-[240px] border-r border-slate-200/80 dark:border-slate-700/80 shadow-[2px_0_4px_rgba(0,0,0,0.02)]' 
+                    <th
+                      key={col}
+                      className={`px-4 py-3.5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ${idx === 0
+                          ? 'sticky left-0 bg-slate-50 dark:bg-slate-900 z-30 min-w-[240px] border-r border-slate-200/80 dark:border-slate-700/80 shadow-[2px_0_4px_rgba(0,0,0,0.02)]'
                           : 'min-w-[135px] text-center'
-                      }`}
+                        }`}
                     >
                       {col}
                     </th>
@@ -612,7 +751,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
                         return (
                           <td key={col} className="px-2 py-2 text-center align-middle">
-                            <StatusSelect 
+                            <StatusSelect
                               value={val || ''}
                               onChange={(newVal) => handleCellChange(rowIndex, col, newVal)}
                               disabled={!canEdit}

@@ -63,7 +63,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     // Check if Supabase is configured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.warn('⚠️  Supabase not configured. Using mock data.');
-      return mockData as any;
+      return mockData as unknown as DashboardData;
     }
 
     // Fetch trainees
@@ -124,7 +124,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   } catch (error) {
     console.error('❌ Error fetching Supabase data:', error);
     console.warn('⚠️  Falling back to mock data');
-    return mockData as any;
+    return mockData as unknown as DashboardData;
   }
 }
 

@@ -28,23 +28,24 @@ export default function Topbar() {
       setShowLoginToast(true);
       setToastProgress(100);
 
-      const startTime = Date.now();
-      const duration = 3500; // 3.5 seconds auto-dismiss
+      // Trigger progress bar shrink immediately so CSS transition handles countdown
+      const animTimer = setTimeout(() => {
+        setToastProgress(0);
+      }, 50);
 
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
-        setToastProgress(remaining);
-
-        if (elapsed >= duration) {
-          clearInterval(interval);
-          setShowLoginToast(false);
-        }
-      }, 30);
-
-      return () => clearInterval(interval);
+      return () => clearTimeout(animTimer);
     }
   }, []);
+
+  // Guaranteed auto-dismiss fallback matching progress bar duration (4.5 seconds)
+  useEffect(() => {
+    if (showLoginToast) {
+      const dismissTimer = setTimeout(() => {
+        setShowLoginToast(false);
+      }, 4500);
+      return () => clearTimeout(dismissTimer);
+    }
+  }, [showLoginToast]);
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -77,9 +78,7 @@ export default function Topbar() {
       {showLoginToast && (
         <div className="fixed top-6 right-6 z-[100] flex flex-col bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-emerald-500 rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm overflow-hidden">
           <div className="flex items-start gap-3 p-4">
-            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <CheckCircle2 className="w-4 h-4 text-white" />
-            </div>
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0 pr-2">
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
                 Welcome Back
@@ -99,7 +98,7 @@ export default function Topbar() {
           {/* Animated Countdown Bar */}
           <div className="h-1 w-full bg-emerald-50 dark:bg-emerald-950 overflow-hidden">
             <div 
-              className="h-full bg-emerald-500 transition-all duration-75 ease-linear"
+              className="h-full bg-emerald-500 transition-all duration-[4500ms] ease-linear"
               style={{ width: `${toastProgress}%` }}
             />
           </div>

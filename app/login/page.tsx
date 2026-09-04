@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { createClient, createAuthClient } from '@/utils/supabase/client';
 import { logActivity } from '@/lib/actions/logger';
 
-const ALLOWED_DOMAINS = ['cebutelenet.com', 'telenet@gmail.com'];
+const ALLOWED_DOMAINS = ['cebutelenet.com', 'cebutele-net.com', 'telenet@gmail.com', 'gmail.com'];
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60 * 1000; // 60 seconds
 
@@ -20,12 +20,25 @@ function LoginFormContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', rememberMe: false });
   const [showLogoutToast, setShowLogoutToast] = useState(false);
+  const [logoutProgress, setLogoutProgress] = useState(100);
 
   useEffect(() => {
     if (searchParams.get('logout') === 'true') {
       setShowLogoutToast(true);
-      const timer = setTimeout(() => setShowLogoutToast(false), 3000);
-      return () => clearTimeout(timer);
+      setLogoutProgress(100);
+
+      const animTimer = setTimeout(() => {
+        setLogoutProgress(0);
+      }, 50);
+
+      const dismissTimer = setTimeout(() => {
+        setShowLogoutToast(false);
+      }, 3500);
+
+      return () => {
+        clearTimeout(animTimer);
+        clearTimeout(dismissTimer);
+      };
     }
   }, [searchParams]);
   
@@ -134,10 +147,43 @@ function LoginFormContent() {
     try {
       // 4. Credential Match (Authentication)
       const authClient = createAuthClient(formData.rememberMe);
-      const { data, error } = await authClient.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      let { data, error } = await authClient.auth.signInWithPassword({
+        email: formData.email.trim(),
+        password: formData.password.trim(),
       });
+
+      // Employee password variations fallback (e.g. CTN-XXXX vs CTNP-XXXX vs raw code)
+      if (error && formData.password.trim().toUpperCase().startsWith('CTN-')) {
+        const altPassword = formData.password.trim().replace(/^CTN-/i, 'CTNP-');
+        const retry = await authClient.auth.signInWithPassword({
+          email: formData.email.trim(),
+          password: altPassword,
+        });
+        if (!retry.error) {
+          data = retry.data;
+          error = null;
+        }
+      } else if (error && formData.password.trim().toUpperCase().startsWith('CTNP-')) {
+        const altPassword = formData.password.trim().replace(/^CTNP-/i, 'CTN-');
+        const retry = await authClient.auth.signInWithPassword({
+          email: formData.email.trim(),
+          password: altPassword,
+        });
+        if (!retry.error) {
+          data = retry.data;
+          error = null;
+        }
+      } else if (error && !formData.password.includes('-') && formData.password.trim().length < 6) {
+        const altPassword = `CTNP-${formData.password.trim()}`;
+        const retry = await authClient.auth.signInWithPassword({
+          email: formData.email.trim(),
+          password: altPassword,
+        });
+        if (!retry.error) {
+          data = retry.data;
+          error = null;
+        }
+      }
 
       if (error) {
         handleFailedAttempt();
@@ -192,21 +238,32 @@ function LoginFormContent() {
 
       {/* Top-Right Logout Success Toast */}
       {showLogoutToast && (
-        <div className="fixed top-6 right-6 z-[100] flex items-start gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-[#2F6798] px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm">
-          <div className="w-6 h-6 rounded-full bg-[#2F6798] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-            <CheckCircle2 className="w-4 h-4 text-white" />
+        <div className="fixed top-6 right-6 z-[100] flex flex-col bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-[#2F6798] rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm overflow-hidden">
+          <div className="flex items-start gap-3 p-4">
+            <CheckCircle2 className="w-5 h-5 text-[#2F6798] shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 pr-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                Signed Out
+              </h4>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                You have safely logged out of your account.
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowLogoutToast(false)} 
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 shrink-0 cursor-pointer"
+              title="Close notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex-1 min-w-0 pr-2">
-            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
-              Signed Out
-            </h4>
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              You have safely logged out of your account.
-            </p>
+          {/* Animated Countdown Bar */}
+          <div className="h-1 w-full bg-blue-50 dark:bg-blue-950 overflow-hidden">
+            <div 
+              className="h-full bg-[#2F6798] transition-all duration-[3500ms] ease-linear"
+              style={{ width: `${logoutProgress}%` }}
+            />
           </div>
-          <button onClick={() => setShowLogoutToast(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 shrink-0">
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
       {/* Pure White Full Screen Loading Overlay */}

@@ -18,7 +18,7 @@ const RoleContext = createContext<RoleContextType>({
   actualRole: 'GUEST',
   email: null,
   isLoading: true,
-  setSimulatedRole: () => {},
+  setSimulatedRole: () => { },
 });
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
@@ -32,7 +32,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     async function fetchRole() {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError || !session?.user?.email) {
           setActualRole('GUEST');
           setIsLoading(false);

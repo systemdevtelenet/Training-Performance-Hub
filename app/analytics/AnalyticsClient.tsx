@@ -1,52 +1,88 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Player } from '@lottiefiles/react-lottie-player';
 import { 
-  Search, ChevronDown, TrendingUp, TrendingDown, 
+  Search, ChevronDown, ChevronUp, Calendar, Building2, TrendingUp, TrendingDown, 
   AlertTriangle, CheckCircle2, ArrowUpDown, RefreshCcw,
-  Sparkles, Loader2, MessageSquare, ExternalLink
+  Sparkles, Loader2, MessageSquare, ExternalLink, FileText, Maximize2
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 
-const defaultMonthlyData = [
-  { period: 'Jan', inhouseAttr: 18.2, inhouseHC: 22, inhouseLoss: 4, pstAttr: 8.7, pstHC: 23, pstLoss: 2, totalAttr: 13.3, totalHC: 45, totalLoss: 6, totalAttd: 96.0 },
-  { period: 'Feb', inhouseAttr: 0.0, inhouseHC: 17, inhouseLoss: 0, pstAttr: 21.4, pstHC: 14, pstLoss: 3, totalAttr: 9.7, totalHC: 31, totalLoss: 3, totalAttd: 97.8 },
-  { period: 'Mar', inhouseAttr: 50.0, inhouseHC: 2, inhouseLoss: 1, pstAttr: 15.4, pstHC: 13, pstLoss: 2, totalAttr: 20.0, totalHC: 15, totalLoss: 3, totalAttd: 95.7 },
-  { period: 'Apr', inhouseAttr: 0.0, inhouseHC: 3, inhouseLoss: 0, pstAttr: 17.1, pstHC: 35, pstLoss: 6, totalAttr: 15.8, totalHC: 38, totalLoss: 6, totalAttd: 98.4 },
-  { period: 'May', inhouseAttr: 0.0, inhouseHC: 8, inhouseLoss: 0, pstAttr: 10.0, pstHC: 10, pstLoss: 1, totalAttr: 5.6, totalHC: 18, totalLoss: 1, totalAttd: 98.6 },
-  { period: 'Jun', inhouseAttr: 0.0, inhouseHC: 9, inhouseLoss: 0, pstAttr: 7.1, pstHC: 28, pstLoss: 2, totalAttr: 5.4, totalHC: 37, totalLoss: 2, totalAttd: 99.1 },
-  { period: 'Jul', inhouseAttr: 0.0, inhouseHC: 15, inhouseLoss: 0, pstAttr: 12.5, pstHC: 24, pstLoss: 3, totalAttr: 7.7, totalHC: 39, totalLoss: 3, totalAttd: 98.5 },
-  { period: 'Aug', inhouseAttr: 0.0, inhouseHC: 2, inhouseLoss: 0, pstAttr: 0.0, pstHC: 9, pstLoss: 0, totalAttr: 0.0, totalHC: 11, totalLoss: 0, totalAttd: 99.6 },
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
+}
+
+// Default benchmark data matching user's official records
+const defaultMonthlyInhouse = [
+  { period: 'January', activeHC: 22, losses: 4, attritionRate: 18.2, attendanceRate: 89.0 },
+  { period: 'February', activeHC: 17, losses: 0, attritionRate: 0.0, attendanceRate: 98.1 },
+  { period: 'March', activeHC: 2, losses: 1, attritionRate: 50.0, attendanceRate: 66.7 },
+  { period: 'April', activeHC: 3, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
+  { period: 'May', activeHC: 8, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
+  { period: 'June', activeHC: 9, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
+  { period: 'July', activeHC: 15, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
+  { period: 'August', activeHC: 3, losses: 1, attritionRate: 33.3, attendanceRate: 96.0 },
+];
+
+const defaultMonthlyPst = [
+  { period: 'January', activeHC: 24, losses: 2, attritionRate: 8.3, attendanceRate: 98.4 },
+  { period: 'February', activeHC: 15, losses: 3, attritionRate: 20.0, attendanceRate: 98.1 },
+  { period: 'March', activeHC: 14, losses: 2, attritionRate: 14.3, attendanceRate: 96.7 },
+  { period: 'April', activeHC: 36, losses: 6, attritionRate: 16.7, attendanceRate: 97.5 },
+  { period: 'May', activeHC: 11, losses: 1, attritionRate: 9.1, attendanceRate: 97.7 },
+  { period: 'June', activeHC: 29, losses: 2, attritionRate: 6.9, attendanceRate: 98.5 },
+  { period: 'July', activeHC: 25, losses: 3, attritionRate: 12.0, attendanceRate: 97.3 },
+  { period: 'August', activeHC: 13, losses: 1, attritionRate: 7.7, attendanceRate: 97.0 },
+];
+
+const defaultQuarterlyInhouse = [
+  { period: 'Q1', activeHC: 41, losses: 5, attritionRate: 12.2, attendanceRate: 92.0 },
+  { period: 'Q2', activeHC: 20, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
+  { period: 'Q3', activeHC: 18, losses: 1, attritionRate: 5.6, attendanceRate: 98.1 },
+];
+
+const defaultQuarterlyPst = [
+  { period: 'Q1', activeHC: 36, losses: 7, attritionRate: 19.4, attendanceRate: 97.0 },
+  { period: 'Q2', activeHC: 59, losses: 9, attritionRate: 15.3, attendanceRate: 97.6 },
+  { period: 'Q3', activeHC: 29, losses: 4, attritionRate: 13.8, attendanceRate: 97.0 },
+];
+
+const defaultQuarterlyOverall = [
+  { period: 'Q1', activeHC: 77, losses: 12, attritionRate: 15.6, attendanceRate: 95.7 },
+  { period: 'Q2', activeHC: 79, losses: 9, attritionRate: 11.4, attendanceRate: 97.7 },
+  { period: 'Q3', activeHC: 47, losses: 5, attritionRate: 10.6, attendanceRate: 97.1 },
 ];
 
 export default function AnalyticsPage() {
+  const [trajectoryView, setTrajectoryView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [metric, setMetric] = useState<'Attrition' | 'Attendance' | 'Losses' | 'Active HC'>('Attrition');
   const [quarterFilter, setQuarterFilter] = useState<string>('All');
   const [monthFilter, setMonthFilter] = useState<string>('All');
   const [accountFilter, setAccountFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [monthlyData, setMonthlyData] = useState(defaultMonthlyData);
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [aiInsights, setAiInsights] = useState([
-    {
-      title: 'March has highest attrition',
-      desc: 'Overall attrition spiked to 20.0%, primarily driven by a 50% spike in Inhouse attrition.',
-      type: 'warning'
-    },
-    {
-      title: 'Attendance recovered in April',
-      desc: 'Overall attendance climbed to 98.4% across all departments following the Q1 dip.',
-      type: 'success'
-    },
-    {
-      title: 'PST remains above Inhouse',
-      desc: 'PST attrition is consistently hovering around 10-17% over the last 4 months while Inhouse remained at 0%.',
-      type: 'info'
-    }
-  ]);
+  const [openDropdown, setOpenDropdown] = useState<'quarter' | 'month' | 'account' | null>(null);
+
+  // Close custom dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-dropdown]')) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(defaultMonthlyInhouse);
+  const [pstMonthlyData, setPstMonthlyData] = useState(defaultMonthlyPst);
+  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(defaultQuarterlyInhouse);
+  const [pstQuarterlyData, setPstQuarterlyData] = useState(defaultQuarterlyPst);
+  const [overallQuarterlyData, setOverallQuarterlyData] = useState(defaultQuarterlyOverall);
 
   // Load real Supabase database data on mount
   useEffect(() => {
@@ -57,44 +93,41 @@ export default function AnalyticsPage() {
           const allInhouse: TraineeRecord[] = Object.values(rawData.inhouse || {}).flat();
           const allPst: TraineeRecord[] = Object.values(rawData.pst || {}).flat();
 
-          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
-          const computed = months.map(period => {
-            const inhouseM = allInhouse.filter(t => t.month?.toLowerCase().includes(period.toLowerCase()));
-            const pstM = allPst.filter(t => t.month?.toLowerCase().includes(period.toLowerCase()));
+          const months = [
+            { key: 'Jan', label: 'January' },
+            { key: 'Feb', label: 'February' },
+            { key: 'Mar', label: 'March' },
+            { key: 'Apr', label: 'April' },
+            { key: 'May', label: 'May' },
+            { key: 'Jun', label: 'June' },
+            { key: 'Jul', label: 'July' },
+            { key: 'Aug', label: 'August' }
+          ];
 
-            const inhouseHC = inhouseM.length || Math.floor(Math.random() * 10) + 10;
-            const inhouseLoss = inhouseM.filter(t => t.status === 'DROPPED' || t.isLoss).length;
-            const inhouseAttr = inhouseHC > 0 ? parseFloat(((inhouseLoss / inhouseHC) * 100).toFixed(1)) : 0;
-
-            const pstHC = pstM.length || Math.floor(Math.random() * 15) + 15;
-            const pstLoss = pstM.filter(t => t.status === 'DROPPED' || t.isLoss).length;
-            const pstAttr = pstHC > 0 ? parseFloat(((pstLoss / pstHC) * 100).toFixed(1)) : 0;
-
-            const totalHC = inhouseHC + pstHC;
-            const totalLoss = inhouseLoss + pstLoss;
-            const totalAttr = totalHC > 0 ? parseFloat(((totalLoss / totalHC) * 100).toFixed(1)) : 0;
-
-            const allTrainees = [...inhouseM, ...pstM];
-            const sumP = allTrainees.reduce((acc, t) => acc + (t.p || 0), 0);
-            const sumA = allTrainees.reduce((acc, t) => acc + (t.a || 0), 0);
-            const totalAttd = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 97.8;
-
-            return {
-              period,
-              inhouseAttr,
-              inhouseHC,
-              inhouseLoss,
-              pstAttr,
-              pstHC,
-              pstLoss,
-              totalAttr,
-              totalHC,
-              totalLoss,
-              totalAttd
-            };
+          const computedInhouseMonthly = months.map(m => {
+            const inhouseM = allInhouse.filter(t => t.month?.toLowerCase().includes(m.key.toLowerCase()));
+            const activeHC = inhouseM.length || (defaultMonthlyInhouse.find(d => d.period === m.label)?.activeHC || 10);
+            const losses = inhouseM.filter(t => t.status === 'DROPPED' || t.isLoss).length;
+            const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+            const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
+            const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
+            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : (defaultMonthlyInhouse.find(d => d.period === m.label)?.attendanceRate || 98.0);
+            return { period: m.label, activeHC, losses, attritionRate, attendanceRate };
           });
 
-          setMonthlyData(computed);
+          const computedPstMonthly = months.map(m => {
+            const pstM = allPst.filter(t => t.month?.toLowerCase().includes(m.key.toLowerCase()));
+            const activeHC = pstM.length || (defaultMonthlyPst.find(d => d.period === m.label)?.activeHC || 15);
+            const losses = pstM.filter(t => t.status === 'DROPPED' || t.isLoss).length;
+            const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+            const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
+            const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
+            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : (defaultMonthlyPst.find(d => d.period === m.label)?.attendanceRate || 97.5);
+            return { period: m.label, activeHC, losses, attritionRate, attendanceRate };
+          });
+
+          setInhouseMonthlyData(computedInhouseMonthly);
+          setPstMonthlyData(computedPstMonthly);
         }
       } catch (e) {
         console.warn('Using default analytics metrics:', e);
@@ -103,109 +136,109 @@ export default function AnalyticsPage() {
     loadData();
   }, []);
 
-  // Filter dataset by Quarter and Month
-  const filteredData = monthlyData.filter(d => {
-    if (quarterFilter === 'Q1' && !['Jan', 'Feb', 'Mar'].includes(d.period)) return false;
-    if (quarterFilter === 'Q2' && !['Apr', 'May', 'Jun'].includes(d.period)) return false;
-    if (quarterFilter === 'Q3' && !['Jul', 'Aug'].includes(d.period)) return false;
-    if (monthFilter !== 'All' && d.period !== monthFilter) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return d.period.toLowerCase().includes(q) || d.totalAttr.toString().includes(q);
-    }
-    return true;
-  });
+  // Compute overall monthly data
+  const overallMonthlyData = useMemo(() => {
+    return inhouseMonthlyData.map((inh, idx) => {
+      const pst = pstMonthlyData[idx] || { activeHC: 0, losses: 0, attendanceRate: 100 };
+      const totalHC = inh.activeHC + pst.activeHC;
+      const totalLoss = inh.losses + pst.losses;
+      const totalAttr = totalHC > 0 ? parseFloat(((totalLoss / totalHC) * 100).toFixed(1)) : 0;
+      const totalAttd = parseFloat(((inh.attendanceRate + pst.attendanceRate) / 2).toFixed(1));
+      return {
+        period: inh.period,
+        activeHC: totalHC,
+        losses: totalLoss,
+        attritionRate: totalAttr,
+        attendanceRate: totalAttd
+      };
+    });
+  }, [inhouseMonthlyData, pstMonthlyData]);
 
-  // Listen for global top bar date filter changes
-  useEffect(() => {
-    const handleGlobalDateChange = (e: any) => {
-      const range = e.detail?.range;
-      if (!range) return;
-
-      if (range === 'Today' || range === 'Yesterday') {
-        setMonthFilter('Aug');
-        setQuarterFilter('Q3');
-      } else if (range === 'Last 7 Days' || range === 'Last 30 Days' || range === 'This Month') {
-        setMonthFilter('Aug');
-        setQuarterFilter('Q3');
-      } else if (range === 'This Quarter (Q3)') {
-        setQuarterFilter('Q3');
-        setMonthFilter('All');
-      } else if (range === 'Year to Date') {
-        setQuarterFilter('All');
-        setMonthFilter('All');
-      } else if (range.includes('Jan')) setMonthFilter('Jan');
-      else if (range.includes('Feb')) setMonthFilter('Feb');
-      else if (range.includes('Mar')) setMonthFilter('Mar');
-      else if (range.includes('Apr')) setMonthFilter('Apr');
-      else if (range.includes('May')) setMonthFilter('May');
-      else if (range.includes('Jun')) setMonthFilter('Jun');
-      else if (range.includes('Jul')) setMonthFilter('Jul');
-      else if (range.includes('Aug')) setMonthFilter('Aug');
-    };
-
-    window.addEventListener('global-date-change', handleGlobalDateChange);
-    return () => window.removeEventListener('global-date-change', handleGlobalDateChange);
-  }, []);
-
-  // Trigger Live AI Insights Generation via /api/copilot
-  const handleGenerateAI = async () => {
-    setIsGeneratingAI(true);
-    try {
-      const res = await fetch('/api/copilot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `Analyze these live performance metrics and generate 3 short key insights (title and description): ${JSON.stringify(filteredData.slice(0, 5))}`,
-          history: []
-        })
-      });
-      const data = await res.json();
-      if (data.reply) {
-        setAiInsights([
-          {
-            title: 'AI Analysis Complete',
-            desc: data.reply.substring(0, 140) + '...',
-            type: 'info'
-          },
-          {
-            title: 'Q1 vs Q2 Attrition Trajectory',
-            desc: `Overall attrition averaged ${avgAttrition}% across ${filteredData.length} tracked periods.`,
-            type: parseFloat(avgAttrition) > 10 ? 'warning' : 'success'
-          },
-          {
-            title: 'Attendance Stability',
-            desc: `Overall attendance rate is maintaining a strong ${avgAttendance}% average.`,
-            type: 'success'
-          }
-        ]);
+  // Filter datasets based on filter inputs
+  const filterByQueryAndPeriod = (data: any[], isQuarter = false) => {
+    return data.filter(d => {
+      if (isQuarter) {
+        if (quarterFilter !== 'All' && d.period !== quarterFilter) return false;
+      } else {
+        if (quarterFilter === 'Q1' && !['January', 'February', 'March'].includes(d.period)) return false;
+        if (quarterFilter === 'Q2' && !['April', 'May', 'June'].includes(d.period)) return false;
+        if (quarterFilter === 'Q3' && !['July', 'August'].includes(d.period)) return false;
+        if (monthFilter !== 'All') {
+          const mLabel = { 'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April', 'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August' }[monthFilter] || monthFilter;
+          if (d.period !== mLabel) return false;
+        }
       }
-    } catch (e) {
-      console.warn('AI generation error:', e);
-    } finally {
-      setIsGeneratingAI(false);
-    }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        return d.period.toLowerCase().includes(q) || d.activeHC.toString().includes(q) || d.losses.toString().includes(q);
+      }
+      return true;
+    });
   };
 
-  const openAiCopilot = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('open-ai-copilot'));
+  const currentInhouseData = useMemo(() => {
+    return trajectoryView === 'quarterly' 
+      ? filterByQueryAndPeriod(inhouseQuarterlyData, true) 
+      : filterByQueryAndPeriod(inhouseMonthlyData, false);
+  }, [trajectoryView, inhouseQuarterlyData, inhouseMonthlyData, quarterFilter, monthFilter, searchQuery]);
+
+  const currentPstData = useMemo(() => {
+    return trajectoryView === 'quarterly' 
+      ? filterByQueryAndPeriod(pstQuarterlyData, true) 
+      : filterByQueryAndPeriod(pstMonthlyData, false);
+  }, [trajectoryView, pstQuarterlyData, pstMonthlyData, quarterFilter, monthFilter, searchQuery]);
+
+  const currentOverallData = useMemo(() => {
+    return trajectoryView === 'quarterly' 
+      ? filterByQueryAndPeriod(overallQuarterlyData, true) 
+      : filterByQueryAndPeriod(overallMonthlyData, false);
+  }, [trajectoryView, overallQuarterlyData, overallMonthlyData, quarterFilter, monthFilter, searchQuery]);
+
+  // Derived KPI cards summary using Official Average Headcount method
+  const { totalSummaryAttrition, totalSummaryAttendance, totalLossesSum, activeSummaryHC, avgHeadcount } = useMemo(() => {
+    const list = currentOverallData;
+    if (list.length === 0) {
+      return { totalSummaryAttrition: '0.0', totalSummaryAttendance: '97.5', totalLossesSum: 0, activeSummaryHC: 0, avgHeadcount: '0.0' };
     }
+    const sumLoss = list.reduce((acc, d) => acc + (d.losses || 0), 0);
+    const sumHC = list.reduce((acc, d) => acc + (d.activeHC || 0), 0);
+    const meanHC = sumHC / list.length;
+    const sumAttd = list.reduce((acc, d) => acc + (d.attendanceRate || 0), 0);
+    const lastHC = list[list.length - 1]?.activeHC || 0;
+
+    // Official WFM Average Headcount Attrition
+    const calculatedAttrition = meanHC > 0 ? ((sumLoss / meanHC) * 100).toFixed(1) : '0.0';
+
+    return {
+      totalSummaryAttrition: calculatedAttrition,
+      totalSummaryAttendance: (sumAttd / list.length).toFixed(1),
+      totalLossesSum: sumLoss,
+      activeSummaryHC: lastHC,
+      avgHeadcount: meanHC.toFixed(1)
+    };
+  }, [currentOverallData]);
+
+  // Value getter for charts based on selected metric
+  const getMetricKey = () => {
+    if (metric === 'Attrition') return 'attritionRate';
+    if (metric === 'Attendance') return 'attendanceRate';
+    if (metric === 'Losses') return 'losses';
+    return 'activeHC';
   };
-  
+
   // Custom tooltip for recharts
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTrajectoryTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-3 text-xs">
-          <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">{label} 2026</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl p-3 text-xs">
+          <p className="font-bold text-slate-800 dark:text-slate-100 mb-2 border-b border-slate-100 dark:border-slate-800 pb-1">{label} 2026</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center gap-3 mb-1">
-              <div className="flex items-center gap-1.5 w-20">
+              <div className="flex items-center gap-1.5 min-w-[80px]">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="text-slate-500 font-medium">{entry.name}</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">{metric}</span>
               </div>
-              <span className="font-bold text-slate-800">
+              <span className="font-bold text-slate-900 dark:text-slate-100">
                 {entry.value}{metric === 'Attrition' || metric === 'Attendance' ? '%' : ''}
               </span>
             </div>
@@ -218,91 +251,227 @@ export default function AnalyticsPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Analytics Trends</h1>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">{quarterFilter === 'All' ? 'Jan–Aug 2026' : quarterFilter} &middot; {accountFilter === 'All' ? 'All Accounts' : accountFilter}</span></p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <select 
-              value={quarterFilter}
-              onChange={(e) => setQuarterFilter(e.target.value)}
-              className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer"
-            >
-              <option value="All">All Quarters</option>
-              <option value="Q1">Q1 2026 (Jan-Mar)</option>
-              <option value="Q2">Q2 2026 (Apr-Jun)</option>
-              <option value="Q3">Q3 2026 (Jul-Aug)</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <select 
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer"
-            >
-              <option value="All">All Months</option>
-              <option value="Jan">January</option>
-              <option value="Feb">February</option>
-              <option value="Mar">March</option>
-              <option value="Apr">April</option>
-              <option value="May">May</option>
-              <option value="Jun">June</option>
-              <option value="Jul">July</option>
-              <option value="Aug">August</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <select 
-              value={accountFilter}
-              onChange={(e) => setAccountFilter(e.target.value)}
-              className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs cursor-pointer"
-            >
-              <option value="All">All Accounts</option>
-              <option value="Inhouse">In-House Department</option>
-              <option value="PST">Product Spec Training (PST)</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search trends..."
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/20 shadow-xs w-44"
-            />
-          </div>
-
-          <button 
-            onClick={() => {
-              setQuarterFilter('All');
-              setMonthFilter('All');
-              setAccountFilter('All');
-              setSearchQuery('');
-            }}
-            className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 p-2 rounded-lg transition-colors shadow-xs cursor-pointer" 
-            title="Reset Filters"
-          >
-            <RefreshCcw className="w-4 h-4" />
-          </button>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Analytics &amp; AI Insights</h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+            Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">{quarterFilter === 'All' ? 'Jan–Aug 2026' : quarterFilter} &middot; {accountFilter === 'All' ? 'All Accounts' : accountFilter}</span>
+          </p>
         </div>
       </div>
 
+      {/* Global Filter Bar (Matches Trainees & Trainers Design) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+        
+        {/* Quarter Dropdown */}
+        <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>QUARTER</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenDropdown(prev => prev === 'quarter' ? null : 'quarter')}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          >
+            <span className="truncate">{quarterFilter === 'All' ? 'All Quarters' : quarterFilter}</span>
+            {openDropdown === 'quarter' ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            )}
+          </button>
+
+          {openDropdown === 'quarter' && (
+            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
+              {['All', 'Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+                const label = q === 'All' ? 'All Quarters' : q;
+                const isSelected = quarterFilter === q;
+                return (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => {
+                      setQuarterFilter(q);
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                      isSelected
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Month Dropdown */}
+        <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>MONTH</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenDropdown(prev => prev === 'month' ? null : 'month')}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          >
+            <span className="truncate">
+              {monthFilter === 'All' ? 'All Months' : (
+                { 'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April', 'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August', 'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December' }[monthFilter] || monthFilter
+              )}
+            </span>
+            {openDropdown === 'month' ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            )}
+          </button>
+
+          {openDropdown === 'month' && (
+            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+              {[
+                { val: 'All', label: 'All Months' },
+                { val: 'Jan', label: 'January' },
+                { val: 'Feb', label: 'February' },
+                { val: 'Mar', label: 'March' },
+                { val: 'Apr', label: 'April' },
+                { val: 'May', label: 'May' },
+                { val: 'Jun', label: 'June' },
+                { val: 'Jul', label: 'July' },
+                { val: 'Aug', label: 'August' },
+                { val: 'Sep', label: 'September' },
+                { val: 'Oct', label: 'October' },
+                { val: 'Nov', label: 'November' },
+                { val: 'Dec', label: 'December' }
+              ].map((m) => {
+                const isSelected = monthFilter === m.val;
+                return (
+                  <button
+                    key={m.val}
+                    type="button"
+                    onClick={() => {
+                      setMonthFilter(m.val);
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                      isSelected
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Client Account Dropdown */}
+        <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Building2 className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>CLIENT ACCOUNT</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          >
+            <span className="truncate">{accountFilter === 'All' ? 'All Client Accounts' : accountFilter}</span>
+            {openDropdown === 'account' ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            )}
+          </button>
+
+          {openDropdown === 'account' && (
+            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+              {[
+                'All',
+                'Inhouse',
+                'PST',
+                'HAMMERHEAD',
+                'CTS',
+                'COVA',
+                'XPN - CXL',
+                'XPN - NEGO',
+                'FLEXAR',
+                'FLEET',
+                'ONO',
+                'RM - NEGO',
+                'SPA ASUKA',
+                'RM - CXL',
+                'DEFERIT'
+              ].map((acct) => {
+                const label = acct === 'All' ? 'All Client Accounts' : acct;
+                const isSelected = accountFilter === acct;
+                return (
+                  <button
+                    key={acct}
+                    type="button"
+                    onClick={() => {
+                      setAccountFilter(acct);
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
+                      isSelected
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Search Field */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-5">
+          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <Search className="w-3.5 h-3.5 text-[#2F6798]" />
+            <span>SEARCH</span>
+          </div>
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search trends, period, metrics..."
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
+            />
+          </div>
+        </div>
+
+      </div>
+
+      {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Avg Attrition', val: `${avgAttrition}%`, trend: '↓ 2.1%', trendLabel: 'filtered avg', isGood: parseFloat(avgAttrition) <= 10 },
-          { label: 'Avg Attendance', val: `${avgAttendance}%`, trend: '↑ 1.4%', trendLabel: 'filtered avg', isGood: parseFloat(avgAttendance) >= 96 },
-          { label: 'Total Losses', val: `${totalLosses}`, trend: '↓ 4', trendLabel: 'filtered total', isGood: totalLosses < 10 },
-          { label: 'Active HC', val: `${activeHC}`, trend: '+12', trendLabel: 'filtered active', isGood: true, neutral: true },
+          { 
+            label: quarterFilter === 'All' && monthFilter === 'All' ? 'YTD Attrition' : (quarterFilter !== 'All' ? `${quarterFilter} Attrition` : `${monthFilter} Attrition`), 
+            val: `${totalSummaryAttrition}%`, 
+            trend: '↓ 2.1%', 
+            trendLabel: `vs ${avgHeadcount} avg HC`, 
+            isGood: parseFloat(totalSummaryAttrition) <= 15 
+          },
+          { label: 'Avg Attendance', val: `${totalSummaryAttendance}%`, trend: '↑ 1.4%', trendLabel: 'filtered avg', isGood: parseFloat(totalSummaryAttendance) >= 96 },
+          { label: 'Total Losses', val: `${totalLossesSum}`, trend: '↓ 4', trendLabel: 'filtered total', isGood: totalLossesSum < 10 },
+          { label: 'Active HC', val: `${activeSummaryHC}`, trend: '+12', trendLabel: 'filtered active', isGood: true, neutral: true },
         ].map((kpi, idx) => (
           <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110 pointer-events-none" />
@@ -325,213 +494,407 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        <div className="xl:col-span-9 space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 group transition-shadow hover:shadow-md relative">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Department Performance</h3>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Comparing Inhouse vs PST trajectory</p>
+      {/* Interactive Light Mode Training Hub AI Bar */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 text-slate-800 dark:text-slate-100 shadow-sm border border-slate-200/90 dark:border-slate-800 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#2F6798] border border-blue-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-md text-white">
+              <Player
+                autoplay
+                loop
+                src="/animations/AI chatbot-2.json"
+                style={{ height: '38px', width: '38px' }}
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                  Training Hub AI
+                </h2>
+                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wider shadow-2xs">
+                  LIVE AI
+                </span>
               </div>
-              
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shrink-0">
-                {['Attrition', 'Attendance', 'Losses', 'Active HC'].map(m => (
-                  <button 
-                    key={m}
-                    onClick={(e) => { e.stopPropagation(); setMetric(m as any); }}
-                    className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-                      metric === m ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                Instant performance diagnosis, trajectory comparison, and executive summaries.
+              </p>
+            </div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('open-ai-copilot', { detail: { prompt: 'Analyze current training performance and attrition trends' } }));
+            }}
+            className="bg-[#2F6798] hover:bg-[#235179] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 shrink-0 cursor-pointer self-start sm:self-auto"
+          >
+            <span>Ask AI</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          </button>
+        </div>
+
+        {/* Quick Suggestion Chips */}
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2 relative z-10">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Prompts:</span>
+          {[
+            { 
+              label: 'Explain March Attrition Spike', 
+              prompt: 'Analyze the March 2026 20% attrition spike and explain the primary drivers.',
+              icon: <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+            },
+            { 
+              label: 'Compare Inhouse vs PST', 
+              prompt: 'Compare Inhouse vs PST department retention trends over the last 4 months.',
+              icon: <TrendingUp className="w-3.5 h-3.5 text-[#2F6798] shrink-0" /> 
+            },
+            { 
+              label: 'Generate Q3 Summary', 
+              prompt: 'Draft a bulleted executive summary of Q3 2026 performance.',
+              icon: <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> 
+            },
+            { 
+              label: 'Highlight Attrition Risks', 
+              prompt: 'Which batch groups or departments are currently at high risk for attrition?',
+              icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" /> 
+            },
+          ].map((chip, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('open-ai-copilot', { detail: { prompt: chip.prompt } }));
+              }}
+              className="text-[11px] font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 hover:border-[#2F6798]/40 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              {chip.icon}
+              <span>{chip.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Trajectory Controls & View Switcher */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">VIEW TRAJECTORY:</span>
+          <div className="flex bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl shadow-inner">
+            <button
+              type="button"
+              onClick={() => setTrajectoryView('quarterly')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                trajectoryView === 'quarterly'
+                  ? "bg-white dark:bg-slate-700 text-[#2F6798] dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              Quarterly Trajectory
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrajectoryView('monthly')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                trajectoryView === 'monthly'
+                  ? "bg-white dark:bg-slate-700 text-[#2F6798] dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              Monthly Trajectory
+            </button>
+          </div>
+        </div>
+
+        {/* Metric Selector Tabs */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">METRIC:</span>
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            {['Attrition', 'Attendance', 'Losses', 'Active HC'].map(m => (
+              <button 
+                key={m}
+                onClick={() => setMetric(m as any)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                  metric === m 
+                    ? "bg-white text-slate-800 shadow-xs dark:bg-slate-700 dark:text-slate-100" 
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Side-by-Side Dual Department Cards: INHOUSE vs PST (Matches Screenshot 1 & 2) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* CARD 1: INHOUSE Training Trends */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div className="p-5 sm:p-6 pb-2">
+            <div className="flex items-start justify-between gap-2 mb-4">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                  INHOUSE TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+                </h3>
               </div>
             </div>
 
-            <div className="h-[320px] w-full">
+            {/* Inhouse Line Chart */}
+            <div className="h-[220px] w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={filteredData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <LineChart data={currentInhouseData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="period" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
-                    dy={10} 
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
+                    dy={6}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                     tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
                   />
-                  <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 2, strokeDasharray: '4 4' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, color: '#475569', paddingTop: '20px' }} />
-                  
-                  {metric === 'Attrition' && (
-                    <>
-                      <Line type="monotone" name="Inhouse" dataKey="inhouseAttr" stroke="#2F6798" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6, fill: '#2F6798', stroke: '#fff', strokeWidth: 2 }} animationDuration={1000} />
-                      <Line type="monotone" name="PST" dataKey="pstAttr" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 }} animationDuration={1000} />
-                    </>
-                  )}
-                  {metric === 'Active HC' && (
-                    <>
-                      <Line type="monotone" name="Inhouse" dataKey="inhouseHC" stroke="#2F6798" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} animationDuration={1000} />
-                      <Line type="monotone" name="PST" dataKey="pstHC" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} animationDuration={1000} />
-                    </>
-                  )}
-                  {metric === 'Losses' && (
-                    <>
-                      <Line type="monotone" name="Inhouse" dataKey="inhouseLoss" stroke="#2F6798" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} animationDuration={1000} />
-                      <Line type="monotone" name="PST" dataKey="pstLoss" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} animationDuration={1000} />
-                    </>
-                  )}
-                  {metric === 'Attendance' && (
-                    <>
-                      <Line type="monotone" name="Overall" dataKey="totalAttd" stroke="#10b981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} animationDuration={1000} />
-                    </>
-                  )}
+                  <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
+                  <Line 
+                    type="monotone" 
+                    name="Inhouse" 
+                    dataKey={getMetricKey()} 
+                    stroke="#C8A54B" 
+                    strokeWidth={2.5} 
+                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
+                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                    animationDuration={800} 
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Period Breakdown</h3>
-              <div className="flex bg-slate-200/60 dark:bg-slate-800 p-0.5 rounded-lg">
-                <button className="px-3 py-1 bg-white dark:bg-slate-700 shadow-xs rounded-md text-xs font-bold text-slate-800 dark:text-slate-100">Monthly View</button>
+          {/* Inhouse Data Table */}
+          <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-2.5">PERIOD TITLE</th>
+                  <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
+                  <th className="px-4 py-2.5 text-center">LOSSES</th>
+                  <th className="px-4 py-2.5 text-center">ATTRITION RATE</th>
+                  <th className="px-4 py-2.5 text-right">ATTENDANCE RATE</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs">
+                {currentInhouseData.map((row, idx) => {
+                  const isBadAttr = row.attritionRate > 15;
+                  const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                      <td className="px-4 py-3 text-center">{row.activeHC}</td>
+                      <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn(
+                          "inline-block px-2 py-0.5 rounded-full font-bold",
+                          isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
+                          isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
+                          "text-slate-800 dark:text-slate-200"
+                        )}>
+                          {row.attritionRate.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {row.attendanceRate.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* CARD 2: PST Training Trends */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div className="p-5 sm:p-6 pb-2">
+            <div className="flex items-start justify-between gap-2 mb-4">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                  PST TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+                </h3>
               </div>
             </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/80 dark:bg-slate-800/50 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="px-5 py-3">Period</th>
-                    <th className="px-5 py-3 text-center">Active HC</th>
-                    <th className="px-5 py-3 text-center">Losses</th>
-                    <th className="px-5 py-3 text-center">Attrition Rate</th>
-                    <th className="px-5 py-3 text-right">Attendance Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                  {filteredData.map((row, idx) => {
-                    const isBadAttrition = row.totalAttr > 15;
-                    const isAttentionAttrition = row.totalAttr > 10 && row.totalAttr <= 15;
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-5 py-4 font-bold text-slate-900 dark:text-slate-100">{row.period} 2026</td>
-                        <td className="px-5 py-4 text-center font-bold">{row.totalHC}</td>
-                        <td className="px-5 py-4 text-center">{row.totalLoss}</td>
-                        <td className="px-5 py-4 text-center">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold ${
-                            isBadAttrition ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800' :
-                            isAttentionAttrition ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' :
-                            'text-slate-800 dark:text-slate-200'
-                          }`}>
-                            {isBadAttrition && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
-                            {row.totalAttr.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {row.totalAttd.toFixed(1)}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+
+            {/* PST Line Chart */}
+            <div className="h-[220px] w-full mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={currentPstData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="period" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
+                    dy={6}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                    tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
+                  />
+                  <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
+                  <Line 
+                    type="monotone" 
+                    name="PST" 
+                    dataKey={getMetricKey()} 
+                    stroke="#C8A54B" 
+                    strokeWidth={2.5} 
+                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
+                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                    animationDuration={800} 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* PST Data Table */}
+          <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-2.5">PERIOD TITLE</th>
+                  <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
+                  <th className="px-4 py-2.5 text-center">LOSSES</th>
+                  <th className="px-4 py-2.5 text-center">ATTRITION RATE</th>
+                  <th className="px-4 py-2.5 text-right">ATTENDANCE RATE</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs">
+                {currentPstData.map((row, idx) => {
+                  const isBadAttr = row.attritionRate > 15;
+                  const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                      <td className="px-4 py-3 text-center">{row.activeHC}</td>
+                      <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn(
+                          "inline-block px-2 py-0.5 rounded-full font-bold",
+                          isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
+                          isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
+                          "text-slate-800 dark:text-slate-200"
+                        )}>
+                          {row.attritionRate.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {row.attendanceRate.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="xl:col-span-3 space-y-6">
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-lg p-5 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 pointer-events-none" />
-            
-            <div className="flex items-center justify-between mb-5 relative z-10">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <span className="text-blue-400">✨</span> Key Insights
-              </h3>
-              <button
-                onClick={handleGenerateAI}
-                disabled={isGeneratingAI}
-                className="flex items-center gap-1.5 rounded-full bg-[#2F6798] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#235179] transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isGeneratingAI ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-amber-300" />}
-                {isGeneratingAI ? 'Analyzing...' : 'Refresh AI'}
-              </button>
-            </div>
-            
-            <div className="space-y-4 relative z-10">
-              {aiInsights.map((insight, idx) => (
-                <div key={idx} className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors cursor-default">
-                  <div className="flex gap-3">
-                    {insight.type === 'warning' ? (
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    ) : insight.type === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                    )}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-100">{insight.title}</h4>
-                      <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                        {insight.desc}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+      </div>
+
+      {/* CARD 3: Overall Departmental Trends (Full Width Card, Matches Screenshot 3 & 4) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 pb-2">
+          <div className="flex items-start justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                Overall Departmental Trends
+              </h2>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-0.5">
+                OVERALL DEPARTMENTAL TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+              </p>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-500" />
-                Periods Requiring Attention
-              </h3>
-            </div>
-            
-            <div className="space-y-3">
-              {[
-                { period: 'March 2026', title: 'Overall Attrition: 20.0%', subtitle: 'Losses: 3 · Active HC: 15', status: 'critical' },
-                { period: 'April 2026', title: 'PST Attrition: 17.1%', subtitle: 'Losses: 6 · Active HC: 38', status: 'critical' },
-                { period: 'February 2026', title: 'PST Attrition: 21.4%', subtitle: 'Losses: 3 · Active HC: 31', status: 'attention' },
-              ].map((risk, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={openAiCopilot}
-                  className={`group p-4 rounded-xl border flex items-start gap-3 transition-all cursor-pointer ${
-                    risk.status === 'critical' 
-                      ? 'bg-rose-50/50 border-rose-100 hover:bg-rose-100/70 dark:bg-rose-900/10 dark:border-rose-900/30 dark:hover:bg-rose-900/20' 
-                      : 'bg-amber-50/50 border-amber-100 hover:bg-amber-100/70 dark:bg-amber-900/10 dark:border-amber-900/30 dark:hover:bg-amber-900/20'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 shadow-sm ${
-                    risk.status === 'critical' ? 'bg-rose-500' : 'bg-amber-500'
-                  }`} />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{risk.period}</h4>
-                      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[#2F6798] font-bold flex items-center gap-0.5">
-                        Ask AI <MessageSquare className="h-3 w-3" />
-                      </span>
-                    </div>
-                    <p className={`text-[11px] font-bold mt-1 ${
-                      risk.status === 'critical' ? 'text-rose-700 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'
-                    }`}>{risk.title}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{risk.subtitle}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* Overall Line Chart */}
+          <div className="h-[240px] w-full mt-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={currentOverallData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="period" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
+                  dy={6}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                  tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
+                />
+                <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
+                <Line 
+                  type="monotone" 
+                  name="Overall" 
+                  dataKey={getMetricKey()} 
+                  stroke="#C8A54B" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
+                  activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                  animationDuration={800} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Overall Data Table */}
+        <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+              <tr>
+                <th className="px-5 py-3">PERIOD TITLE</th>
+                <th className="px-5 py-3 text-center">ACTIVE HC</th>
+                <th className="px-5 py-3 text-center">LOSSES</th>
+                <th className="px-5 py-3 text-center">ATTRITION RATE</th>
+                <th className="px-5 py-3 text-right">ATTENDANCE RATE</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs">
+              {currentOverallData.map((row, idx) => {
+                const isBadAttr = row.attritionRate > 15;
+                const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
+                return (
+                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                    <td className="px-5 py-3.5 text-center font-bold">{row.activeHC}</td>
+                    <td className="px-5 py-3.5 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={cn(
+                        "inline-block px-2.5 py-1 rounded-full font-bold",
+                        isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
+                        isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
+                        "text-slate-800 dark:text-slate-200"
+                      )}>
+                        {row.attritionRate.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      {row.attendanceRate.toFixed(1)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
+
     </div>
   );
 }

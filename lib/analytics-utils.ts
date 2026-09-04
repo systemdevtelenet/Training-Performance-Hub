@@ -360,10 +360,12 @@ export function generateTrendAnalytics(rawData: any, filters: { month: string; q
     return sortedKeys.map(key => {
       const block = obj[key];
       const totalAtt = block.p + block.a;
-      const attrRaw = block.headcount > 0 ? (block.losses / block.headcount) * 100 : 0;
+      // For quarterly metrics, divide aggregated 3-month headcount by 3 to get average quarterly headcount
+      const effectiveHC = isMonth ? block.headcount : (block.headcount > 0 ? block.headcount / 3 : 0);
+      const attrRaw = effectiveHC > 0 ? (block.losses / effectiveHC) * 100 : 0;
       return {
         period: key,
-        headcount: block.headcount,
+        headcount: isMonth ? block.headcount : Math.round(effectiveHC),
         losses: block.losses,
         attritionNum: parseFloat(attrRaw.toFixed(1)),
         attritionRate: attrRaw.toFixed(1) + '%',

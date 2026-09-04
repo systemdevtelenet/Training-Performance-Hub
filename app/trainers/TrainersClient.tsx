@@ -128,6 +128,24 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
       <div className="pt-2">
         {isLoading ? (
           <TrainersDirectorySkeleton />
+        ) : role === 'EMPLOYEE' && activeTab !== 'directory' ? (
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-6">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Trainer Analytics Restricted</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Trainer Attendance & Reliability analytics are internal records for Training Supervisors. To view your personal trainee attendance and performance records, please visit the Trainees Portal.
+              </p>
+            </div>
+            <a
+              href="/trainees"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+            >
+              Open My Trainee Records
+            </a>
+          </div>
         ) : (
           <>
             <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
@@ -272,8 +290,8 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                   key={trainer.id}
                   onClick={() => setSelectedTrainerId(trainer.id)}
                   className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${isSelected
-                      ? 'bg-[#2F6798]/5 border-[#2F6798]/30 shadow-sm'
-                      : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    ? 'bg-[#2F6798]/5 border-[#2F6798]/30 shadow-sm'
+                    : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                     }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -452,8 +470,8 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                       key={idx}
                       onClick={() => setSelectedLeave({ type: item.label, dates: active.leaves?.records?.[item.label] || [] })}
                       className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${item.highlight
-                          ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
-                          : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
+                        ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
+                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
                         }`}
                     >
                       <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400'}`}>{item.label}</span>
@@ -741,8 +759,8 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
                 className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
-                    ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                    : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
+                  ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
+                  : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
                   }`}
                 aria-label={`${trainer.name}, attendance rate ${trainer.rate}`}
               >
@@ -816,10 +834,10 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
       if (totalEvaluated > 0) {
         rateStr = `${((present / totalEvaluated) * 100).toFixed(1)}%`;
       }
-      
+
       // Calculate the timeline grouped by month/quarter
       const monthMap = new Map();
-      
+
       const getQuarter = (monthName: string) => {
         const m = monthName.toLowerCase();
         if (['january', 'february', 'march'].includes(m)) return 'Q1';
@@ -847,7 +865,7 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
           m.losses++;
         }
       });
-      
+
       return {
         name: t.name,
         present: present,
@@ -1024,8 +1042,8 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
                 type="button"
                 onClick={() => handleTrainerClick(trainer)}
                 className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
-                    ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                    : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
+                  ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
+                  : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
                   }`}
               >
                 <div className="flex-1 min-w-0">
