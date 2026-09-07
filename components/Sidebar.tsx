@@ -55,6 +55,12 @@ const getNavItems = (role: UserRole) => {
       ]
     },
     { 
+      name: 'Employees Management', 
+      href: '/employees', 
+      icon: Users, 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'] 
+    },
+    { 
       name: 'Analytics & AI Insights', 
       href: '/analytics', 
       icon: BarChart, 
@@ -91,7 +97,7 @@ export default function Sidebar() {
 
   const profile = useMemo(() => {
     const emailStr = (email || '').toLowerCase();
-    if (emailStr.includes('bosssilver') || role === 'VIEW_ADMIN') {
+    if (emailStr.includes('bosssilver') || (role as string) === 'VIEW_ADMIN') {
       return { name: 'Boss Silver', title: 'Executive Admin (View Only)', initials: 'BS', email: email || 'bosssilver.telenet@gmail.com' };
     }
     if (emailStr.includes('nreguero') || role === 'HOT_ADMIN') {
@@ -117,6 +123,19 @@ export default function Sidebar() {
     await supabase.auth.signOut();
     router.push('/login?logout=true');
   };
+
+  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadAvatar = () => {
+      const saved = localStorage.getItem('user_avatar_url');
+      setCustomAvatar(saved);
+    };
+    loadAvatar();
+
+    window.addEventListener('avatar-updated', loadAvatar);
+    return () => window.removeEventListener('avatar-updated', loadAvatar);
+  }, []);
 
   useEffect(() => {
     const handleOpenLogout = () => setShowLogoutModal(true);
@@ -317,8 +336,12 @@ export default function Sidebar() {
           <div className="relative group">
             <div className={cn("flex items-center justify-between p-2.5 rounded-2xl bg-white/10 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700/50 shadow-xs cursor-pointer transition-all hover:bg-white/15", isCollapsed && "justify-center p-2")}>
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs">
-                  {profile.initials}
+                <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs overflow-hidden">
+                  {customAvatar ? (
+                    <img src={customAvatar} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    profile.initials
+                  )}
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col min-w-0 pr-1">
@@ -342,8 +365,12 @@ export default function Sidebar() {
             {isCollapsed && (
               <div className="absolute left-full bottom-0 ml-3.5 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-in fade-in slide-in-from-left-2 space-y-2">
                 <div className="flex items-center gap-3 pb-2 border-b border-white/15">
-                  <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm">
-                    {profile.initials}
+                  <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm overflow-hidden">
+                    {customAvatar ? (
+                      <img src={customAvatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      profile.initials
+                    )}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-white truncate">{profile.name}</span>

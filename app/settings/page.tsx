@@ -1,49 +1,43 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Settings,
   Bell,
   Globe,
   Calendar,
-  ShieldAlert,
-  Users,
-  Database,
-  RefreshCw,
   Save,
   RotateCcw,
-  Check,
   X,
-  ChevronDown,
   AlertTriangle,
-  Activity,
-  Link2,
-  Wifi,
-  ServerCog,
   Monitor,
   Sun,
   Moon,
   CheckCircle2,
-  Clock,
   Loader2,
-  Shield,
-  Eye,
-  Sparkles,
-  BarChart3,
-  GraduationCap,
-  FileText,
-  Zap,
-  Server,
   User,
-  Lock,
-  Edit3,
-  Trash2,
+  FileText,
+  ShieldCheck,
   Camera,
   Upload,
+  Trash2,
+  Phone,
+  MapPin,
+  CreditCard,
+  Tag,
+  Crop,
+  Check,
+  ZoomIn,
+  ZoomOut,
+  Move,
+  Sparkles,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { uploadAvatar, deleteAvatar } from '@/lib/actions/avatar';
 
-type SettingsTab = 'profile' | 'security' | 'general' | 'notifications' | 'thresholds' | 'roles' | 'integrations';
+type SettingsTab = 'profile' | 'notifications' | 'general';
 
 export default function SettingsPage() {
   const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
@@ -53,9 +47,29 @@ export default function SettingsPage() {
   const [showSaved, setShowSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  
+  // Avatar & Crop Modal State
   const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  const [baseDimensions, setBaseDimensions] = useState<{ width: number; height: number }>({ width: 260, height: 260 });
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  
+  // Top-Right Toast State
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+    visible: false,
+    message: '',
+    type: 'success'
+  });
+
+  const avatarDropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const [preferences, setPreferences] = useState({
     theme: 'light',
@@ -63,7 +77,7 @@ export default function SettingsPage() {
     dateFormat: 'MM/DD/YYYY',
   });
 
-  const [profile, setProfile] = useState({
+  const profile = {
     firstName: 'Nissi-Jeh',
     middleName: 'Nissi-Jeh',
     lastName: 'Reguero',
@@ -72,52 +86,49 @@ export default function SettingsPage() {
     systemRole: 'Admin',
     mobileNo: '+63 912 345 6789',
     homeAddress: 'Cebu City, Philippines'
-  });
-
-  const initialPrefsRef = useRef(preferences);
+  };
 
   const [notifications, setNotifications] = useState({
-    highAttrition: true,
-    attendanceBelow: true,
-    reliabilityBelow: true,
-    newBatch: true,
-    trainerAssignment: false,
-    batchStatus: true,
-    syncCompleted: false,
-    syncFailed: true,
-    integrationDisconnected: true,
+    performanceAlerts: true,
+    trainingUpdates: true,
     deliveryInApp: true,
     deliveryEmail: false,
   });
 
-  const [thresholds, setThresholds] = useState({
-    criticalAttrition: '15.0',
-    criticalAttendance: '90.0',
-    warningAttrition: '10.0',
-    warningAttendance: '95.0',
-    minBatchSuccess: '80.0',
-  });
-
-  const [users, setUsers] = useState([
-    { id: '1', name: 'Nico Reguero', email: 'n.reguero@cebutele.net', role: 'ADMIN', status: 'Active' },
-    { id: '2', name: 'Nissi-Jeh Reguero', email: 'nissi.reguero@cebutele.net', role: 'ADMIN', status: 'Active' },
-    { id: '3', name: 'Jeremy Rigodon', email: 'j.rigodon@cebutele.net', role: 'EMPLOYEE', status: 'Active' },
-    { id: '4', name: 'Nina Joy Briones', email: 'nj.briones@cebutele.net', role: 'EMPLOYEE', status: 'Active' },
-    { id: '5', name: 'Michelle Yncierto', email: 'myncierto@cebutele.net', role: 'EMPLOYEE', status: 'Active' },
-    { id: '6', name: 'Rommel Mendoza', email: 'r.mendoza@cebutele.net', role: 'EMPLOYEE', status: 'Active' },
-  ]);
-
-  const [integrations] = useState([
-    { id: '1', name: 'Supabase', purpose: 'Application database for trainee and trainer records', status: 'connected', lastSync: 'Aug 20, 2026 04:10 AM', icon: Database },
-    { id: '2', name: 'HRIS Sync', purpose: 'Employee data integration from the Human Resource Information System', status: 'disconnected', lastSync: null, icon: ServerCog },
-    { id: '3', name: 'Phone Tracker DB', purpose: 'Call monitoring and agent activity tracking system', status: 'connected', lastSync: 'Aug 20, 2026 03:45 AM', icon: Activity },
-    { id: '4', name: 'SSO / LDAP', purpose: 'Single Sign-On via Active Directory for centralized authentication', status: 'disconnected', lastSync: null, icon: ShieldAlert },
-  ]);
+  // Load avatar from localStorage on mount
+  useEffect(() => {
+    const savedAvatar = localStorage.getItem('user_avatar_url');
+    if (savedAvatar) {
+      setAvatarUrl(savedAvatar);
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsHydrating(false), 800);
     return () => clearTimeout(timer);
   }, []);
+
+  // Close avatar dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (avatarDropdownRef.current && !avatarDropdownRef.current.contains(event.target as Node)) {
+        setShowAvatarDropdown(false);
+      }
+    }
+    if (showAvatarDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAvatarDropdown]);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, visible: false }));
+    }, 3500);
+  };
 
   const markUnsaved = useCallback(() => {
     setHasUnsavedChanges(true);
@@ -129,22 +140,13 @@ export default function SettingsPage() {
     markUnsaved();
   };
 
-  const updateThreshold = (key: keyof typeof thresholds, value: string) => {
-    setThresholds(prev => ({ ...prev, [key]: value }));
-    markUnsaved();
-  };
-
-  const updateUserRole = (userId: string, role: string) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
-    markUnsaved();
-  };
-
   const handleSave = () => {
     setSaving(true);
     setTimeout(() => {
       setSaving(false);
       setShowSaved(true);
       setHasUnsavedChanges(false);
+      showToast('Settings saved successfully.', 'success');
       setTimeout(() => setShowSaved(false), 3000);
     }, 800);
   };
@@ -154,40 +156,192 @@ export default function SettingsPage() {
   };
 
   const confirmReset = () => {
-    setThresholds({
-      criticalAttrition: '15.0',
-      criticalAttendance: '90.0',
-      warningAttrition: '10.0',
-      warningAttendance: '95.0',
-      minBatchSuccess: '80.0',
-    });
     setPreferences({ theme: 'light', timezone: 'Asia/Manila', dateFormat: 'MM/DD/YYYY' });
     setNotifications({
-      highAttrition: true,
-      attendanceBelow: true,
-      reliabilityBelow: true,
-      newBatch: true,
-      trainerAssignment: false,
-      batchStatus: true,
-      syncCompleted: false,
-      syncFailed: true,
-      integrationDisconnected: true,
+      performanceAlerts: true,
+      trainingUpdates: true,
       deliveryInApp: true,
       deliveryEmail: false,
     });
     setHasUnsavedChanges(false);
     setShowResetDialog(false);
     setShowSaved(false);
+    showToast('Settings reset to default.', 'success');
+  };
+
+  // Avatar file selection handler
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const nw = img.naturalWidth || 500;
+        const nh = img.naturalHeight || 500;
+        
+        // Fit so the smaller side matches the 250px crop circle at 100% zoom
+        let bw = 250;
+        let bh = 250;
+        if (nw >= nh) {
+          bh = 250;
+          bw = Math.round(250 * (nw / nh));
+        } else {
+          bw = 250;
+          bh = Math.round(250 * (nh / nw));
+        }
+
+        setBaseDimensions({ width: bw, height: bh });
+        setRawImageSrc(reader.result as string);
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+        setShowCropModal(true);
+        setShowAvatarDropdown(false);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input value so same file can be chosen again if desired
+    e.target.value = '';
+  };
+
+  // Mouse / Touch drag handlers for cropping
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setPan({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    setPan({
+      x: e.touches[0].clientX - dragStart.x,
+      y: e.touches[0].clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  // Perform crop on canvas and upload to Supabase storage
+  const handleSaveCrop = async () => {
+    if (!rawImageSrc || !imageRef.current) return;
+
+    try {
+      setSavingAvatar(true);
+
+      const canvas = document.createElement('canvas');
+      const size = 512; // High-res 1:1 square
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) throw new Error('Could not get canvas context');
+
+      const img = imageRef.current;
+      const naturalWidth = img.naturalWidth;
+      const naturalHeight = img.naturalHeight;
+
+      // Crop box diameter inside the UI is 260px
+      const cropBoxSize = 260;
+      
+      // Calculate how the image is rendered in the viewport
+      const displayedWidth = baseDimensions.width * zoom;
+      const displayedHeight = baseDimensions.height * zoom;
+
+      // Ratio from displayed coordinates to natural image pixels
+      const scaleX = naturalWidth / displayedWidth;
+      const scaleY = naturalHeight / displayedHeight;
+
+      // Center offset of crop box inside container
+      const centerOffsetX = displayedWidth / 2 + pan.x;
+      const centerOffsetY = displayedHeight / 2 + pan.y;
+
+      // Top-left of crop box relative to natural image
+      const srcX = (centerOffsetX - cropBoxSize / 2) * scaleX;
+      const srcY = (centerOffsetY - cropBoxSize / 2) * scaleY;
+      const srcWidth = cropBoxSize * scaleX;
+      const srcHeight = cropBoxSize * scaleY;
+
+      // Draw onto 512x512 canvas
+      ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, size, size);
+
+      // Convert to blob
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setSavingAvatar(false);
+          showToast('Failed to process cropped photo', 'error');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', blob, 'avatar.png');
+        formData.append('employeeId', profile.employeeId);
+
+        const res = await uploadAvatar(formData);
+
+        setSavingAvatar(false);
+
+        if (res.success && res.url) {
+          setAvatarUrl(res.url);
+          localStorage.setItem('user_avatar_url', res.url);
+          window.dispatchEvent(new Event('avatar-updated'));
+          setShowCropModal(false);
+          setRawImageSrc(null);
+          showToast('Profile photo saved successfully!', 'success');
+        } else {
+          showToast(res.error || 'Failed to upload photo to storage', 'error');
+        }
+      }, 'image/png', 0.95);
+
+    } catch (err: any) {
+      setSavingAvatar(false);
+      showToast(err.message || 'Error cropping photo', 'error');
+    }
+  };
+
+  // Remove photo handler
+  const handleRemovePhoto = async () => {
+    setShowAvatarDropdown(false);
+    if (avatarUrl) {
+      await deleteAvatar(avatarUrl);
+    }
+    setAvatarUrl(null);
+    localStorage.removeItem('user_avatar_url');
+    window.dispatchEvent(new Event('avatar-updated'));
+    showToast('Profile photo removed.', 'success');
   };
 
   const tabs: { key: SettingsTab; label: string; icon: any }[] = [
     { key: 'profile', label: 'Profile Information', icon: User },
-    { key: 'security', label: 'Security', icon: Shield },
     { key: 'notifications', label: 'Notification', icon: Bell },
-    { key: 'roles', label: 'Roles & Permissions', icon: Users },
     { key: 'general', label: 'Preferences', icon: Settings },
-    { key: 'thresholds', label: 'KPI Thresholds', icon: ShieldAlert },
-    { key: 'integrations', label: 'Integrations', icon: Link2 },
   ];
 
   const Toggle = ({ enabled, onToggle, label }: { enabled: boolean; onToggle: () => void; label?: string }) => (
@@ -197,19 +351,38 @@ export default function SettingsPage() {
       role="switch"
       aria-checked={enabled}
       aria-label={label}
-      className={`relative inline-flex h-[22px] w-[40px] shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798]/40 ${enabled ? 'bg-[#2F6798]' : 'bg-slate-200 dark:bg-slate-600'}`}
+      className={`relative inline-flex h-[22px] w-[40px] shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798]/40 cursor-pointer ${enabled ? 'bg-[#2F6798]' : 'bg-slate-200 dark:bg-slate-600'}`}
     >
       <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 mt-[2px] ${enabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
     </button>
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 pb-12 relative">
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* ────────────── TOP-RIGHT FLOATING SUCCESS/ERROR TOAST ────────────── */}
+      {toast.visible && (
+        <div className="fixed top-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}>
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          </div>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{toast.message}</p>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">System Settings</h2>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg">Configure application preferences, notifications, KPI thresholds, user access, and system integrations.</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg">Configure your personal profile details, notification preferences, and application display settings.</p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {hasUnsavedChanges && !showSaved && (
@@ -218,7 +391,7 @@ export default function SettingsPage() {
           <button
             onClick={handleReset}
             disabled={isHydrating || saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isHydrating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" /> : <RotateCcw className="w-3.5 h-3.5" />}
             Reset to Default
@@ -226,7 +399,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={isHydrating || saving}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-xs transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
           >
             {isHydrating || saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -240,7 +413,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Success Toast */}
+      {/* Success Toast Banner */}
       {showSaved && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -248,47 +421,35 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Main Settings Layout */}
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Sidebar Navigation */}
-        <div className="w-full md:w-64 shrink-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm p-3 h-fit">
-          <nav className="flex flex-col space-y-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-3 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
-                  activeTab === tab.key
-                    ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <tab.icon className={`w-4 h-4 ${activeTab === tab.key ? 'text-[#2F6798]' : 'text-slate-400'}`} />
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+      {/* Navigation Tabs - Profile, Notifications, General */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-700/80 pb-px">
+          {[
+            { id: 'profile', label: 'Profile', icon: User },
+            { id: 'notifications', label: 'Notifications', icon: Bell },
+            { id: 'general', label: 'General', icon: Settings },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                activeTab === tab.id
+                  ? 'bg-white dark:bg-slate-800 text-[#2F6798] shadow-xs border border-slate-200/80 dark:border-slate-700'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 min-w-0">
-          {/* SKELETON RENDER */}
+        {/* Dynamic Tab Body */}
+        <div className="space-y-6">
           {isHydrating ? (
             <div className="space-y-6 animate-pulse">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
                 <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
                 <div className="h-10 w-full max-w-xs bg-slate-200 dark:bg-slate-700 rounded-xl mb-4" />
-                <div className="grid grid-cols-2 gap-3 max-w-xs">
-                  <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                  <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                </div>
-              </div>
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="h-10 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                  <div className="h-10 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                </div>
               </div>
             </div>
           ) : (
@@ -296,47 +457,71 @@ export default function SettingsPage() {
               {/* ────────────── PROFILE ────────────── */}
               {activeTab === 'profile' && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
-                      {isEditingProfile ? 'Edit Profile Information' : 'Profile Information'}
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Allows users to view and update their personal account details, contact info, and security credentials.</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                        Profile Information
+                      </h3>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+                        View your verified company profile details, contact information, and system credentials.
+                      </p>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 text-xs font-bold shrink-0 whitespace-nowrap self-start sm:self-center border border-slate-200/60 dark:border-slate-600/60">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#2F6798]" />
+                      Company Managed
+                    </div>
                   </div>
                   
                   {/* Hero Card */}
-                  <div className="bg-[#2F6798] rounded-[24px] p-5 max-w-[95%] mx-auto shadow-xl relative flex flex-col md:flex-row items-center gap-8">
+                  <div className="bg-[#2F6798] rounded-[24px] p-5 max-w-[95%] mx-auto shadow-xl relative z-10 flex flex-col md:flex-row items-center gap-8">
                     {/* Background decorations */}
                     <div className="absolute inset-0 rounded-[24px] overflow-hidden pointer-events-none">
                       <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
                       <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
                     </div>
                     
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0 z-30" ref={avatarDropdownRef}>
                       <div className="w-32 h-32 rounded-full border-[4px] border-white/20 bg-white/10 p-2 backdrop-blur-sm relative">
-                        <div className="w-full h-full rounded-full bg-slate-200 overflow-hidden flex items-center justify-center">
-                          <User className="w-12 h-12 text-slate-400" />
+                        <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex items-center justify-center">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt="User Avatar" className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            <User className="w-14 h-14 text-slate-400 dark:text-slate-300" />
+                          )}
                         </div>
-                        {isEditingProfile && (
-                          <>
-                            <button 
-                              onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
-                              className="absolute bottom-0 right-0 w-8 h-8 bg-slate-800 hover:bg-slate-700 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md transition-colors z-10"
+                        {/* Camera Button */}
+                        <button
+                          type="button"
+                          onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                          className="absolute bottom-1 right-1 w-8 h-8 bg-slate-800 hover:bg-slate-700 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md transition-colors z-20 cursor-pointer"
+                          title="Change profile photo"
+                        >
+                          <Camera className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Dropdown Menu - Compact & Always Visible */}
+                        {showAvatarDropdown && (
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAvatarDropdown(false);
+                                fileInputRef.current?.click();
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer text-left"
                             >
-                              <Camera className="w-4 h-4" />
+                              <Upload className="w-3.5 h-3.5 text-[#2F6798]" />
+                              <span>Upload Photo</span>
                             </button>
-                            {showAvatarDropdown && (
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-20 overflow-hidden">
-                                <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
-                                  <Upload className="w-3.5 h-3.5" />
-                                  Upload Photo
-                                </button>
-                                <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  Remove Photo
-                                </button>
-                              </div>
-                            )}
-                          </>
+                            <button
+                              type="button"
+                              onClick={handleRemovePhoto}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors cursor-pointer text-left"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove Photo</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -359,653 +544,276 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col sm:flex-row gap-4 items-center justify-center max-w-md mx-auto py-2">
-                    <button onClick={() => { setIsEditingProfile(!isEditingProfile); setShowAvatarDropdown(false); }} className="flex-1 w-full bg-[#2F6798] hover:bg-[#24527a] text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md shadow-[#2F6798]/20 transition-all flex items-center justify-center gap-2">
-                      <Edit3 className="w-4 h-4" />
-                      {isEditingProfile ? 'Cancel Edit' : 'Edit Profile'}
-                    </button>
-                    <button onClick={() => setShowDeleteDialog(true)} className="flex-1 w-full bg-rose-600 hover:bg-rose-700 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-2">
-                      <Trash2 className="w-4 h-4" />
-                      Delete Account
-                    </button>
-                  </div>
-
-                  {/* Form */}
+                  {/* Form - Read-Only Company Details with Matching Icons & Label Color */}
                   <div className="mt-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">First name</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.firstName} onChange={(e) => { setProfile({...profile, firstName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          First Name
+                        </label>
+                        <input type="text" readOnly value={profile.firstName} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Middle Name</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.middleName} onChange={(e) => { setProfile({...profile, middleName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Middle Name
+                        </label>
+                        <input type="text" readOnly value={profile.middleName} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Last Name</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.lastName} onChange={(e) => { setProfile({...profile, lastName: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Last Name
+                        </label>
+                        <input type="text" readOnly value={profile.lastName} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Suffix Name</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.suffix} onChange={(e) => { setProfile({...profile, suffix: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Suffix Name
+                        </label>
+                        <input type="text" readOnly value={profile.suffix} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       
                       {/* Read-Only Displays */}
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Employee ID</label>
-                        <input type="text" readOnly value={profile.employeeId} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default pointer-events-none" />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Employee ID
+                        </label>
+                        <input type="text" readOnly value={profile.employeeId} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">System Role</label>
-                        <input type="text" readOnly value={profile.systemRole} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default pointer-events-none" />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          System Role
+                        </label>
+                        <input type="text" readOnly value={profile.systemRole} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
 
                       {/* Contact Info */}
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Mobile No.</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.mobileNo} onChange={(e) => { setProfile({...profile, mobileNo: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Mobile No.
+                        </label>
+                        <input type="text" readOnly value={profile.mobileNo} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Home Address</label>
-                        <input type="text" readOnly={!isEditingProfile} value={profile.homeAddress} onChange={(e) => { setProfile({...profile, homeAddress: e.target.value}); markUnsaved(); }} className={`w-full px-4 py-3 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors ${!isEditingProfile ? 'bg-[#f1f1f1] dark:bg-slate-700/50 cursor-default pointer-events-none' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-[#2F6798]'}`} />
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                          Home Address
+                        </label>
+                        <input type="text" readOnly value={profile.homeAddress} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ────────────── SECURITY ────────────── */}
-              {activeTab === 'security' && (
+              {/* ────────────── NOTIFICATIONS ────────────── */}
+              {activeTab === 'notifications' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div>
-                    <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Security Settings</h3>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Manage your password and two-factor authentication.</p>
+                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Notification Preferences</h3>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Manage which critical events notify you and how you receive them.</p>
                   </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-4">Change Password</h4>
-                    <div className="space-y-4 max-w-md">
-                      <input type="password" placeholder="Current Password" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
-                      <input type="password" placeholder="New Password" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
-                      <button className="bg-slate-800 dark:bg-slate-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold mt-2">Update Password</button>
+
+                  {/* Core Alert Subscriptions */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-xs">
+                    <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Alert Triggers</h4>
+                        <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Essential operational and performance notifications.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-0 divide-y divide-slate-100 dark:divide-slate-700/60">
+                      <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Performance & KPI Alerts</p>
+                          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                            Notify when attrition, attendance, or reliability fall below target thresholds.
+                          </p>
+                        </div>
+                        <Toggle 
+                          enabled={notifications.performanceAlerts} 
+                          onToggle={() => toggleNotification('performanceAlerts')} 
+                          label="Toggle performance alerts" 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Batch & Trainer Updates</p>
+                          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                            Alert when new batches are assigned, trainer rosters change, or status updates occur.
+                          </p>
+                        </div>
+                        <Toggle 
+                          enabled={notifications.trainingUpdates} 
+                          onToggle={() => toggleNotification('trainingUpdates')} 
+                          label="Toggle training updates" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Channels */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-xs">
+                    <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                      <div className="w-8 h-8 rounded-xl bg-[#2F6798]/10 flex items-center justify-center">
+                        <Bell className="w-4 h-4 text-[#2F6798]" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Delivery Channels</h4>
+                        <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Choose where alerts are delivered.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-4 p-3.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          <div>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">In-App Notifications</span>
+                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Display banner badges and alerts within the application</span>
+                          </div>
+                        </div>
+                        <Toggle enabled={notifications.deliveryInApp} onToggle={() => toggleNotification('deliveryInApp')} label="Toggle in-app notifications" />
+                      </div>
+                      
+                      <div className="flex items-center justify-between gap-4 p-3.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          <div>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Email Digest & Alerts</span>
+                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Send critical summaries directly to your registered email</span>
+                          </div>
+                        </div>
+                        <Toggle enabled={notifications.deliveryEmail} onToggle={() => toggleNotification('deliveryEmail')} label="Toggle email notifications" />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ────────────── GENERAL ────────────── */}
+              {/* ────────────── GENERAL / PREFERENCES ────────────── */}
               {activeTab === 'general' && (
-            <div className="space-y-6">
-              {/* Display Preferences */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="mb-4">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Display Preferences</h3>
-                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Customize how information is displayed throughout the Training Performance Hub.</p>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2.5">Theme</label>
-                  <div className="grid grid-cols-2 gap-3 max-w-xs">
-                    {[
-                      { value: 'light', label: 'Light', icon: Sun },
-                      { value: 'dark', label: 'Dark', icon: Moon },
-                    ].map((theme) => {
-                      const isSelected = preferences.theme === theme.value;
-                      return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Preferences</h3>
+                    <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Customize your interface theme, regional timezone, and date format.</p>
+                  </div>
+
+                  {/* Theme Mode */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
+                        <Monitor className="w-3.5 h-3.5 text-[#2F6798]" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Theme Preference</h4>
+                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Select how the interface should appear on your device.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 max-w-md pt-2">
+                      {[
+                        { value: 'light', label: 'Light', icon: Sun },
+                        { value: 'dark', label: 'Dark', icon: Moon },
+                        { value: 'system', label: 'System', icon: Monitor },
+                      ].map((item) => (
                         <button
-                          key={theme.value}
-                          onClick={() => { 
-                            setPreferences(prev => ({ ...prev, theme: theme.value })); 
-                            setGlobalTheme(theme.value as 'light' | 'dark');
-                            markUnsaved(); 
+                          key={item.value}
+                          type="button"
+                          onClick={() => {
+                            setPreferences(prev => ({ ...prev, theme: item.value }));
+                            setGlobalTheme(item.value as any);
+                            markUnsaved();
                           }}
-                          className={`flex items-center gap-3 p-3.5 rounded-xl border-2 text-xs font-semibold transition-all ${
-                            isSelected
-                              ? 'border-[#2F6798] bg-[#2F6798]/5 text-[#2F6798] dark:border-[#4B8AB8] dark:bg-[#4B8AB8]/10 dark:text-[#4B8AB8]'
-                              : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-700/50'
+                          className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                            preferences.theme === item.value
+                              ? 'border-[#2F6798] bg-[#2F6798]/5 text-[#2F6798] font-bold shadow-xs'
+                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400'
                           }`}
                         >
-                          <theme.icon className="w-4 h-4 shrink-0" />
-                          <span className="flex-1 text-left">{theme.label}</span>
-                          {isSelected && <Check className="w-4 h-4 shrink-0" />}
+                          <item.icon className="w-5 h-5" />
+                          <span className="text-xs">{item.label}</span>
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Regional Preferences */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="mb-4">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Regional Preferences</h3>
-                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Set your timezone and date display format.</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Timezone</label>
-                    <div className="relative">
-                      <Globe className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {/* Timezone & Localization */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
+                        <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Timezone</h4>
+                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Set the default timezone for metrics timestamps and logs.</p>
+                      </div>
+                    </div>
+                    <div className="max-w-md">
                       <select
                         value={preferences.timezone}
-                        onChange={(e) => { setPreferences(prev => ({ ...prev, timezone: e.target.value })); markUnsaved(); }}
-                        className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-800 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] appearance-none cursor-pointer transition-all"
+                        onChange={(e) => {
+                          setPreferences(prev => ({ ...prev, timezone: e.target.value }));
+                          markUnsaved();
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-colors"
                       >
-                        <option>Asia/Manila</option>
-                        <option>Asia/Singapore</option>
-                        <option>America/New_York</option>
-                        <option>Europe/London</option>
-                        <option>Australia/Sydney</option>
+                        <option value="Asia/Manila">Asia/Manila (GMT+8) - Philippine Standard Time</option>
+                        <option value="America/New_York">America/New_York (GMT-5) - Eastern Time</option>
+                        <option value="America/Chicago">America/Chicago (GMT-6) - Central Time</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (GMT-8) - Pacific Time</option>
+                        <option value="Europe/London">Europe/London (GMT+0) - Greenwich Mean Time</option>
+                        <option value="UTC">UTC (GMT+0) - Coordinated Universal Time</option>
                       </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Date Format</label>
-                    <div className="relative">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+
+                  {/* Date Format */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                        <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Date Format</h4>
+                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Choose how dates should be displayed across the dashboard.</p>
+                      </div>
+                    </div>
+                    <div className="max-w-md">
                       <select
                         value={preferences.dateFormat}
-                        onChange={(e) => { setPreferences(prev => ({ ...prev, dateFormat: e.target.value })); markUnsaved(); }}
-                        className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-800 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] appearance-none cursor-pointer transition-all"
+                        onChange={(e) => {
+                          setPreferences(prev => ({ ...prev, dateFormat: e.target.value }));
+                          markUnsaved();
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-colors"
                       >
-                        <option>MM/DD/YYYY</option>
-                        <option>DD/MM/YYYY</option>
-                        <option>YYYY-MM-DD</option>
+                        <option value="MM/DD/YYYY">MM/DD/YYYY (e.g., 09/08/2026)</option>
+                        <option value="DD/MM/YYYY">DD/MM/YYYY (e.g., 08/09/2026)</option>
+                        <option value="YYYY-MM-DD">YYYY-MM-DD (e.g., 2026-09-08)</option>
+                        <option value="MMM D, YYYY">MMM D, YYYY (e.g., Sep 8, 2026)</option>
                       </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Preview */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="mb-3">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Display Preview</h3>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700 px-4 py-3 flex items-center gap-3">
-                  <Monitor className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Today&apos;s date will appear as{' '}
-                    <span className="font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                      {preferences.dateFormat === 'MM/DD/YYYY' ? '08/20/2026' : preferences.dateFormat === 'DD/MM/YYYY' ? '20/08/2026' : '2026-08-20'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ────────────── NOTIFICATIONS ────────────── */}
-          {activeTab === 'notifications' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Notification Preferences</h3>
-                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Choose which system events should generate notifications.</p>
-              </div>
-
-              {/* Performance Alerts */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Performance Alerts</h4>
-                </div>
-                <div className="space-y-0 divide-y divide-slate-100 dark:divide-slate-700">
-                  {[
-                    { key: 'highAttrition' as const, label: 'High Attrition Detected', desc: 'Notify when a batch exceeds the configured attrition threshold.' },
-                    { key: 'attendanceBelow' as const, label: 'Attendance Rate Below Threshold', desc: 'Alert when trainer attendance drops below the configured minimum.' },
-                    { key: 'reliabilityBelow' as const, label: 'Reliability Rate Below Threshold', desc: 'Alert when trainer reliability falls below the target level.' },
-                  ].map((item) => (
-                    <div key={item.key} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.label}</p>
-                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{item.desc}</p>
-                      </div>
-                      <Toggle enabled={notifications[item.key]} onToggle={() => toggleNotification(item.key)} label={`Toggle ${item.label}`} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Training Updates */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
-                    <GraduationCap className="w-3.5 h-3.5 text-[#2F6798]" />
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Training Updates</h4>
-                </div>
-                <div className="space-y-0 divide-y divide-slate-100 dark:divide-slate-700">
-                  {[
-                    { key: 'newBatch' as const, label: 'New Batch Assigned', desc: 'Notify when a new training batch is created and assigned.' },
-                    { key: 'trainerAssignment' as const, label: 'Trainer Assignment Changed', desc: 'Alert when a trainer is reassigned to a different batch.' },
-                    { key: 'batchStatus' as const, label: 'Batch Status Changed', desc: 'Notify when a batch status transitions between states.' },
-                  ].map((item) => (
-                    <div key={item.key} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.label}</p>
-                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{item.desc}</p>
-                      </div>
-                      <Toggle enabled={notifications[item.key]} onToggle={() => toggleNotification(item.key)} label={`Toggle ${item.label}`} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* System Notifications */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
-                    <Server className="w-3.5 h-3.5 text-emerald-600" />
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">System Notifications</h4>
-                </div>
-                <div className="space-y-0 divide-y divide-slate-100 dark:divide-slate-700">
-                  {[
-                    { key: 'syncCompleted' as const, label: 'Data Synchronization Completed', desc: 'Notify when a background data sync finishes successfully.' },
-                    { key: 'syncFailed' as const, label: 'Data Synchronization Failed', desc: 'Alert when a data synchronization process encounters an error.' },
-                    { key: 'integrationDisconnected' as const, label: 'Integration Disconnected', desc: 'Alert when an external integration loses its connection.' },
-                  ].map((item) => (
-                    <div key={item.key} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.label}</p>
-                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{item.desc}</p>
-                      </div>
-                      <Toggle enabled={notifications[item.key]} onToggle={() => toggleNotification(item.key)} label={`Toggle ${item.label}`} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notification Delivery */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                <div className="mb-4">
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Notification Delivery</h4>
-                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Choose how you want to receive notifications.</p>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                    <div className="flex items-center gap-2.5">
-                      <Bell className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">In-app notifications</span>
-                    </div>
-                    <Toggle enabled={notifications.deliveryInApp} onToggle={() => toggleNotification('deliveryInApp')} label="Toggle in-app notifications" />
-                  </div>
-                  <div className="flex items-center justify-between gap-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                    <div className="flex items-center gap-2.5">
-                      <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Email notifications</span>
-                    </div>
-                    <Toggle enabled={notifications.deliveryEmail} onToggle={() => toggleNotification('deliveryEmail')} label="Toggle email notifications" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ────────────── KPI THRESHOLDS ────────────── */}
-          {activeTab === 'thresholds' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">KPI Thresholds</h3>
-                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Define the thresholds used to identify performance risks and generate alerts.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Attrition Rate */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Attrition Rate</h4>
-                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Monitors trainee dropout and loss percentages per batch.</p>
-                    </div>
-                    <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center shrink-0">
-                      <AlertTriangle className="w-4 h-4 text-rose-500" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Critical Threshold</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={thresholds.criticalAttrition}
-                        onChange={(e) => updateThreshold('criticalAttrition', e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] text-center transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Low Risk</span>
-                      <span className="text-slate-500 dark:text-slate-400">0% &ndash; 10%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Moderate Risk</span>
-                      <span className="text-slate-500 dark:text-slate-400">10% &ndash; 20%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" /> High Risk</span>
-                      <span className="text-slate-500 dark:text-slate-400">Above 20%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Attendance Rate */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Attendance Rate</h4>
-                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Minimum acceptable trainer attendance percentage.</p>
-                    </div>
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
-                      <Clock className="w-4 h-4 text-amber-500" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Critical Threshold</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={thresholds.criticalAttendance}
-                        onChange={(e) => updateThreshold('criticalAttendance', e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] text-center transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Excellent</span>
-                      <span className="text-slate-500 dark:text-slate-400">Above 95%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Needs Attention</span>
-                      <span className="text-slate-500 dark:text-slate-400">80% &ndash; 95%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" /> Critical</span>
-                      <span className="text-slate-500 dark:text-slate-400">Below 80%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reliability Rate */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Reliability Rate</h4>
-                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Tracks trainer consistency excluding leave types.</p>
-                    </div>
-                    <div className="w-8 h-8 rounded-lg bg-[#2F6798]/10 flex items-center justify-center shrink-0">
-                      <ShieldAlert className="w-4 h-4 text-[#2F6798]" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Warning Threshold</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={thresholds.warningAttendance}
-                        onChange={(e) => updateThreshold('warningAttendance', e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] text-center transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Reliable</span>
-                      <span className="text-slate-500 dark:text-slate-400">Above 90%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Moderate</span>
-                      <span className="text-slate-500 dark:text-slate-400">80% &ndash; 90%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" /> Unreliable</span>
-                      <span className="text-slate-500 dark:text-slate-400">Below 80%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Training Success Rate */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Training Success Rate</h4>
-                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Minimum target for batch completion success.</p>
-                    </div>
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Minimum Threshold</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={thresholds.minBatchSuccess}
-                        onChange={(e) => updateThreshold('minBatchSuccess', e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 focus:border-[#2F6798] text-center transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Target Met</span>
-                      <span className="text-slate-500 dark:text-slate-400">Above 90%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Below Target</span>
-                      <span className="text-slate-500 dark:text-slate-400">80% &ndash; 90%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" /> At Risk</span>
-                      <span className="text-slate-500 dark:text-slate-400">Below 80%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <p className="text-[10px] font-semibold text-amber-700">Changes to thresholds apply retroactively to all analytics and dashboard views.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ────────────── USER ROLES ────────────── */}
-          {activeTab === 'roles' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">User Management & Roles</h3>
-                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Manage user access levels and role-based permissions.</p>
-              </div>
-
-              {/* Role Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Admin Role */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
-                        <Shield className="w-4 h-4 text-[#2F6798]" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Admin</h4>
-                        <span className="inline-flex px-2 py-0.5 rounded-full bg-[#2F6798]/10 text-[#2F6798] text-[9px] font-bold border border-[#2F6798]/20 mt-0.5">FULL ACCESS</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-3">Full system access to all modules and configuration.</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {['Dashboard', 'Trainees', 'Trainers', 'Analytics Trends', 'AI Insights', 'System Settings', 'Notifications', 'Integrations'].map((perm) => (
-                      <div key={perm} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                        <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                        {perm}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Employee Role */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                        <Users className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Employee</h4>
-                        <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold border border-slate-200 dark:border-slate-600 mt-0.5">STANDARD ACCESS</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-3">Limited operational access to training and view modules.</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {[
-                      { label: 'Dashboard', enabled: true },
-                      { label: 'Trainees', enabled: true },
-                      { label: 'Trainers', enabled: true },
-                      { label: 'Analytics Trends', enabled: true },
-                      { label: 'AI Insights', enabled: false },
-                      { label: 'System Settings', enabled: false },
-                      { label: 'Notifications', enabled: true },
-                      { label: 'Integrations', enabled: false },
-                    ].map((perm) => (
-                      <div key={perm.label} className={`flex items-center gap-1.5 text-[10px] font-semibold ${perm.enabled ? 'text-slate-600 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600'}`}>
-                        {perm.enabled ? (
-                          <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                        ) : (
-                          <X className="w-3 h-3 text-slate-300 shrink-0" />
-                        )}
-                        {perm.label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* User Table */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/40">
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">System Users</h4>
-                </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {users.map((user) => (
-                    <div key={user.id} className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 bg-white dark:bg-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-[#2F6798]/10 text-[#2F6798] flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{user.name}</p>
-                          <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="relative">
-                          <select
-                            value={user.role}
-                            onChange={(e) => updateUserRole(user.id, e.target.value)}
-                            className={`pl-2.5 pr-8 py-1.5 text-[10px] font-bold rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 ${
-                              user.role === 'ADMIN' ? 'bg-[#2F6798]/10 text-[#2F6798] border-[#2F6798]/20' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
-                            }`}
-                          >
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="EMPLOYEE">EMPLOYEE</option>
-                          </select>
-                          <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50" />
-                        </div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-bold border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Active
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ────────────── INTEGRATIONS ────────────── */}
-          {activeTab === 'integrations' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Data Sync & Integrations</h3>
-                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Manage external system connections and data feeds.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {integrations.map((integration) => {
-                  const isConnected = integration.status === 'connected';
-                  return (
-                    <div key={integration.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isConnected ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-slate-100 dark:bg-slate-700'}`}>
-                            <integration.icon className={`w-5 h-5 ${isConnected ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500'}`} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{integration.name}</p>
-                            <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{integration.purpose}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold border ${
-                          isConnected ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                          {isConnected ? 'Connected' : 'Disconnected'}
-                        </span>
-                      </div>
-                      {integration.lastSync ? (
-                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-4">
-                          Last synchronized: <span className="font-semibold text-slate-700 dark:text-slate-300">{integration.lastSync}</span>
-                        </p>
-                      ) : (
-                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-4 italic">Never synchronized</p>
-                      )}
-                      <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
-                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                          <Settings className="w-3 h-3" />
-                          Configure
-                        </button>
-                        {isConnected && (
-                          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                            <RefreshCw className="w-3 h-3" />
-                            Sync Now
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          </>
+              )}
+            </>
           )}
         </div>
-      </div>
 
       {/* ────────────── RESET CONFIRMATION DIALOG ────────────── */}
       {showResetDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Reset settings confirmation">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Reset settings confirmation">
           <div className="bg-white dark:bg-slate-800 rounded-[28px] p-6 max-w-[320px] w-full shadow-2xl relative">
             {/* Close Button */}
             <button onClick={() => setShowResetDialog(false)} className="absolute top-4 right-4 p-2 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close">
@@ -1044,42 +852,175 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ────────────── DELETE ACCOUNT CONFIRMATION DIALOG ────────────── */}
-      {showDeleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Delete account confirmation">
-          <div className="bg-white dark:bg-slate-800 rounded-[28px] p-6 max-w-[320px] w-full shadow-2xl relative">
-            {/* Close Button */}
-            <button onClick={() => setShowDeleteDialog(false)} className="absolute top-4 right-4 p-2 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close">
-              <X className="w-4 h-4" />
-            </button>
-            
-            {/* Icon */}
-            <div className="w-16 h-16 mx-auto bg-rose-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-rose-600/30 mt-4 mb-5">
-              <Trash2 className="w-8 h-8" />
-            </div>
-            
-            {/* Text Content */}
-            <div className="text-center space-y-1.5 mb-8">
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Delete Account</h3>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-2">Are you sure you want to delete this account?</p>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed px-2">
-                User access to Training Performance Hub will be revoked. Historical logs and metrics will be kept for records.
-              </p>
-            </div>
-            
-            {/* Actions */}
-            <div className="flex justify-center gap-3">
+      {/* ────────────── CROP PROFILE PHOTO MODAL ────────────── */}
+      {showCropModal && rawImageSrc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="Crop Profile Photo">
+          <div className="bg-white dark:bg-slate-900 rounded-[28px] max-w-[580px] w-full shadow-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 flex flex-col space-y-4 animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-0.5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] flex items-center justify-center shrink-0 border border-[#2F6798]/20 shadow-xs">
+                  <Crop className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1">Crop Profile Photo</h3>
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 leading-none">Drag to reposition and zoom to fit your avatar</p>
+                </div>
+              </div>
               <button
-                onClick={() => setShowDeleteDialog(false)}
-                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold transition-colors"
+                onClick={() => {
+                  setShowCropModal(false);
+                  setRawImageSrc(null);
+                }}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Framed Interactive Crop Viewport with Neutral Gray Overlay */}
+            <div
+              className="relative w-full h-[270px] bg-slate-800/90 dark:bg-slate-900 rounded-2xl overflow-hidden select-none border border-slate-700/60 shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Floating Helper Tag */}
+              <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-slate-900/60 backdrop-blur-md text-[10px] font-semibold text-white/90 border border-white/10 flex items-center gap-1.5 pointer-events-none">
+                <Move className="w-3 h-3 text-[#2F6798]" />
+                <span>Drag to pan</span>
+              </div>
+
+              {/* Reset View Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPan({ x: 0, y: 0 });
+                  setZoom(1);
+                }}
+                className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full bg-slate-900/60 backdrop-blur-md text-[10px] font-semibold text-white/80 hover:text-white hover:bg-slate-900/80 border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
+                title="Reset View"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+
+              {/* Image Preview */}
+              <img
+                ref={imageRef}
+                src={rawImageSrc}
+                alt="Crop Preview"
+                draggable={false}
+                className="max-w-none max-h-none select-none pointer-events-none"
+                style={{
+                  width: `${baseDimensions.width * zoom}px`,
+                  height: `${baseDimensions.height * zoom}px`,
+                  transform: `translate(${pan.x}px, ${pan.y}px)`,
+                  objectFit: 'contain'
+                }}
+              />
+
+              {/* Circular Cutout Overlay with Neutral Gray Shadow & Grid Lines */}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="w-[250px] h-[250px] rounded-full border-2 border-white/95 shadow-[0_0_0_9999px_rgba(51,65,85,0.7)] relative overflow-hidden ring-1 ring-slate-900/30">
+                  {/* 3x3 Rule-of-Thirds Grid */}
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-25">
+                    <div className="border-r border-b border-white" />
+                    <div className="border-r border-b border-white" />
+                    <div className="border-b border-white" />
+                    <div className="border-r border-b border-white" />
+                    <div className="border-r border-b border-white" />
+                    <div className="border-b border-white" />
+                    <div className="border-r border-white" />
+                    <div className="border-r border-white" />
+                    <div />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Zoom Slider Controls */}
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span className="flex items-center gap-1.5">
+                  <ZoomIn className="w-3.5 h-3.5 text-[#2F6798]" />
+                  Zoom Level
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  {Math.round(zoom * 100)}%
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setZoom(prev => Math.max(1, parseFloat((prev - 0.1).toFixed(2))))}
+                  className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.01"
+                  value={zoom}
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#2F6798]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setZoom(prev => Math.min(3, parseFloat((prev + 0.1).toFixed(2))))}
+                  className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                  title="Zoom In"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Informative Hint Pill */}
+            <div className="flex items-center justify-center gap-1.5 py-0.5 px-3 rounded-full bg-slate-50 dark:bg-slate-800/60 text-[11px] font-medium text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/80 w-fit mx-auto">
+              <Sparkles className="w-3 h-3 text-[#2F6798]" />
+              <span>Saved as 1:1 high-resolution avatar photo</span>
+            </div>
+
+            {/* Action Buttons Footer */}
+            <div className="flex items-center justify-end gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCropModal(false);
+                  setRawImageSrc(null);
+                }}
+                disabled={savingAvatar}
+                className="px-5 py-2.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => setShowDeleteDialog(false)}
-                className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold shadow-md shadow-rose-600/20 transition-colors"
+                type="button"
+                onClick={handleSaveCrop}
+                disabled={savingAvatar}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-lg shadow-[#2F6798]/25 hover:shadow-xl transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Delete
+                {savingAvatar ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving Photo...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Save Photo
+                  </>
+                )}
               </button>
             </div>
           </div>

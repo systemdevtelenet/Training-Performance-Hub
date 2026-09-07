@@ -25,6 +25,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export type Trainee = {
   id: string;
@@ -43,6 +44,10 @@ export type Trainee = {
 };
 
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
+  const { role, actualRole } = useRole();
+  const currentRole = role || actualRole;
+  const canManageTrainees = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'].includes(currentRole);
+
   const [trainees, setTrainees] = useState<Trainee[]>(initialTrainees);
   const [selectedCard, setSelectedCard] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -236,6 +241,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   // Handle Add Trainee Submit
   const handleAddTrainee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageTrainees) {
+      alert('You have read-only access and cannot add trainees.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/trainees', {
@@ -286,6 +295,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   // Handle Edit Trainee Submit
   const handleEditTrainee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageTrainees) {
+      alert('You have read-only access and cannot edit trainees.');
+      return;
+    }
     if (!editingTrainee) return;
     setIsSubmitting(true);
     try {
@@ -329,6 +342,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
   // Handle Delete Trainee
   const handleDeleteTrainee = async () => {
+    if (!canManageTrainees) {
+      alert('You have read-only access and cannot delete trainees.');
+      return;
+    }
     if (!deletingTrainee) return;
     setIsSubmitting(true);
     try {
@@ -393,24 +410,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
         {/* Action Controls & View Switcher */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setFormData({
-                name: '',
-                trainingType: 'INHOUSE',
-                batchName: 'General -1',
-                accountName: 'General',
-                assignedTrainer: 'Unassigned',
-                status: 'ACTIVE',
-                quarter: 'Q1',
-                month: 'January'
-              });
-              setIsAddModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5"
-          >
-            <Plus className="w-4 h-4" /> Add Trainee
-          </button>
+          {canManageTrainees && (
+            <button
+              onClick={() => {
+                setFormData({
+                  name: '',
+                  trainingType: 'INHOUSE',
+                  batchName: 'General -1',
+                  accountName: 'General',
+                  assignedTrainer: 'Unassigned',
+                  status: 'ACTIVE',
+                  quarter: 'Q1',
+                  month: 'January'
+                });
+                setIsAddModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5"
+            >
+              <Plus className="w-4 h-4" /> Add Trainee
+            </button>
+          )}
 
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
             <button
@@ -779,32 +798,36 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => {
-                                setEditingTrainee(t);
-                                setFormData({
-                                  name: t.name,
-                                  trainingType: t.trainingType || 'INHOUSE',
-                                  batchName: t.batchName,
-                                  accountName: t.accountName,
-                                  assignedTrainer: t.assignedTrainer || 'Unassigned',
-                                  status: t.status || 'ACTIVE',
-                                  quarter: t.quarter || 'Q1',
-                                  month: t.month || 'January'
-                                });
-                              }}
-                              title="Edit Trainee"
-                              className="text-[#2F6798] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeletingTrainee(t)}
-                              title="Delete Trainee"
-                              className="text-[#ED1C25] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canManageTrainees && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingTrainee(t);
+                                    setFormData({
+                                      name: t.name,
+                                      trainingType: t.trainingType || 'INHOUSE',
+                                      batchName: t.batchName,
+                                      accountName: t.accountName,
+                                      assignedTrainer: t.assignedTrainer || 'Unassigned',
+                                      status: t.status || 'ACTIVE',
+                                      quarter: t.quarter || 'Q1',
+                                      month: t.month || 'January'
+                                    });
+                                  }}
+                                  title="Edit Trainee"
+                                  className="text-[#2F6798] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setDeletingTrainee(t)}
+                                  title="Delete Trainee"
+                                  className="text-[#ED1C25] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -869,7 +892,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       )}
 
       {/* ADD TRAINEE MODAL */}
-      {isAddModalOpen && (
+      {canManageTrainees && isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
@@ -981,7 +1004,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       )}
 
       {/* EDIT TRAINEE MODAL */}
-      {editingTrainee && (
+      {canManageTrainees && editingTrainee && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
@@ -1077,7 +1100,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {deletingTrainee && (
+      {canManageTrainees && deletingTrainee && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in-95 text-center">
             <div className="w-12 h-12 rounded-full bg-red-100 text-[#ED1C25] flex items-center justify-center mx-auto mb-3">

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
-export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
+export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
 
 interface RoleContextType {
   role: UserRole;
@@ -87,8 +87,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Determine effective actual role
-        if (userEmail.toLowerCase().includes('bosssilver')) {
-          setActualRole('VIEW_ADMIN');
+        if (userEmail.toLowerCase().includes('nreguero')) {
+          setActualRole('HOT_ADMIN');
         } else if (roleData?.role) {
           setActualRole(roleData.role as UserRole);
         } else if (trainerData) {

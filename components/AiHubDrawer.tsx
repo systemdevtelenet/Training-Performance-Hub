@@ -43,7 +43,7 @@ export default function AiHubDrawer() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
-  const userInitials = email?.toLowerCase().includes('bosssilver') ? 'BS' : 'NJ';
+  const userInitials = 'NJ';
 
   const defaultWelcomeMessage: Message = {
     id: 'welcome',

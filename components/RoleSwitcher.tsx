@@ -28,7 +28,6 @@ export default function RoleSwitcher() {
     { value: null, label: 'Super Admin (Original)' },
     { value: 'HOT_ADMIN', label: 'View as HOT Admin' },
     { value: 'QAS_ADMIN', label: 'View as QAS Admin' },
-    { value: 'VIEW_ADMIN', label: 'View as Boss Silver (Read-Only)' },
     { value: 'EMPLOYEE', label: 'View as Employee' },
   ];
 
