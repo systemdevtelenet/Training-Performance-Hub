@@ -39,6 +39,43 @@ function getRateColor(rate: number) {
   return 'text-[#2F6798]';
 }
 
+function getStatusPill(status: string) {
+  const s = (status || '').trim().toUpperCase();
+  switch (s) {
+    case 'P':
+    case 'PRESENT':
+      return { label: 'P - Present', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50' };
+    case 'A':
+    case 'ABS':
+    case 'ABSENT':
+      return { label: 'A - Absent', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50' };
+    case 'RD':
+    case 'REST DAY':
+      return { label: 'RD - Rest Day', color: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
+    case 'HOL':
+    case 'HOLIDAY':
+      return { label: 'HOL - Holiday', color: 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50' };
+    case 'SL':
+    case 'SICK LEAVE':
+      return { label: 'SL - Sick Leave', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50' };
+    case 'VL':
+    case 'VACATION LEAVE':
+      return { label: 'VL - Vacation Leave', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50' };
+    case 'BL':
+      return { label: 'BL - Bereavement Leave', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50' };
+    case 'MED':
+      return { label: 'MED - Medical', color: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/50' };
+    case 'SUS':
+      return { label: 'SUS - Suspension', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/50' };
+    case 'ML':
+      return { label: 'ML - Maternity Leave', color: 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/50' };
+    case 'PL':
+      return { label: 'PL - Paternity Leave', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50' };
+    default:
+      return { label: status, color: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
+  }
+}
+
 interface TrainerAttendanceDrawerProps {
   trainer: TrainerAttendanceData | null;
   onClose: () => void;
@@ -265,41 +302,15 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                               {records.map((r) => {
-                                const statusColor = r.status === 'P' ? 'text-emerald-600' : 
-                                                    r.status === 'A' ? 'text-rose-500' : 
-                                                    'text-slate-500';
+                                const pill = getStatusPill(r.status);
                                 return (
                                   <tr key={r.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
                                     <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{new Date(r.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
                                     <td className="px-3 py-3 font-medium text-slate-500 dark:text-slate-400">{r.weekday}</td>
-                                    <td className={`px-4 py-3 text-right font-bold ${statusColor}`}>
-                                      {isAdmin ? (
-                                        <div className="flex justify-end items-center gap-2">
-                                          {isUpdating === r.attendance_id && (
-                                            <span className="w-3 h-3 rounded-full border-2 border-slate-300 border-t-primary animate-spin" />
-                                          )}
-                                          <select 
-                                            value={r.status}
-                                            onChange={(e) => handleStatusChange(r.attendance_id, e.target.value)}
-                                            disabled={isUpdating === r.attendance_id}
-                                            className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 font-bold"
-                                          >
-                                            <option value="P">P - Present</option>
-                                            <option value="A">A - Absent</option>
-                                            <option value="RD">RD - Rest Day</option>
-                                            <option value="HOL">HOL - Holiday</option>
-                                            <option value="SL">SL - Sick Leave</option>
-                                            <option value="VL">VL - Vacation Leave</option>
-                                            <option value="BL">BL - Bereavement Leave</option>
-                                            <option value="MED">MED - Medical</option>
-                                            <option value="SUS">SUS - Suspension</option>
-                                            <option value="ML">ML - Maternity Leave</option>
-                                            <option value="PL">PL - Paternity Leave</option>
-                                          </select>
-                                        </div>
-                                      ) : (
-                                        r.status
-                                      )}
+                                    <td className="px-4 py-3 text-right">
+                                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs whitespace-nowrap ${pill.color}`}>
+                                        {pill.label}
+                                      </span>
                                     </td>
                                   </tr>
                                 );

@@ -29,6 +29,33 @@ export default function Dashboard({ initialData }: { initialData: any }) {
     }
   }, [initialData, filters]);
 
+  // Compute dynamic KPI metrics based on active filters
+  const filteredMetrics = useMemo(() => {
+    if (!processedData) return initialData?.metrics;
+    
+    const batchSet = new Set();
+    ['inhouse', 'pst'].forEach(type => {
+      if (processedData[type]?.groups) {
+        for (const acc in processedData[type].groups) {
+          for (const b in processedData[type].groups[acc]) {
+            if (processedData[type].groups[acc][b].members?.length > 0) {
+              batchSet.add(`${type}-${acc}-${b}`);
+            }
+          }
+        }
+      }
+    });
+
+    const activeTrainersCount = processedData.summary?.trainersSummary?.headcount ?? initialData?.metrics?.activeTrainers ?? 16;
+
+    return {
+      totalTrainees: processedData.summary?.totalHeadcount ?? initialData?.metrics?.totalTrainees ?? 0,
+      overallAttrition: processedData.summary?.globalRate ?? initialData?.metrics?.overallAttrition ?? '0.0%',
+      activeTrainers: activeTrainersCount,
+      classesInSession: batchSet.size
+    };
+  }, [processedData, initialData]);
+
   // If user is a regular employee / trainee, show personalized trainee portal dashboard
   if (role === 'EMPLOYEE') {
     return (
@@ -39,24 +66,25 @@ export default function Dashboard({ initialData }: { initialData: any }) {
   }
 
   return (
-    <div className="space-y-4 text-[#363435] dark:text-slate-200">
+    <div className="space-y-5 text-[#363435] dark:text-slate-200">
       
       {/* Page Title Header */}
       <div className="flex items-center justify-between pb-1">
         <div className="flex flex-col">
-          <span className="text-[0.65rem] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">DASHBOARD</span>
+          <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">DASHBOARD</span>
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Executive Summary</h2>
         </div>
       </div>
 
-      {/* KPI Cards Row */}
-      <KpiCards metrics={initialData?.metrics} />
+      {/* KPI Cards Row (Dynamic & Filter-reactive) */}
+      <KpiCards metrics={filteredMetrics} />
 
       {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 gap-4 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.15)] relative z-20">
-        <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/5 to-secondary/5 dark:from-primary/10 dark:to-secondary/10 pointer-events-none" />
-        <div className="relative z-10">
-          <label htmlFor="quarter" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><CalendarDays className="h-3.5 w-3.5 text-primary" />Quarter</label>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr] gap-4 relative z-20">
+        <div>
+          <label htmlFor="quarter" className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+            <CalendarDays className="h-3.5 w-3.5 text-[#2F6798]" />Quarter
+          </label>
           <CustomSelect 
             id="quarter" 
             value={filters.quarter} 
@@ -71,8 +99,10 @@ export default function Dashboard({ initialData }: { initialData: any }) {
           />
         </div>
 
-        <div className="relative z-10">
-          <label htmlFor="month" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><Calendar className="h-3.5 w-3.5 text-primary" />Month</label>
+        <div>
+          <label htmlFor="month" className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+            <Calendar className="h-3.5 w-3.5 text-[#2F6798]" />Month
+          </label>
           <CustomSelect 
             id="month" 
             value={filters.month} 
@@ -84,8 +114,10 @@ export default function Dashboard({ initialData }: { initialData: any }) {
           />
         </div>
 
-        <div className="relative z-10">
-          <label htmlFor="account" className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider"><Building2 className="h-3.5 w-3.5 text-primary" />Client Account</label>
+        <div>
+          <label htmlFor="account" className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+            <Building2 className="h-3.5 w-3.5 text-[#2F6798]" />Client Account
+          </label>
           <CustomSelect 
             id="account" 
             value={filters.account} 
@@ -97,11 +129,20 @@ export default function Dashboard({ initialData }: { initialData: any }) {
           />
         </div>
 
-        <div className="relative z-10">
-          <label htmlFor="search" className="mb-1.5 block text-[0.6rem] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Search Trainee / Batch / Trainer</label>
+        <div>
+          <label htmlFor="search" className="mb-1.5 block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+            Search Trainee / Batch / Trainer
+          </label>
           <div className="relative group">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-primary transition-colors" />
-            <input id="search" type="search" placeholder="Type name or batch..." value={filters.search} onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-11 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
+            <input 
+              id="search" 
+              type="search" 
+              placeholder="Type name or batch..." 
+              value={filters.search} 
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))} 
+              className="h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-2 pl-10 pr-4 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-2 focus:ring-[#2F6798]/20" 
+            />
           </div>
         </div>
       </div>

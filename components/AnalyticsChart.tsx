@@ -24,7 +24,7 @@ export function AnalyticsChart({ title, data }: ChartProps) {
           {title} (Attrition % Trend)
         </Title>
       </div>
-      <div className="h-48 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3">
+      <div className="h-48 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-2xs">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -37,10 +37,10 @@ export function AnalyticsChart({ title, data }: ChartProps) {
             <Line
               type="monotone"
               dataKey="attritionNum"
-              stroke="#2F6798"
+              stroke="#C8A54B"
               strokeWidth={2.5}
-              dot={{ r: 4, fill: '#2F6798', strokeWidth: 2, stroke: '#ffffff' }}
-              activeDot={{ r: 6 }}
+              dot={{ r: 4, fill: '#C8A54B', strokeWidth: 2, stroke: '#ffffff' }}
+              activeDot={{ r: 6, fill: '#C8A54B' }}
             />
           </LineChart>
         </ResponsiveContainer>

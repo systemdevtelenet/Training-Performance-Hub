@@ -34,7 +34,7 @@ export const getDashboardData = unstable_cache(
 
       const totalTrainees = inhouseList.length + pstList.length;
       const activeTrainers = trainersList.filter(t => (t.status || '').toUpperCase() === 'ACTIVE' || !t.status).length || trainersList.length;
-      const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED'];
+      const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
 
       let totalLosses = 0;
       const accountsSet = new Set<string>();
@@ -71,7 +71,8 @@ export const getDashboardData = unstable_cache(
       const pstGroups: any = {};
       pstList.forEach(item => {
         const accountName = (item.account || item.accountName || 'General').trim();
-        const batchName = item.wave ? `Wave ${item.wave}` : item.batchName || 'Unassigned Batch';
+        const rawWave = item.wave ? `${item.wave}`.replace(/^(wave\s*)/i, '').trim() : '';
+        const batchName = rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : item.batchName || 'Unassigned Batch');
         if (accountName) accountsSet.add(accountName);
 
         if (!pstGroups[accountName]) pstGroups[accountName] = {};
@@ -125,7 +126,7 @@ export const getDashboardData = unstable_cache(
       return dummyPayload;
     }
   },
-  ['dashboard-data-cache-v7'],
+  ['dashboard-data-cache-v9'],
   {
     revalidate: 60,
     tags: ['dashboard'],
@@ -281,7 +282,7 @@ export const getTrainersData = unstable_cache(
         timeline = attRow.timeline;
         totalPresent = attRow.timeline.filter((r: any) => (r.status || '').toUpperCase() === 'P').length;
         
-        const lossCodes = ['SL', 'VL', 'ML', 'PL', 'HOL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
+        const lossCodes = ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
         totalLosses = attRow.timeline.filter((r: any) => {
           const s = (r.status || '').toUpperCase();
           return lossCodes.some(lc => s.includes(lc));
@@ -290,10 +291,10 @@ export const getTrainersData = unstable_cache(
         totalAbsent = leaves.absence;
         totalSus = leaves.sus;
         
-        // Calculate true attendance rate
+        // Calculate true attendance rate (Excused leaves like VL, SL, HOL do NOT penalize Attendance Rate)
         const workingDays = attRow.timeline.filter((r: any) => !['RD', 'HOL'].includes((r.status || '').toUpperCase())).length;
         if (workingDays > 0) {
-           attendanceRate = `${((totalPresent / workingDays) * 100).toFixed(1)}%`;
+           attendanceRate = `${(((workingDays - leaves.absence) / workingDays) * 100).toFixed(1)}%`;
         }
 
         const totalEvaluated = totalPresent + totalLosses;
@@ -311,12 +312,12 @@ export const getTrainersData = unstable_cache(
         email: profile.gmail_account || '',
         role: t.position || 'UNASSIGNED',
         status: t.status || 'ACTIVE',
-        startDate: t.start_date || 'N/A',
+        startDate: profile.start_date || t.start_date || 'N/A',
         accounts: profile.accounts || '',
         tasks: t.assigned_task || '',
         attendanceRate: attendanceRate,
         reliabilityRate: calculatedReliabilityRate,
-        overallSuccess: profile.success_rate ? `${profile.success_rate}%` : '0.0%',
+        overallSuccess: (batches && batches.length > 0 && profile.success_rate !== undefined && profile.success_rate !== null) ? `${profile.success_rate}%` : 'N/A',
         leaves: leaves,
         batches: batches,
         timeline: timeline,

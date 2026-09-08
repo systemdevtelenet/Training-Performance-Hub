@@ -19,35 +19,64 @@ import {
   ShieldAlert,
   AlertTriangle,
   X,
-  Calendar
+  Calendar,
+  Building2,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
 type TrainerTab = 'directory' | 'attendance' | 'reliability';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
   const { role, email } = useRole();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filter for employees: they can only see themselves
+  const [selectedQuarter, setSelectedQuarter] = useState('All');
+  const [selectedMonth, setSelectedMonth] = useState('All');
+  const [selectedAccount, setSelectedAccount] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const availableAccounts = useMemo(() => {
+    const set = new Set<string>();
+    initialTrainers.forEach((t: any) => {
+      if (t.accounts) {
+        t.accounts.split(',').forEach((a: string) => set.add(a.trim()));
+      }
+    });
+    return ['All', ...Array.from(set).sort()];
+  }, [initialTrainers]);
+
+  // Filter trainers based on search & selects
   const filteredInitialTrainers = useMemo(() => {
-    if (role === 'EMPLOYEE' && email) {
-      return initialTrainers.filter(t => t.email === email);
-    }
-    return initialTrainers;
-  }, [initialTrainers, role, email]);
+    return initialTrainers.filter((t: any) => {
+      if (role === 'EMPLOYEE' && email && t.email !== email) return false;
+      if (selectedAccount !== 'All') {
+        const accs = (t.accounts || '').toLowerCase();
+        if (!accs.includes(selectedAccount.toLowerCase())) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = (t.name || '').toLowerCase().includes(q);
+        const matchesRole = (t.role || t.position || '').toLowerCase().includes(q);
+        const matchesAccs = (t.accounts || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesRole && !matchesAccs) return false;
+      }
+      return true;
+    });
+  }, [initialTrainers, role, email, selectedAccount, searchQuery]);
 
   // Simulate initial data fetching delay
   useEffect(() => {
-    // Note: in a real app, this would be a useEffect data fetch. 
-    // We are simulating it for demonstration.
     const timer = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
@@ -58,7 +87,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 w-full max-w-full pb-12">
 
       {/* Top Header & Global Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
@@ -80,78 +109,123 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
             ) : (
               <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" />
             )}
-            Refresh
+            Refresh Data
           </button>
           <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
-            <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export
+            <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export Summary
           </button>
         </div>
       </div>
 
-      {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white dark:bg-slate-800 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shadow-sm">
-        <div>
-          <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Quarter</label>
-          <div className="relative">
-            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-              <option>All Quarters</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      {/* Unified Global Filter & Sub-Tabs Container matching Employee & Trainees styling */}
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20 space-y-4">
+        {/* Row 1: Filters with CustomSelect and Longer Search Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Quarter Filter
+            </label>
+            <CustomSelect
+              value={selectedQuarter}
+              onChange={val => setSelectedQuarter(val)}
+              options={[
+                { value: 'All', label: 'All Quarters' },
+                { value: 'Q1', label: 'Q1' },
+                { value: 'Q2', label: 'Q2' },
+                { value: 'Q3', label: 'Q3' },
+                { value: 'Q4', label: 'Q4' }
+              ]}
+            />
+          </div>
+
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Month Filter
+            </label>
+            <CustomSelect
+              value={selectedMonth}
+              onChange={val => setSelectedMonth(val)}
+              options={[
+                { value: 'All', label: 'All Months' },
+                { value: 'January', label: 'January' },
+                { value: 'February', label: 'February' },
+                { value: 'March', label: 'March' },
+                { value: 'April', label: 'April' },
+                { value: 'May', label: 'May' },
+                { value: 'June', label: 'June' },
+                { value: 'July', label: 'July' },
+                { value: 'August', label: 'August' },
+                { value: 'September', label: 'September' },
+                { value: 'October', label: 'October' },
+                { value: 'November', label: 'November' },
+                { value: 'December', label: 'December' }
+              ]}
+            />
+          </div>
+
+          <div className="lg:col-span-3 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account Filter
+            </label>
+            <CustomSelect
+              value={selectedAccount}
+              onChange={val => setSelectedAccount(val)}
+              options={availableAccounts.map(acct => ({
+                value: acct,
+                label: acct === 'All' ? 'All Client Accounts' : acct
+              }))}
+            />
+          </div>
+
+          <div className="lg:col-span-5 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+              Search Trainer / Position / Account
+            </label>
+            <div className="relative group">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Type trainer name, position, or account..."
+                className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
+              />
+            </div>
           </div>
         </div>
 
-        <div>
-          <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Month</label>
-          <div className="relative">
-            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-              <option>All Months</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+        {/* Dynamic Tab Content Views inside the main container */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          {isLoading ? (
+            <TrainersDirectorySkeleton />
+          ) : role === 'EMPLOYEE' && activeTab !== 'directory' ? (
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-6">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Trainer Analytics Restricted</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Trainer Attendance & Reliability analytics are internal records for Training Supervisors. To view your personal trainee attendance and performance records, please visit the Trainees Portal.
+                </p>
+              </div>
+              <a
+                href="/trainees"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+              >
+                Open My Trainee Records
+              </a>
+            </div>
+          ) : (
+            <>
+              <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
+                {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
+                {activeTab === 'attendance' && <AttendanceView initialTrainers={filteredInitialTrainers} />}
+                {activeTab === 'reliability' && <ReliabilityView initialTrainers={filteredInitialTrainers} />}
+              </div>
+            </>
+          )}
         </div>
-
-        <div>
-          <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1 px-1">Account</label>
-          <div className="relative">
-            <select className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30">
-              <option>All Client Accounts</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Dynamic Tab Content Views */}
-      <div className="pt-2">
-        {isLoading ? (
-          <TrainersDirectorySkeleton />
-        ) : role === 'EMPLOYEE' && activeTab !== 'directory' ? (
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-6">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Trainer Analytics Restricted</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                Trainer Attendance & Reliability analytics are internal records for Training Supervisors. To view your personal trainee attendance and performance records, please visit the Trainees Portal.
-              </p>
-            </div>
-            <a
-              href="/trainees"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
-            >
-              Open My Trainee Records
-            </a>
-          </div>
-        ) : (
-          <>
-            <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
-              {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
-              {activeTab === 'attendance' && <AttendanceView initialTrainers={filteredInitialTrainers} />}
-              {activeTab === 'reliability' && <ReliabilityView initialTrainers={filteredInitialTrainers} />}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
@@ -206,7 +280,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
   };
 
   const getKPIStatus = (val: string, type: 'attendance' | 'reliability' | 'success' | 'attrition') => {
-    if (!val) return { label: 'N/A', color: 'text-slate-400' };
+    if (!val || val === 'N/A' || isNaN(parseFloat(val))) return { label: 'N/A', color: 'text-slate-400 dark:text-slate-500' };
     const num = parseFloat(val);
     if (type === 'attrition') {
       if (num === 0) return { label: 'Excellent', color: 'text-emerald-600' };
@@ -238,14 +312,14 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
             </h2>
           </div>
 
-          <div className="relative mb-3 shrink-0">
-            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative mb-3 shrink-0 group">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
             <input
               type="text"
               placeholder="Search trainer, role, account..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 shadow-xs"
+              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-sm"
             />
           </div>
 
@@ -334,52 +408,49 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
               <div className="relative overflow-hidden pb-8 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-900/10 rounded-bl-full -mr-20 -mt-20 pointer-events-none" />
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
-                  <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10 w-full max-w-full min-w-0">
+                  <div className="flex items-start sm:items-center gap-6 w-full max-w-full min-w-0">
+                    <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0 mt-1 sm:mt-0">
                       {active.name ? active.name.charAt(0) : '?'}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-3 mb-1.5">
+                    <div className="flex-1 min-w-0 max-w-full">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
                         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{active.name || 'Unknown'}</h2>
                         <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-sm ${getStatusBadge(active.status || '')}`}>
                           {active.status || 'N/A'}
                         </span>
                       </div>
-                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">
-                        {active.role || 'N/A'}
-                      </p>
+                      
+                      <div className="mb-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20 uppercase tracking-wider shadow-2xs">
+                          {active.role || 'HEAD OF TRAINING'}
+                        </span>
+                      </div>
 
-                      <div className="flex items-center gap-3 w-full overflow-hidden">
-                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Employee ID</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.id}</span>
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Start Date</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.startDate || 'N/A'}</span>
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Accounts</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.accounts || 'N/A'}</span>
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Primary Task</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{active.tasks || 'N/A'}</span>
+                      {/* Outer Scrollable Wrapper so horizontal scrollbar renders outside & below the box */}
+                      <div className="w-full max-w-full overflow-x-auto custom-horizontal-scrollbar pb-2.5">
+                        <div className="bg-slate-50/80 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-3.5 shadow-2xs inline-flex min-w-max">
+                          <div className="flex items-center divide-x divide-slate-200/60 dark:divide-slate-700/60">
+                            <div className="px-4 shrink-0 min-w-[120px]">
+                              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Employee ID</span>
+                              <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.id}</span>
+                            </div>
+                            <div className="px-4 shrink-0 min-w-[120px]">
+                              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Start Date</span>
+                              <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.startDate || 'N/A'}</span>
+                            </div>
+                            <div className="px-4 shrink-0 min-w-[140px]">
+                              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Accounts</span>
+                              <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.accounts || 'N/A'}</span>
+                            </div>
+                            <div className="px-4 shrink-0 min-w-[160px]">
+                              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Primary Task</span>
+                              <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.tasks || 'N/A'}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="hidden sm:flex flex-col gap-2 shrink-0 self-start mt-2">
-                    <button className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 group">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#2F6798] group-hover:scale-125 transition-transform" />
-                      View Attendance
-                    </button>
-                    <button className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 group">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:scale-125 transition-transform" />
-                      View Reliability
-                    </button>
                   </div>
                 </div>
               </div>
@@ -410,13 +481,13 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                     </p>
                   </div>
                   <div className="px-4 relative group">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                      Avg Attrition
-                      <span className="cursor-help">
-                        <Info className="w-3 h-3 text-slate-300 dark:text-slate-600 hover:text-slate-500" />
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                      <span>Avg Attrition</span>
+                      <span className="cursor-help inline-flex items-center">
+                        <Info className="w-3.5 h-3.5 text-[#C8A54B] hover:opacity-80" />
                       </span>
                     </p>
-                    <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-slate-800 text-white text-[10px] font-medium p-2 rounded shadow-lg w-48 z-20">
+                    <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-[#FAF6EA] dark:bg-[#252014] text-[#7A5E18] dark:text-[#E2BD5B] text-[10px] font-normal leading-relaxed p-3 rounded-xl shadow-xl border border-[#D8BA68]/60 w-52 z-30 pointer-events-none">
                       Percentage of trainees who leave or are lost from the training process.
                     </div>
                     {(() => {
@@ -693,45 +764,43 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-3.5">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs relative z-10">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full group">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
             <input
               type="text"
-              placeholder="Search trainer..."
+              placeholder="Search trainer name or details..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
+              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-sm"
             />
           </div>
-          <div className="flex gap-2.5">
-            <div className="relative">
-              <select
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto shrink-0">
+            <div className="w-full sm:w-48">
+              <CustomSelect
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
-              >
-                <option value="all">All Status</option>
-                <option value="excellent">Excellent</option>
-                <option value="good">Good</option>
-                <option value="attention">Needs Attention</option>
-                <option value="critical">Critical</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                onChange={val => setStatusFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'excellent', label: 'Excellent (≥95%)' },
+                  { value: 'good', label: 'Good (90-94%)' },
+                  { value: 'attention', label: 'Needs Attention (80-89%)' },
+                  { value: 'critical', label: 'Critical (<80%)' }
+                ]}
+              />
             </div>
-            <div className="relative">
-              <select
+            <div className="w-full sm:w-44">
+              <CustomSelect
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
-              >
-                <option value="rate">Sort by Rate</option>
-                <option value="name">Sort by Name</option>
-                <option value="present">Sort by Present</option>
-                <option value="absent">Sort by Absent</option>
-              </select>
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                onChange={val => setSortBy(val as typeof sortBy)}
+                options={[
+                  { value: 'rate', label: 'Sort by Rate' },
+                  { value: 'name', label: 'Sort by Name' },
+                  { value: 'present', label: 'Sort by Present' },
+                  { value: 'absent', label: 'Sort by Absent' }
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -808,7 +877,7 @@ function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
 
 function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
   const reliabilityData = useMemo<TrainerReliabilityData[]>(() => {
-    const lossCodes = ['SL', 'VL', 'ML', 'PL', 'HOL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
+    const lossCodes = ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
 
     return initialTrainers.map(t => {
       let sl = t.leaves?.sl || 0;
@@ -822,8 +891,8 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
       let absence = t.leaves?.absence || 0;
       let und = t.leaves?.und || 0;
 
-      // Count all user-specified loss types (SL, VL, ML, PL, HOL, SUS, MED, BL, ABS, UND)
-      let losses = t.losses ?? (sl + vl + med + sus + hol + ml + pl + bl + absence + und);
+      // Count all attendance loss types (SL, VL, ML, PL, SUS, MED, BL, ABS, UND) - Holidays excluded
+      let losses = t.losses ?? (sl + vl + med + sus + ml + pl + bl + absence + und);
       let present = t.present || 0;
 
       const totalEvaluated = present + losses;
@@ -869,7 +938,7 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
         absent: t.absent || absence,
         losses: losses,
         rate: rateStr,
-        lossBreakdown: { sl, vl, other: med + sus + hol + ml + pl + bl + und },
+        lossBreakdown: { sl, vl, other: med + sus + ml + pl + bl + und },
         timeline: Array.from(monthMap.values())
       };
     });
@@ -931,7 +1000,7 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide">
-            Trainer Reliability (SL, VL, ML, PL, HOL, SUS, MED, BL counted as losses)
+            Trainer Reliability (SL, VL, ML, PL, SUS, MED, BL counted as losses) Breakdown
           </h2>
           <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
             {reliabilityData.length} trainers &middot; Click a card to view details
@@ -978,43 +1047,41 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-3.5">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs relative z-10">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full group">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
             <input
               type="text"
-              placeholder="Search trainer..."
+              placeholder="Search trainer name or details..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 transition-all"
+              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-sm"
             />
           </div>
-          <div className="flex gap-2.5">
-            <div className="relative">
-              <select
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto shrink-0">
+            <div className="w-full sm:w-48">
+              <CustomSelect
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
-              >
-                <option value="all">All Status</option>
-                <option value="excellent">Excellent</option>
-                <option value="good">Good</option>
-                <option value="attention">Needs Attention</option>
-                <option value="critical">Critical</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                onChange={val => setStatusFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'excellent', label: 'Excellent (≥95%)' },
+                  { value: 'good', label: 'Good (90-94%)' },
+                  { value: 'attention', label: 'Needs Attention (80-89%)' },
+                  { value: 'critical', label: 'Critical (<80%)' }
+                ]}
+              />
             </div>
-            <div className="relative">
-              <select
+            <div className="w-full sm:w-44">
+              <CustomSelect
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'low' | 'high')}
-                className="h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30 cursor-pointer transition-all"
-              >
-                <option value="low">Sort: Low → High</option>
-                <option value="high">Sort: High → Low</option>
-              </select>
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                onChange={val => setSortBy(val as 'low' | 'high')}
+                options={[
+                  { value: 'low', label: 'Sort: Low → High' },
+                  { value: 'high', label: 'Sort: High → Low' }
+                ]}
+              />
             </div>
           </div>
         </div>

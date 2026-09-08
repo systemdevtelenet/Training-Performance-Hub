@@ -377,8 +377,8 @@ export default function AiHubDrawer() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) */}
-      <div className={`fixed bottom-1 right-2 z-50 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+      {/* Floating Action Button (FAB) - Hidden per company policy */}
+      <div className={`hidden fixed bottom-1 right-2 z-50 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
         <button
           onClick={() => setIsOpen(true)}
           className="group relative flex items-center justify-center transition-all hover:scale-110 hover:-translate-y-1"

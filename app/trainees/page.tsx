@@ -12,6 +12,12 @@ export default async function TraineesPage() {
   if (err1) console.error('Error fetching INHOUSE:', err1);
   if (err2) console.error('Error fetching PST:', err2);
 
+  const isLossStatus = (st?: string) => {
+    if (!st) return false;
+    const s = st.toUpperCase().trim();
+    return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+  };
+
   // Map INHOUSE rows to Trainee type
   const mappedInhouse = (inhouseData || []).map((row: any) => {
     const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
@@ -23,16 +29,18 @@ export default async function TraineesPage() {
       if (val === 'A') aCount++;
     }
 
+    const isLoss = isLossStatus(row.status);
+
     return {
-      id: row.id || Math.random().toString(),
+      id: row.name || Math.random().toString(),
       name: row.name || 'Unknown',
-      status: row.status || 'Inhouse',
+      status: row.status || 'ACTIVE',
       month: row.month || '',
       quarter: row.quarter || '',
       p: pCount,
       a: aCount,
-      isEndorsed: row.endorsed_date ? true : false,
-      isLoss: row.status === 'LOSS' || row.status === 'ATTRITION',
+      isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+      isLoss,
       assignedTrainer: 'Unassigned',
       batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
       accountName: row.account || row.acount || 'General',
@@ -54,17 +62,18 @@ export default async function TraineesPage() {
     const acct = (row.account || row.acount || 'PST Account').trim();
     const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
     const batchName = `${acct} -${rawWave || '1'}`;
+    const isLoss = isLossStatus(row.status);
 
     return {
-      id: row.id || Math.random().toString(),
+      id: row.name || Math.random().toString(),
       name: row.name || 'Unknown',
-      status: row.status || 'PST',
+      status: row.status || 'ACTIVE',
       month: row.month || '',
       quarter: row.quarter || '',
       p: pCount,
       a: aCount,
-      isEndorsed: row.endorsed_date ? true : false,
-      isLoss: row.status === 'LOSS' || row.status === 'ATTRITION',
+      isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+      isLoss,
       assignedTrainer: row.assigned_trainer || 'Unassigned',
       batchName: batchName,
       accountName: acct,

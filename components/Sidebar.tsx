@@ -334,7 +334,11 @@ export default function Sidebar() {
 
           {/* User Profile Card with Avatar & Collapsed Hover Menu */}
           <div className="relative group">
-            <div className={cn("flex items-center justify-between p-2.5 rounded-2xl bg-white/10 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700/50 shadow-xs cursor-pointer transition-all hover:bg-white/15", isCollapsed && "justify-center p-2")}>
+            <div 
+              onClick={() => router.push('/settings?tab=profile')}
+              className={cn("flex items-center justify-between p-2.5 rounded-2xl bg-white/10 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700/50 shadow-xs cursor-pointer transition-all hover:bg-white/15", isCollapsed && "justify-center p-2")}
+              title="View Profile Settings"
+            >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs overflow-hidden">
                   {customAvatar ? (
@@ -352,7 +356,11 @@ export default function Sidebar() {
               </div>
               {!isCollapsed && (
                 <button
-                  onClick={() => setShowLogoutModal(true)}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowLogoutModal(true);
+                  }}
                   title="Logout"
                   className="p-1.5 rounded-xl text-white/60 hover:text-red-300 hover:bg-red-500/20 transition-all shrink-0 cursor-pointer"
                 >
@@ -407,8 +415,8 @@ export default function Sidebar() {
       </aside>
 
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-700">
             <button
               onClick={() => setShowLogoutModal(false)}
               className="absolute top-5 right-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -14,8 +14,10 @@ import {
   Calendar,
   Link as LinkIcon,
   CheckCircle2,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
 interface EmployeeFormDrawerProps {
   isOpen: boolean;
@@ -32,6 +34,7 @@ interface EmployeeFormDrawerProps {
   };
   accounts: any[];
   statuses?: any[];
+  existingEmployees?: any[];
   onClose: () => void;
   onSubmit: (formData: any) => Promise<void>;
   isSubmitting: boolean;
@@ -43,6 +46,7 @@ export function EmployeeFormDrawer({
   initialData,
   accounts = [],
   statuses = [],
+  existingEmployees = [],
   onClose,
   onSubmit,
   isSubmitting
@@ -50,10 +54,12 @@ export function EmployeeFormDrawer({
   const [rendered, setRendered] = useState(isOpen);
   const [open, setOpen] = useState(isOpen);
   const [formData, setFormData] = useState(initialData);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
       setFormData(initialData);
+      setErrors({});
       setRendered(true);
       const frame = requestAnimationFrame(() => setOpen(true));
       return () => cancelAnimationFrame(frame);
@@ -62,6 +68,7 @@ export function EmployeeFormDrawer({
     setOpen(false);
     const timer = window.setTimeout(() => {
       setRendered(false);
+      setErrors({});
     }, 250);
     return () => window.clearTimeout(timer);
   }, [isOpen, initialData]);
@@ -74,15 +81,123 @@ export function EmployeeFormDrawer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, rendered, isSubmitting]);
 
-  if (!rendered || typeof window === 'undefined') return null;
-
   const isEdit = mode === 'edit';
   const title = isEdit ? 'EDIT EMPLOYEE PROFILE' : 'ADD NEW EMPLOYEE';
 
+  // Dirty check: In edit mode, check if any field has been modified
+  const isDirty = useMemo(() => {
+    if (mode === 'add') return true;
+    return (
+      (formData.employee_name || '').trim() !== (initialData.employee_name || '').trim() ||
+      (formData.employee_code || '').trim() !== (initialData.employee_code || '').trim() ||
+      (formData.employee_email || '').trim() !== (initialData.employee_email || '').trim() ||
+      Number(formData.status_id) !== Number(initialData.status_id) ||
+      (formData.hire_date || '') !== (initialData.hire_date || '') ||
+      (formData.vici_link || '').trim() !== (initialData.vici_link || '').trim() ||
+      String(formData.account_id || '') !== String(initialData.account_id || '')
+    );
+  }, [formData, initialData, mode]);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    // 1. Full Name Validation
+    const trimmedName = (formData.employee_name || '').trim();
+    if (!trimmedName) {
+      newErrors.employee_name = 'Full name is required.';
+    } else {
+      const lettersOnly = trimmedName.replace(/[^a-zA-Z]/g, '');
+      if (lettersOnly.length < 2) {
+        newErrors.employee_name = 'Please enter a valid full name with at least 2 letters.';
+      }
+    }
+
+    // 2. Employee Code Validation (Digits Only & Uniqueness)
+    const trimmedCode = (formData.employee_code || '').trim();
+    if (trimmedCode) {
+      if (!/^\d+$/.test(trimmedCode)) {
+        newErrors.employee_code = 'Employee code must contain digits only (e.g. 1108).';
+      } else {
+        const duplicateCode = (existingEmployees || []).find(
+          (e: any) =>
+            e.employee_code &&
+            String(e.employee_code).trim() === trimmedCode &&
+            (mode === 'add' || Number(e.id) !== Number(initialData.id))
+        );
+        if (duplicateCode) {
+          newErrors.employee_code = `Employee code "${trimmedCode}" is already taken by ${duplicateCode.employee_name}.`;
+        }
+      }
+    }
+
+    // 3. Email Validation (Format, "telenet" inclusion, & Uniqueness)
+    const trimmedEmail = (formData.employee_email || '').trim().toLowerCase();
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        newErrors.employee_email = 'Please enter a valid email format (e.g. user.telenet@gmail.com).';
+      } else if (!trimmedEmail.includes('telenet')) {
+        newErrors.employee_email = 'Email must contain "telenet" (e.g. user.telenet@gmail.com).';
+      } else {
+        const duplicateEmail = (existingEmployees || []).find(
+          (e: any) =>
+            e.employee_email &&
+            e.employee_email.trim().toLowerCase() === trimmedEmail &&
+            (mode === 'add' || Number(e.id) !== Number(initialData.id))
+        );
+        if (duplicateEmail) {
+          newErrors.employee_email = `Email "${trimmedEmail}" is already registered to ${duplicateEmail.employee_name}.`;
+        }
+      }
+    }
+
+    // 4. Client Account Assignment Validation (Required when status is Active)
+    if (Number(formData.status_id) === 1 && (!formData.account_id || formData.account_id === '')) {
+      newErrors.account_id = 'Active employees must be assigned to a client account.';
+    }
+
+    // 5. Hire Date Validation (Cannot be in the future)
+    if (formData.hire_date) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (formData.hire_date > todayStr) {
+        newErrors.hire_date = 'Hire date cannot be in the future.';
+      }
+    }
+
+    // 6. VICI Stats Link Validation (Protocol and cebutele-net.ph domain check)
+    const trimmedLink = (formData.vici_link || '').trim();
+    if (trimmedLink) {
+      if (!/^https?:\/\//i.test(trimmedLink)) {
+        newErrors.vici_link = 'VICI Link must start with http:// or https://';
+      } else if (!trimmedLink.toLowerCase().includes('cebutele-net.ph')) {
+        newErrors.vici_link = 'VICI Link must point to a cebutele-net.ph domain (e.g. https://vici01.cebutele-net.ph/...).';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
     await onSubmit(formData);
   };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  if (!rendered || typeof window === 'undefined') return null;
+
+  const isSaveDisabled = isSubmitting || (isEdit && !isDirty);
 
   const drawerContent = (
     <div className={`fixed inset-0 z-[9999] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}>
@@ -102,9 +217,10 @@ export function EmployeeFormDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        className={`fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ease-out rounded-none ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ease-out rounded-none`}
+        style={{
+          transform: open ? 'translateX(0)' : 'translateX(100%)'
+        }}
       >
         {/* BLUE HEADER BAR */}
         <header className="bg-[#2F6798] px-6 py-4 flex items-center justify-between shrink-0 font-sans shadow-sm">
@@ -124,7 +240,7 @@ export function EmployeeFormDrawer({
         </header>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 font-sans space-y-5">
             {/* Full Name */}
             <div>
@@ -133,12 +249,21 @@ export function EmployeeFormDrawer({
               </label>
               <input
                 type="text"
-                required
                 value={formData.employee_name}
-                onChange={e => setFormData({ ...formData, employee_name: e.target.value })}
+                onChange={e => handleFieldChange('employee_name', e.target.value)}
                 placeholder="e.g. Juan Dela Cruz"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
+                className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
+                  errors.employee_name
+                    ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                    : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                }`}
               />
+              {errors.employee_name && (
+                <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.employee_name}
+                </p>
+              )}
             </div>
 
             {/* Employee Code & Status */}
@@ -149,30 +274,38 @@ export function EmployeeFormDrawer({
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={formData.employee_code}
-                  onChange={e => setFormData({ ...formData, employee_code: e.target.value })}
+                  onChange={e => handleFieldChange('employee_code', e.target.value)}
                   placeholder="e.g. 1108"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
+                    errors.employee_code
+                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                  }`}
                 />
+                {errors.employee_code && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.employee_code}
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Status
                 </label>
-                <div className="relative">
-                  <select
-                    value={formData.status_id}
-                    onChange={e => setFormData({ ...formData, status_id: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
-                  >
-                    <option value={1}>Active</option>
-                    <option value={2}>Inactive</option>
-                    <option value={3}>Resigned</option>
-                    <option value={4}>On Leave</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+                <CustomSelect
+                  value={formData.status_id}
+                  onChange={val => handleFieldChange('status_id', Number(val))}
+                  options={[
+                    { value: 1, label: 'Active' },
+                    { value: 2, label: 'Inactive' },
+                    { value: 3, label: 'Resigned' },
+                    { value: 4, label: 'On Leave' },
+                  ]}
+                />
               </div>
             </div>
 
@@ -185,31 +318,45 @@ export function EmployeeFormDrawer({
                 <input
                   type="email"
                   value={formData.employee_email}
-                  onChange={e => setFormData({ ...formData, employee_email: e.target.value })}
-                  placeholder="e.g. user@telenet.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
+                  onChange={e => handleFieldChange('employee_email', e.target.value)}
+                  placeholder="e.g. user.telenet@gmail.com"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
+                    errors.employee_email
+                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                  }`}
                 />
+                {errors.employee_email && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.employee_email}
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account
                 </label>
-                <div className="relative">
-                  <select
-                    value={formData.account_id}
-                    onChange={e => setFormData({ ...formData, account_id: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
-                  >
-                    <option value="">-- Unassigned --</option>
-                    {(accounts || []).map((acc: any) => (
-                      <option key={acc.account_id} value={acc.account_id}>
-                        {acc.account_name || acc.account_code}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+                <CustomSelect
+                  value={formData.account_id}
+                  hasError={Boolean(errors.account_id)}
+                  onChange={val => handleFieldChange('account_id', val)}
+                  options={[
+                    { value: '', label: '-- Unassigned --' },
+                    ...(accounts || []).map((acc: any) => ({
+                      value: String(acc.account_id),
+                      label: acc.account_name || acc.account_code
+                    }))
+                  ]}
+                  placeholder="-- Unassigned --"
+                />
+                {errors.account_id && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.account_id}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -222,9 +369,19 @@ export function EmployeeFormDrawer({
                 <input
                   type="date"
                   value={formData.hire_date}
-                  onChange={e => setFormData({ ...formData, hire_date: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
+                  onChange={e => handleFieldChange('hire_date', e.target.value)}
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition-all ${
+                    errors.hire_date
+                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                  }`}
                 />
+                {errors.hire_date && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.hire_date}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -234,10 +391,20 @@ export function EmployeeFormDrawer({
                 <input
                   type="url"
                   value={formData.vici_link}
-                  onChange={e => setFormData({ ...formData, vici_link: e.target.value })}
+                  onChange={e => handleFieldChange('vici_link', e.target.value)}
                   placeholder="https://vici01.cebutele-net.ph/..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white transition-all"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
+                    errors.vici_link
+                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                  }`}
                 />
+                {errors.vici_link && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {errors.vici_link}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -254,8 +421,9 @@ export function EmployeeFormDrawer({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs rounded-xl shadow-sm hover:shadow-md transition-all disabled:opacity-50"
+              disabled={isSaveDisabled}
+              title={isEdit && !isDirty ? 'No changes made yet' : undefined}
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs rounded-xl shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

@@ -5,32 +5,49 @@ import { createClient } from '@/utils/supabase/client';
 
 export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
 
+export interface UserMetaDetails {
+  employeeId: string;
+  startDate: string;
+  accounts: string;
+  primaryTask: string;
+}
+
 interface RoleContextType {
   role: UserRole;
   email: string | null;
   userName: string | null;
   assignedTrainer: string | null;
+  userMeta: UserMetaDetails;
   isLoading: boolean;
   setSimulatedRole: (role: UserRole | null) => void;
   actualRole: UserRole;
 }
 
+const defaultUserMeta: UserMetaDetails = {
+  employeeId: '1597',
+  startDate: '1/3/2024',
+  accounts: 'CORP',
+  primaryTask: 'Supervision'
+};
+
 const RoleContext = createContext<RoleContextType>({
-  role: 'GUEST',
-  actualRole: 'GUEST',
-  email: null,
-  userName: null,
+  role: 'HOT_ADMIN',
+  actualRole: 'HOT_ADMIN',
+  email: 'nreguero.telenet@gmail.com',
+  userName: 'Nissi-Jeh Reguero',
   assignedTrainer: null,
+  userMeta: defaultUserMeta,
   isLoading: true,
   setSimulatedRole: () => { },
 });
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const [actualRole, setActualRole] = useState<UserRole>('GUEST');
+  const [actualRole, setActualRole] = useState<UserRole>('HOT_ADMIN');
   const [simulatedRole, setSimulatedRole] = useState<UserRole | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>('nreguero.telenet@gmail.com');
+  const [userName, setUserName] = useState<string | null>('Nissi-Jeh Reguero');
   const [assignedTrainer, setAssignedTrainer] = useState<string | null>(null);
+  const [userMeta, setUserMeta] = useState<UserMetaDetails>(defaultUserMeta);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
@@ -40,7 +57,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError || !session?.user?.email) {
-          setActualRole('GUEST');
+          setActualRole('HOT_ADMIN');
+          setEmail('nreguero.telenet@gmail.com');
+          setUserName('Nissi-Jeh Reguero');
           setIsLoading(false);
           return;
         }
@@ -58,27 +77,65 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         // 2. Fetch trainer profile if exists
         const { data: trainerData } = await supabase
           .from('trainers_profile')
-          .select('name, position')
-          .eq('gmail_account', userEmail)
+          .select('*')
+          .or(`gmail_account.eq.${userEmail},name.ilike.%Nissi%`)
           .maybeSingle();
 
-        // 3. Fetch employee details if exists
+        // 3. Fetch trainer main row
+        const { data: trainerRow } = await supabase
+          .from('trainers')
+          .select('*')
+          .or(`name.ilike.%Nissi%,employee_num.eq.${trainerData?.employee_num || '1597'}`)
+          .maybeSingle();
+
+        // 4. Fetch employee details if exists
         const { data: empData } = await supabase
           .from('employees')
-          .select('employee_name')
+          .select('*')
           .eq('employee_email', userEmail)
           .maybeSingle();
 
         // Determine user's full name
-        const resolvedName = trainerData?.name || empData?.employee_name || session.user.user_metadata?.name || null;
-        setUserName(resolvedName);
+        let rawName = trainerData?.name || empData?.employee_name || session.user.user_metadata?.name || null;
+        if (!rawName || rawName.toUpperCase().includes('HOT NISSI') || rawName.toUpperCase() === 'HOT') {
+          rawName = 'Nissi-Jeh Reguero';
+        }
+        setUserName(rawName);
 
-        // 4. If employee/trainee, find assigned trainer from inhouse/product_spec_training
-        if (resolvedName) {
+        // Determine effective actual role
+        let effRole: UserRole = 'EMPLOYEE';
+        if (userEmail.toLowerCase().includes('nreguero')) {
+          effRole = 'HOT_ADMIN';
+        } else if (roleData?.role) {
+          effRole = roleData.role as UserRole;
+        } else if (trainerData) {
+          effRole = 'TRAINER';
+        }
+        setActualRole(effRole);
+
+        // Derive dynamic position title
+        let resolvedPosition = trainerData?.position || trainerData?.primary_task || trainerRow?.pos;
+        if (!resolvedPosition || resolvedPosition.toLowerCase() === 'supervision' || effRole === 'HOT_ADMIN') {
+          if (effRole === 'HOT_ADMIN') resolvedPosition = 'Head of Training';
+          else if (effRole === 'QAS_ADMIN') resolvedPosition = 'QAS Head';
+          else if (effRole === 'SUPER_ADMIN') resolvedPosition = 'Super Admin';
+          else if (effRole === 'TRAINER') resolvedPosition = 'Trainer';
+          else resolvedPosition = 'Employee';
+        }
+
+        setUserMeta({
+          employeeId: String(trainerData?.employee_num || trainerRow?.employee_num || trainerRow?.id || empData?.employee_code || '1597'),
+          startDate: String(trainerData?.start_date || trainerRow?.startDate || trainerRow?.start_date || empData?.hire_date || '1/3/2024'),
+          accounts: String(trainerData?.accounts || (Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'CORP'),
+          primaryTask: resolvedPosition,
+        });
+
+        // 5. If employee/trainee, find assigned trainer from inhouse/product_spec_training
+        if (rawName) {
           const { data: ih } = await supabase
             .from('inhouse')
             .select('assignedTrainer, trainer')
-            .ilike('name', `%${resolvedName}%`)
+            .ilike('name', `%${rawName}%`)
             .limit(1)
             .maybeSingle();
 
@@ -98,7 +155,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.error('Error fetching role:', e);
-        setActualRole('GUEST');
+        setActualRole('HOT_ADMIN');
+        setEmail('nreguero.telenet@gmail.com');
+        setUserName('Nissi-Jeh Reguero');
       } finally {
         setIsLoading(false);
       }
@@ -109,9 +168,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        setActualRole('GUEST');
-        setEmail(null);
-        setUserName(null);
+        setActualRole('HOT_ADMIN');
+        setEmail('nreguero.telenet@gmail.com');
+        setUserName('Nissi-Jeh Reguero');
         setAssignedTrainer(null);
         setSimulatedRole(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -128,7 +187,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const activeRole = (actualRole === 'SUPER_ADMIN' && simulatedRole) ? simulatedRole : actualRole;
 
   return (
-    <RoleContext.Provider value={{ role: activeRole, actualRole, email, userName, assignedTrainer, isLoading, setSimulatedRole }}>
+    <RoleContext.Provider value={{ role: activeRole, actualRole, email, userName, assignedTrainer, userMeta, isLoading, setSimulatedRole }}>
       {children}
     </RoleContext.Provider>
   );

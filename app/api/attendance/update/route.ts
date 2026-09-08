@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
+import { logActivity } from '@/lib/actions/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -33,6 +34,13 @@ export async function POST(request: Request) {
     // Revalidate the Next.js cache so it updates on next fetch
     revalidateTag('trainers');
     revalidateTag('dashboard');
+
+    await logActivity({
+      title: 'Trainer Attendance Updated',
+      description: `Attendance record #${attendance_id} updated to status "${status.toUpperCase()}".`,
+      iconType: 'trainer',
+      author: 'Authorized Admin'
+    });
 
     return NextResponse.json({ success: true, data });
   } catch (err: any) {

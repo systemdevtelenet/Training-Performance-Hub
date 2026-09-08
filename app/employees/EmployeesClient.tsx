@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search,
   ChevronDown,
@@ -28,6 +29,8 @@ import {
   Table as TableIcon
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
+import { useToast } from '@/components/CustomToast';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmployeeDetailDrawer } from '@/components/EmployeeDetailDrawer';
 import { EmployeeFormDrawer } from '@/components/EmployeeFormDrawer';
 
@@ -55,6 +58,7 @@ export default function EmployeesClient({
   statuses?: any[];
 }) {
   const { role, actualRole } = useRole();
+  const toast = useToast();
   const currentRole = role || actualRole;
   const canManage = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
 
@@ -75,7 +79,6 @@ export default function EmployeesClient({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -88,9 +91,10 @@ export default function EmployeesClient({
     account_id: ''
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (msg: string, title?: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (type === 'success') toast.success(msg, title || 'Success');
+    else if (type === 'error') toast.error(msg, title || 'Error');
+    else toast.info(msg, title || 'Info');
   };
 
   // Refresh data from server API
@@ -101,7 +105,7 @@ export default function EmployeesClient({
       const resData = await res.json();
       if (resData.success && resData.data) {
         setEmployees(resData.data);
-        showToast('Employees list refreshed');
+        toast.success('Employees list refreshed', 'Refreshed');
       }
     } catch (e) {
       console.error('Error refreshing employees:', e);
@@ -213,14 +217,14 @@ export default function EmployeesClient({
       });
       const resData = await res.json();
       if (resData.success) {
-        showToast('Employee created successfully!');
+        showToast('Employee created successfully!', 'Employee Created', 'success');
         setIsAddModalOpen(false);
         handleRefresh();
       } else {
-        alert(`Error adding employee: ${resData.error}`);
+        showToast(resData.error || 'Failed to create employee.', 'Creation Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error creating employee.', 'Creation Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,14 +246,14 @@ export default function EmployeesClient({
       });
       const resData = await res.json();
       if (resData.success) {
-        showToast('Employee updated successfully!');
+        showToast('Employee updated successfully!', 'Employee Updated', 'success');
         setEditingEmp(null);
         handleRefresh();
       } else {
-        alert(`Error updating employee: ${resData.error}`);
+        showToast(resData.error || 'Failed to update employee.', 'Update Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error updating employee.', 'Update Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -266,13 +270,13 @@ export default function EmployeesClient({
       const resData = await res.json();
       if (resData.success) {
         setEmployees(prev => prev.filter(e => e.id !== deletingEmp.id));
-        showToast('Employee deleted successfully');
+        showToast('Employee record was deleted successfully.', 'Employee Deleted', 'success');
         setDeletingEmp(null);
       } else {
-        alert(`Error deleting employee: ${resData.error}`);
+        showToast(resData.error || 'Failed to delete employee.', 'Delete Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error deleting employee.', 'Delete Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -310,15 +314,7 @@ export default function EmployeesClient({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10 font-sans text-slate-800">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 text-xs font-bold animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
+    <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800">
       {/* Top Action Bar matching Trainees page */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -432,52 +428,51 @@ export default function EmployeesClient({
         </div>
       </div>
 
-      {/* GLOBAL FILTER BAR - MATCHING TRAINEES DESIGN */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+      {/* GLOBAL FILTER BAR - MATCHING DASHBOARD DESIGN */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20">
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Status Filter</label>
-          <div className="relative">
-            <select
-              value={selectedStatus}
-              onChange={e => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-            >
-              <option value="All">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Resigned">Resigned</option>
-              <option value="On Leave">On Leave</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+          <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Status Filter
+          </label>
+          <CustomSelect
+            value={selectedStatus}
+            onChange={val => setSelectedStatus(val)}
+            options={[
+              { value: 'All', label: 'All Statuses' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Inactive', label: 'Inactive' },
+              { value: 'Resigned', label: 'Resigned' },
+              { value: 'On Leave', label: 'On Leave' },
+            ]}
+          />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Client Account Filter</label>
-          <div className="relative">
-            <select
-              value={selectedAccount}
-              onChange={e => setSelectedAccount(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-            >
-              {availableAccounts.map(acct => (
-                <option key={acct} value={acct}>{acct === 'All' ? 'All Client Accounts' : acct}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+          <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account Filter
+          </label>
+          <CustomSelect
+            value={selectedAccount}
+            onChange={val => setSelectedAccount(val)}
+            options={availableAccounts.map(acct => ({
+              value: acct,
+              label: acct === 'All' ? 'All Client Accounts' : acct
+            }))}
+          />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Search Employee / Code / Email</label>
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+            Search Employee / Code / Email
+          </label>
+          <div className="relative group">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Type name, code, or email..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
             />
           </div>
         </div>
@@ -693,6 +688,7 @@ export default function EmployeesClient({
           initialData={formData}
           accounts={accounts}
           statuses={statuses}
+          existingEmployees={employees}
           onClose={() => setIsAddModalOpen(false)}
           onSubmit={async (data) => {
             setIsSubmitting(true);
@@ -704,14 +700,14 @@ export default function EmployeesClient({
               });
               const resData = await res.json();
               if (resData.success) {
-                showToast('Employee created successfully!');
+                showToast('Employee created successfully!', 'Employee Created', 'success');
                 setIsAddModalOpen(false);
                 handleRefresh();
               } else {
-                alert(`Error adding employee: ${resData.error}`);
+                showToast(resData.error || 'Failed to create employee.', 'Creation Failed', 'error');
               }
             } catch (err: any) {
-              alert(`Error: ${err.message}`);
+              showToast(err.message || 'Error creating employee.', 'Creation Error', 'error');
             } finally {
               setIsSubmitting(false);
             }
@@ -737,6 +733,7 @@ export default function EmployeesClient({
           }}
           accounts={accounts}
           statuses={statuses}
+          existingEmployees={employees}
           onClose={() => setEditingEmp(null)}
           onSubmit={async (data) => {
             setIsSubmitting(true);
@@ -751,14 +748,14 @@ export default function EmployeesClient({
               });
               const resData = await res.json();
               if (resData.success) {
-                showToast('Employee updated successfully!');
+                showToast('Employee updated successfully!', 'Employee Updated', 'success');
                 setEditingEmp(null);
                 handleRefresh();
               } else {
-                alert(`Error updating employee: ${resData.error}`);
+                showToast(resData.error || 'Failed to update employee.', 'Update Failed', 'error');
               }
             } catch (err: any) {
-              alert(`Error: ${err.message}`);
+              showToast(err.message || 'Error updating employee.', 'Update Error', 'error');
             } finally {
               setIsSubmitting(false);
             }
@@ -768,25 +765,25 @@ export default function EmployeesClient({
       )}
 
       {/* DELETE CONFIRMATION MODAL - MATCHING LOGOUT MODAL DESIGN */}
-      {canManage && deletingEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95">
+      {canManage && deletingEmp && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-700">
             <button
               onClick={() => setDeletingEmp(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute top-5 right-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <div className="w-20 h-20 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200">
+            <div className="w-20 h-20 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200 dark:shadow-red-900/30">
               <Trash2 className="h-9 w-9 text-white stroke-[2.5]" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Delete Employee</h3>
-              <div className="flex flex-col gap-1 text-center text-slate-500">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Delete Employee</h3>
+              <div className="flex flex-col gap-1 text-center text-slate-500 dark:text-slate-400">
                 <span className="text-sm font-medium">
-                  Are you sure you want to delete <strong className="text-slate-800">{deletingEmp.employee_name}</strong>?
+                  Are you sure you want to delete <strong className="text-slate-800 dark:text-slate-200">{deletingEmp.employee_name}</strong>?
                 </span>
                 <span className="text-xs font-normal leading-relaxed">
                   This action cannot be undone and will permanently remove this record.
@@ -798,7 +795,7 @@ export default function EmployeesClient({
               <button
                 type="button"
                 onClick={() => setDeletingEmp(null)}
-                className="px-6 py-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm transition-colors"
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -806,13 +803,14 @@ export default function EmployeesClient({
                 type="button"
                 onClick={handleDeleteSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200 dark:shadow-red-900/30 disabled:opacity-50"
               >
                 {isSubmitting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* VIEW DETAILS SIDE RIGHT DRAWER */}

@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Settings,
   Bell,
-  Globe,
-  Calendar,
   Save,
   RotateCcw,
   X,
@@ -35,13 +34,26 @@ import {
   Minus
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useRole } from '@/components/providers/RoleProvider';
 import { uploadAvatar, deleteAvatar } from '@/lib/actions/avatar';
+import { useToast } from '@/components/CustomToast';
 
 type SettingsTab = 'profile' | 'notifications' | 'general';
 
 export default function SettingsPage() {
   const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const { userName, email: userEmail, userMeta } = useRole();
+  const toast = useToast();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as SettingsTab) || 'profile';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as SettingsTab;
+    if (tabParam && ['profile', 'notifications', 'general'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   const [isHydrating, setIsHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -59,17 +71,15 @@ export default function SettingsPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [savingAvatar, setSavingAvatar] = useState(false);
-  
-  // Top-Right Toast State
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
-    visible: false,
-    message: '',
-    type: 'success'
-  });
 
   const avatarDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success', title?: string) => {
+    if (type === 'success') toast.success(message, title || 'Success');
+    else toast.error(message, title || 'Error');
+  };
 
   const [preferences, setPreferences] = useState({
     theme: 'light',
@@ -122,13 +132,6 @@ export default function SettingsPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showAvatarDropdown]);
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, visible: false }));
-    }, 3500);
-  };
 
   const markUnsaved = useCallback(() => {
     setHasUnsavedChanges(true);
@@ -368,16 +371,6 @@ export default function SettingsPage() {
         className="hidden"
       />
 
-      {/* ────────────── TOP-RIGHT FLOATING SUCCESS/ERROR TOAST ────────────── */}
-      {toast.visible && (
-        <div className="fixed top-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}>
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-          </div>
-          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{toast.message}</p>
-        </div>
-      )}
-
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
@@ -527,18 +520,32 @@ export default function SettingsPage() {
                     </div>
                     
                     <div className="relative text-white flex-1 text-center md:text-left">
-                      <h2 className="text-xl md:text-2xl font-black tracking-tight mb-2">Nissi-Jeh Reguero</h2>
-                      <p className="text-base font-medium text-white/90 mb-1">Head of Training Admin</p>
-                      <p className="text-sm font-medium text-white/70 mb-4">n.reguero@cebutele.net</p>
+                      <h2 className="text-xl md:text-2xl font-black tracking-tight mb-1.5">{userName || 'Nissi-Jeh Reguero'}</h2>
+                      <div className="mb-2">
+                        <span className="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white font-extrabold text-[11px] uppercase tracking-wider border border-white/25 shadow-2xs">
+                          {userMeta.primaryTask || 'Head of Training'}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-white/80 mb-3">{userEmail || 'n.reguero@cebutele.net'}</p>
                       
-                      <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 pt-3 border-t border-white/20">
-                        <div className="bg-white/10 rounded-xl px-3 py-1.5 backdrop-blur-sm border border-white/10">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Employee ID</p>
-                          <p className="text-sm font-medium text-white">CTN-80429</p>
-                        </div>
-                        <div className="bg-white/10 rounded-xl px-3 py-1.5 backdrop-blur-sm border border-white/10">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Department</p>
-                          <p className="text-sm font-medium text-white">Operations Training</p>
+                      <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/15 shadow-sm mt-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-white/15">
+                          <div className="pr-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Employee ID</p>
+                            <p className="text-xs font-bold text-white">{userMeta.employeeId || '1597'}</p>
+                          </div>
+                          <div className="sm:pl-3 pr-2 pt-2 sm:pt-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Start Date</p>
+                            <p className="text-xs font-bold text-white">{userMeta.startDate || '1/3/2024'}</p>
+                          </div>
+                          <div className="sm:pl-3 pr-2 pt-2 sm:pt-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Accounts</p>
+                            <p className="text-xs font-bold text-white truncate" title={userMeta.accounts || 'CORP'}>{userMeta.accounts || 'CORP'}</p>
+                          </div>
+                          <div className="sm:pl-3 pt-2 sm:pt-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Primary Task</p>
+                            <p className="text-xs font-bold text-white truncate" title={userMeta.primaryTask || 'Head of Training'}>{userMeta.primaryTask || 'Head of Training'}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -582,7 +589,7 @@ export default function SettingsPage() {
                           <CreditCard className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           Employee ID
                         </label>
-                        <input type="text" readOnly value={profile.employeeId} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
+                        <input type="text" readOnly value={userMeta.employeeId || profile.employeeId} className="w-full px-4 py-3 bg-[#f1f1f1] dark:bg-slate-700/50 border-none rounded-xl text-sm font-medium text-slate-800 dark:text-slate-200 cursor-default select-none pointer-events-none" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
@@ -707,7 +714,7 @@ export default function SettingsPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div>
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Preferences</h3>
-                    <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Customize your interface theme, regional timezone, and date format.</p>
+                    <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Customize your interface theme.</p>
                   </div>
 
                   {/* Theme Mode */}
@@ -745,64 +752,6 @@ export default function SettingsPage() {
                           <span className="text-xs">{item.label}</span>
                         </button>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Timezone & Localization */}
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
-                        <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Timezone</h4>
-                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Set the default timezone for metrics timestamps and logs.</p>
-                      </div>
-                    </div>
-                    <div className="max-w-md">
-                      <select
-                        value={preferences.timezone}
-                        onChange={(e) => {
-                          setPreferences(prev => ({ ...prev, timezone: e.target.value }));
-                          markUnsaved();
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-colors"
-                      >
-                        <option value="Asia/Manila">Asia/Manila (GMT+8) - Philippine Standard Time</option>
-                        <option value="America/New_York">America/New_York (GMT-5) - Eastern Time</option>
-                        <option value="America/Chicago">America/Chicago (GMT-6) - Central Time</option>
-                        <option value="America/Los_Angeles">America/Los_Angeles (GMT-8) - Pacific Time</option>
-                        <option value="Europe/London">Europe/London (GMT+0) - Greenwich Mean Time</option>
-                        <option value="UTC">UTC (GMT+0) - Coordinated Universal Time</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Date Format */}
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                        <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Date Format</h4>
-                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Choose how dates should be displayed across the dashboard.</p>
-                      </div>
-                    </div>
-                    <div className="max-w-md">
-                      <select
-                        value={preferences.dateFormat}
-                        onChange={(e) => {
-                          setPreferences(prev => ({ ...prev, dateFormat: e.target.value }));
-                          markUnsaved();
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-colors"
-                      >
-                        <option value="MM/DD/YYYY">MM/DD/YYYY (e.g., 09/08/2026)</option>
-                        <option value="DD/MM/YYYY">DD/MM/YYYY (e.g., 08/09/2026)</option>
-                        <option value="YYYY-MM-DD">YYYY-MM-DD (e.g., 2026-09-08)</option>
-                        <option value="MMM D, YYYY">MMM D, YYYY (e.g., Sep 8, 2026)</option>
-                      </select>
                     </div>
                   </div>
                 </div>

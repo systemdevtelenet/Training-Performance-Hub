@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search,
   ChevronDown,
@@ -21,11 +22,19 @@ import {
   CheckCircle2,
   AlertCircle,
   GraduationCap,
+  Calendar,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User,
+  Briefcase,
+  UserCheck,
+  Loader2
 } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
+import { TraineeFormDrawer } from '@/components/TraineeFormDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
+import { useToast } from '@/components/CustomToast';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
 export type Trainee = {
   id: string;
@@ -43,14 +52,22 @@ export type Trainee = {
   trainingType?: 'INHOUSE' | 'PST';
 };
 
+const isLossStatus = (status?: string) => {
+  if (!status) return false;
+  const s = status.toUpperCase().trim();
+  return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+};
+
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
   const { role, actualRole } = useRole();
+  const toast = useToast();
   const currentRole = role || actualRole;
   const canManageTrainees = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'].includes(currentRole);
 
   const [trainees, setTrainees] = useState<Trainee[]>(initialTrainees);
   const [selectedCard, setSelectedCard] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [breakdownTab, setBreakdownTab] = useState<'all' | 'inhouse' | 'pst' | 'accounts'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('All');
   const [selectedQuarter, setSelectedQuarter] = useState('All');
@@ -65,7 +82,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [editingTrainee, setEditingTrainee] = useState<Trainee | null>(null);
   const [deletingTrainee, setDeletingTrainee] = useState<Trainee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Form states for Add / Edit
   const [formData, setFormData] = useState({
@@ -79,9 +96,43 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     month: 'January'
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (formErrors[field]) {
+      setFormErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validateTraineeForm = () => {
+    const errors: Record<string, string> = {};
+    const trimmedName = (formData.name || '').trim();
+    if (!trimmedName) {
+      errors.name = 'Full name is required.';
+    } else {
+      const lettersOnly = trimmedName.replace(/[^a-zA-Z]/g, '');
+      if (lettersOnly.length < 2) {
+        errors.name = 'Please enter a valid full name with at least 2 letters.';
+      }
+    }
+    if (!formData.batchName || !formData.batchName.trim()) {
+      errors.batchName = 'Batch / Wave name is required.';
+    }
+    if (!formData.accountName || !formData.accountName.trim()) {
+      errors.accountName = 'Client account is required.';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showToast = (msg: string, title?: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
+    if (type === 'success') toast.success(msg, title || 'Success');
+    else if (type === 'error') toast.error(msg, title || 'Error');
+    else if (type === 'warning') toast.warning(msg, title || 'Warning');
+    else toast.info(msg, title || 'Info');
   };
 
   // Dynamic filter lists
@@ -91,6 +142,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (t.accountName) set.add(t.accountName);
     });
     return ['All', ...Array.from(set).sort()];
+  }, [trainees]);
+
+  const availableTrainers = useMemo(() => {
+    const set = new Set<string>();
+    trainees.forEach(t => {
+      if (t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
+        set.add(t.assignedTrainer);
+      }
+    });
+    return Array.from(set).sort();
   }, [trainees]);
 
   // Filter trainees based on global search & selects
@@ -141,14 +202,15 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (t.trainingType === 'INHOUSE') ihCount++;
       else pstCount++;
 
-      if (t.isLoss) lossCount++;
+      const isLoss = Boolean(t.isLoss || isLossStatus(t.status));
+      if (isLoss) lossCount++;
 
       const acctName = t.accountName || 'Unknown Account';
       if (!accountMap[acctName]) {
         accountMap[acctName] = { name: acctName, hc: 0, lossCount: 0, members: [] };
       }
       accountMap[acctName].hc += 1;
-      if (t.isLoss) accountMap[acctName].lossCount += 1;
+      if (isLoss) accountMap[acctName].lossCount += 1;
       accountMap[acctName].members.push(t);
 
       const isInhouse = t.trainingType === 'INHOUSE';
@@ -165,7 +227,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         };
       }
       targetMap[batchKey].hc += 1;
-      if (t.isLoss) targetMap[batchKey].lossCount += 1;
+      if (isLoss) targetMap[batchKey].lossCount += 1;
       targetMap[batchKey].members.push(t);
 
       if (targetMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer) {
@@ -242,9 +304,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const handleAddTrainee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageTrainees) {
-      alert('You have read-only access and cannot add trainees.');
+      showToast('You have read-only access and cannot add trainees.', 'Permission Denied', 'warning');
       return;
     }
+    if (!validateTraineeForm()) return;
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/trainees', {
@@ -270,8 +333,9 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           trainingType: formData.trainingType
         };
         setTrainees(prev => [newTrainee, ...prev]);
-        showToast('Trainee added successfully!');
+        showToast('Trainee added successfully!', 'Trainee Added', 'success');
         setIsAddModalOpen(false);
+        setFormErrors({});
         setFormData({
           name: '',
           trainingType: 'INHOUSE',
@@ -283,10 +347,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           month: 'January'
         });
       } else {
-        alert(`Error adding trainee: ${resData.error}`);
+        showToast(resData.error || 'Failed to add trainee.', 'Addition Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error adding trainee.', 'Addition Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -296,10 +360,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const handleEditTrainee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageTrainees) {
-      alert('You have read-only access and cannot edit trainees.');
+      showToast('You have read-only access and cannot edit trainees.', 'Permission Denied', 'warning');
       return;
     }
     if (!editingTrainee) return;
+    if (!validateTraineeForm()) return;
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/trainees', {
@@ -328,13 +393,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           isLoss: formData.status === 'LOSS' || formData.status === 'ATTRITION',
           isEndorsed: formData.status === 'ENDORSED'
         } : t));
-        showToast('Trainee updated successfully!');
+        showToast('Trainee updated successfully!', 'Trainee Updated', 'success');
         setEditingTrainee(null);
       } else {
-        alert(`Error updating trainee: ${resData.error}`);
+        showToast(resData.error || 'Failed to update trainee.', 'Update Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error updating trainee.', 'Update Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -343,54 +408,46 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   // Handle Delete Trainee
   const handleDeleteTrainee = async () => {
     if (!canManageTrainees) {
-      alert('You have read-only access and cannot delete trainees.');
+      showToast('You have read-only access and cannot delete trainees.', 'Permission Denied', 'warning');
       return;
     }
     if (!deletingTrainee) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/trainees?id=${deletingTrainee.id}&type=${deletingTrainee.trainingType || 'INHOUSE'}`, {
+      const url = `/api/trainees?name=${encodeURIComponent(deletingTrainee.name)}&type=${deletingTrainee.trainingType || 'INHOUSE'}&batch=${encodeURIComponent(deletingTrainee.batchName || '')}&account=${encodeURIComponent(deletingTrainee.accountName || '')}`;
+      const res = await fetch(url, {
         method: 'DELETE'
       });
       const resData = await res.json();
       if (resData.success) {
-        setTrainees(prev => prev.filter(t => t.id !== deletingTrainee.id));
-        showToast('Trainee deleted successfully');
+        setTrainees(prev => prev.filter(t => !(t.name === deletingTrainee.name && t.batchName === deletingTrainee.batchName)));
+        showToast('Trainee record was deleted successfully.', 'Trainee Deleted', 'success');
         setDeletingTrainee(null);
       } else {
-        alert(`Error deleting: ${resData.error}`);
+        showToast(resData.error || 'Failed to delete trainee.', 'Delete Failed', 'error');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message || 'Error deleting trainee.', 'Delete Error', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {
-    const displayStatus = status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING');
-    const upperStatus = displayStatus.toUpperCase();
+    const rawStatus = (status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING')).trim();
+    const upperStatus = rawStatus.toUpperCase();
 
-    if (upperStatus === 'ENDORSED') {
+    if (upperStatus === 'ENDORSED' || isEndorsed) {
       return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
     }
-    if (upperStatus === 'LOSS' || upperStatus === 'ATTRITION' || upperStatus === 'FAILED') {
-      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-red-300 text-red-700 bg-red-50 shadow-sm">ATTRITION</span>;
+    if (isLoss || isLossStatus(upperStatus)) {
+      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-red-300 text-red-700 bg-red-50 shadow-sm">{upperStatus || 'ATTRITION'}</span>;
     }
     return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{upperStatus}</span>;
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10 font-sans text-slate-800">
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 text-xs font-bold animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
+    <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800">
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -514,187 +571,355 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         </div>
       </div>
 
-      {/* Global Filter Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-        <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Quarter Filter</label>
-          <div className="relative">
-            <select
+      {/* UNIFIED FILTER & SUB-TABS CONTAINER */}
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20 space-y-4">
+        {/* Row 1: Filters with CustomSelect and Longer Search Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Quarter Filter
+            </label>
+            <CustomSelect
               value={selectedQuarter}
-              onChange={e => setSelectedQuarter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-            >
-              <option value="All">All Quarters</option>
-              <option value="Q1">Q1</option>
-              <option value="Q2">Q2</option>
-              <option value="Q3">Q3</option>
-              <option value="Q4">Q4</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Month Filter</label>
-          <div className="relative">
-            <select
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-            >
-              <option value="All">All Months</option>
-              <option value="January">January</option>
-              <option value="February">February</option>
-              <option value="March">March</option>
-              <option value="April">April</option>
-              <option value="May">May</option>
-              <option value="June">June</option>
-              <option value="July">July</option>
-              <option value="August">August</option>
-              <option value="September">September</option>
-              <option value="October">October</option>
-              <option value="November">November</option>
-              <option value="December">December</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Client Account</label>
-          <div className="relative">
-            <select
-              value={selectedAccount}
-              onChange={e => setSelectedAccount(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-            >
-              {availableAccounts.map(acct => (
-                <option key={acct} value={acct}>{acct === 'All' ? 'All Client Accounts' : acct}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Search Trainee / Batch / Trainer</label>
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Type name or batch..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              onChange={val => setSelectedQuarter(val)}
+              options={[
+                { value: 'All', label: 'All Quarters' },
+                { value: 'Q1', label: 'Q1' },
+                { value: 'Q2', label: 'Q2' },
+                { value: 'Q3', label: 'Q3' },
+                { value: 'Q4', label: 'Q4' }
+              ]}
             />
           </div>
+
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Month Filter
+            </label>
+            <CustomSelect
+              value={selectedMonth}
+              onChange={val => setSelectedMonth(val)}
+              options={[
+                { value: 'All', label: 'All Months' },
+                { value: 'January', label: 'January' },
+                { value: 'February', label: 'February' },
+                { value: 'March', label: 'March' },
+                { value: 'April', label: 'April' },
+                { value: 'May', label: 'May' },
+                { value: 'June', label: 'June' },
+                { value: 'July', label: 'July' },
+                { value: 'August', label: 'August' },
+                { value: 'September', label: 'September' },
+                { value: 'October', label: 'October' },
+                { value: 'November', label: 'November' },
+                { value: 'December', label: 'December' }
+              ]}
+            />
+          </div>
+
+          <div className="lg:col-span-3 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account Filter
+            </label>
+            <CustomSelect
+              value={selectedAccount}
+              onChange={val => setSelectedAccount(val)}
+              options={availableAccounts.map(acct => ({
+                value: acct,
+                label: acct === 'All' ? 'All Client Accounts' : acct
+              }))}
+            />
+          </div>
+
+          <div className="lg:col-span-5 sm:col-span-1">
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+              Search Trainee / Batch / Trainer
+            </label>
+            <div className="relative group">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Type name, batch, or trainer..."
+                className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* VIEW MODE 1: SINGLE LIGHT CONTAINER WITH DIVIDERS */}
-      {viewMode === 'cards' && (
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-200/90">
+        {/* Row 2: Sub-Tabs inside the same unified container (below filters) */}
+        {viewMode === 'cards' && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto p-0.5">
+              <button
+                type="button"
+                onClick={() => setBreakdownTab('all')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  breakdownTab === 'all'
+                    ? 'bg-[#2F6798] text-white shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> All Overview (3 Columns)
+              </button>
+              <button
+                type="button"
+                onClick={() => setBreakdownTab('inhouse')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  breakdownTab === 'inhouse'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span> Inhouse Training ({inhouseBatches.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBreakdownTab('pst')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  breakdownTab === 'pst'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> PST Training ({pstBatches.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBreakdownTab('accounts')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  breakdownTab === 'accounts'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span> Client Accounts ({clientAccounts.length})
+              </button>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-400 pr-2 hidden sm:block">
+              {breakdownTab === 'all' && 'Side-by-side department overview'}
+              {breakdownTab === 'inhouse' && `Full grid view of ${inhouseBatches.length} Inhouse batches`}
+              {breakdownTab === 'pst' && `Full grid view of ${pstBatches.length} PST waves`}
+              {breakdownTab === 'accounts' && `Full grid view of ${clientAccounts.length} Client accounts`}
+            </div>
+          </div>
+        )}
 
-            {/* Column 1: INHOUSE TRAINING */}
-            <div className="p-5 space-y-3 bg-white">
+        {/* Row 3: Breakdown & Table Content inside the same big external container */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          {viewMode === 'cards' && (
+            <div className="space-y-4 w-full">
+              {/* TAB 1: ALL OVERVIEW (3-COLUMN SIDE BY SIDE) */}
+              {breakdownTab === 'all' && (
+                <div className="bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden w-full">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-200/90 dark:divide-slate-700/80">
+
+                {/* Column 1: INHOUSE TRAINING */}
+                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING
+                    </h3>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      DEPT 1
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                    {inhouseBatches.length === 0 ? (
+                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching Inhouse batches</div>
+                    ) : (
+                      inhouseBatches.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                        >
+                          <span className="text-xs font-bold text-[#2F6798] truncate" title={item.name}>{item.name}</span>
+                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 2: PST TRAINING */}
+                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING
+                    </h3>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      DEPT 2
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                    {pstBatches.length === 0 ? (
+                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching PST waves</div>
+                    ) : (
+                      pstBatches.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span className="text-xs font-bold text-slate-800 truncate" title={item.name}>{item.name}</span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
+                              {item.trainer}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 3: CLIENT ACCOUNTS */}
+                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS
+                    </h3>
+                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      SUMMARY
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                    {clientAccounts.length === 0 ? (
+                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching client accounts</div>
+                    ) : (
+                      clientAccounts.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                        >
+                          <span className="text-xs font-bold text-slate-800 uppercase truncate" title={item.name}>{item.name}</span>
+                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: INHOUSE FULL EXPANDED GRID VIEW */}
+          {breakdownTab === 'inhouse' && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING BATCHES ({inhouseBatches.length})
                 </h3>
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                   DEPT 1
                 </span>
               </div>
-              <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                {inhouseBatches.length === 0 ? (
-                  <div className="text-center py-8 text-xs font-medium text-slate-400">No matching Inhouse batches</div>
-                ) : (
-                  inhouseBatches.map((item, idx) => (
+              {inhouseBatches.length === 0 ? (
+                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching Inhouse batches</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {inhouseBatches.map((item, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <span className="text-xs font-bold text-[#2F6798]">{item.name}</span>
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-xs font-bold text-[#2F6798] truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
                         HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                       </span>
                     </button>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Column 2: PST TRAINING */}
-            <div className="p-5 space-y-3 bg-white">
+          {/* TAB 3: PST FULL EXPANDED GRID VIEW (NO INDIVIDUAL SCROLLING) */}
+          {breakdownTab === 'pst' && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING WAVES ({pstBatches.length})
                 </h3>
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   DEPT 2
                 </span>
               </div>
-              <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                {pstBatches.length === 0 ? (
-                  <div className="text-center py-8 text-xs font-medium text-slate-400">No matching PST waves</div>
-                ) : (
-                  pstBatches.map((item, idx) => (
+              {pstBatches.length === 0 ? (
+                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching PST waves</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {pstBatches.map((item, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-800">{item.name}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className="text-xs font-bold text-slate-800 truncate" title={item.name}>{item.name}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
                           {item.trainer}
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
                         HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                       </span>
                     </button>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Column 3: CLIENT ACCOUNTS */}
-            <div className="p-5 space-y-3 bg-white">
+          {/* TAB 4: CLIENT ACCOUNTS FULL EXPANDED GRID VIEW */}
+          {breakdownTab === 'accounts' && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS SUMMARY ({clientAccounts.length})
                 </h3>
                 <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                   SUMMARY
                 </span>
               </div>
-              <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                {clientAccounts.length === 0 ? (
-                  <div className="text-center py-8 text-xs font-medium text-slate-400">No matching client accounts</div>
-                ) : (
-                  clientAccounts.map((item, idx) => (
+              {clientAccounts.length === 0 ? (
+                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching client accounts</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {clientAccounts.map((item, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <span className="text-xs font-bold text-slate-800 uppercase">{item.name}</span>
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-xs font-bold text-slate-800 uppercase truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
                         HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
                       </span>
                     </button>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-
-          </div>
+          )}
         </div>
       )}
 
@@ -803,6 +1028,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                                 <button
                                   onClick={() => {
                                     setEditingTrainee(t);
+                                    setFormErrors({});
                                     setFormData({
                                       name: t.name,
                                       trainingType: t.trainingType || 'INHOUSE',
@@ -890,232 +1116,158 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           )}
         </div>
       )}
-
-      {/* ADD TRAINEE MODAL */}
-      {canManageTrainees && isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-[#2F6798]" /> Add New Trainee
-              </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTrainee} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Juan Dela Cruz"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Training Track</label>
-                  <select
-                    value={formData.trainingType}
-                    onChange={e => setFormData({ ...formData, trainingType: e.target.value as any })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  >
-                    <option value="INHOUSE">Inhouse Training</option>
-                    <option value="PST">PST Training</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Batch / Wave</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.batchName}
-                    onChange={e => setFormData({ ...formData, batchName: e.target.value })}
-                    placeholder={formData.trainingType === 'INHOUSE' ? 'General -1' : 'Wave 1'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Client Account</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.accountName}
-                    onChange={e => setFormData({ ...formData, accountName: e.target.value })}
-                    placeholder="e.g. General / Retail"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Assigned Trainer</label>
-                  <input
-                    type="text"
-                    value={formData.assignedTrainer}
-                    onChange={e => setFormData({ ...formData, assignedTrainer: e.target.value })}
-                    placeholder="e.g. Trainer Name"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={e => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="ENDORSED">ENDORSED</option>
-                  <option value="ONGOING">ONGOING</option>
-                  <option value="LOSS">LOSS / ATTRITION</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Trainee'}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
+      </div>
+
+      {/* ADD TRAINEE DRAWER (RIGHT PANEL) */}
+      {canManageTrainees && (
+        <TraineeFormDrawer
+          isOpen={isAddModalOpen}
+          mode="add"
+          initialData={formData}
+          accounts={availableAccounts}
+          trainers={availableTrainers}
+          existingTrainees={trainees}
+          onClose={() => setIsAddModalOpen(false)}
+          onSubmit={async (data) => {
+            setIsSubmitting(true);
+            try {
+              const res = await fetch('/api/trainees', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              const resData = await res.json();
+              if (resData.success) {
+                const newTrainee: Trainee = {
+                  id: resData.data?.id || Math.random().toString(),
+                  name: data.name,
+                  status: data.status,
+                  month: data.month || 'January',
+                  quarter: data.quarter || 'Q1',
+                  p: 0,
+                  a: 0,
+                  isEndorsed: data.status === 'ENDORSED',
+                  isLoss: data.status === 'LOSS' || data.status === 'ATTRITION',
+                  assignedTrainer: data.assignedTrainer,
+                  batchName: data.batchName,
+                  accountName: data.accountName,
+                  trainingType: data.trainingType
+                };
+                setTrainees(prev => [newTrainee, ...prev]);
+                showToast('Trainee added successfully!', 'Trainee Added', 'success');
+                setIsAddModalOpen(false);
+              } else {
+                showToast(resData.error || 'Failed to add trainee.', 'Addition Failed', 'error');
+              }
+            } catch (err: any) {
+              showToast(err.message || 'Error adding trainee.', 'Addition Error', 'error');
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
       )}
 
-      {/* EDIT TRAINEE MODAL */}
+      {/* EDIT TRAINEE DRAWER (RIGHT PANEL) */}
       {canManageTrainees && editingTrainee && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-[#2F6798]" /> Edit Trainee Record
-              </h3>
-              <button onClick={() => setEditingTrainee(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditTrainee} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Batch / Wave</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.batchName}
-                    onChange={e => setFormData({ ...formData, batchName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Client Account</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.accountName}
-                    onChange={e => setFormData({ ...formData, accountName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Assigned Trainer</label>
-                  <input
-                    type="text"
-                    value={formData.assignedTrainer}
-                    onChange={e => setFormData({ ...formData, assignedTrainer: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-600 uppercase block mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={e => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="ENDORSED">ENDORSED</option>
-                    <option value="ONGOING">ONGOING</option>
-                    <option value="LOSS">LOSS / ATTRITION</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingTrainee(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold"
-                >
-                  {isSubmitting ? 'Updating...' : 'Update Trainee'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <TraineeFormDrawer
+          isOpen={Boolean(editingTrainee)}
+          mode="edit"
+          initialData={{
+            id: editingTrainee.id,
+            name: editingTrainee.name,
+            trainingType: editingTrainee.trainingType || 'INHOUSE',
+            batchName: editingTrainee.batchName,
+            accountName: editingTrainee.accountName,
+            assignedTrainer: editingTrainee.assignedTrainer || 'Unassigned',
+            status: editingTrainee.status || 'ACTIVE',
+            quarter: editingTrainee.quarter || 'Q1',
+            month: editingTrainee.month || 'January'
+          }}
+          accounts={availableAccounts}
+          trainers={availableTrainers}
+          existingTrainees={trainees}
+          onClose={() => setEditingTrainee(null)}
+          onSubmit={async (data) => {
+            setIsSubmitting(true);
+            try {
+              const res = await fetch('/api/trainees', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  originalName: editingTrainee.name,
+                  id: editingTrainee.id || editingTrainee.name,
+                  name: data.name,
+                  trainingType: data.trainingType,
+                  batchName: data.batchName,
+                  accountName: data.accountName,
+                  assignedTrainer: data.assignedTrainer,
+                  status: data.status
+                })
+              });
+              const resData = await res.json();
+              if (resData.success) {
+                setTrainees(prev => prev.map(t => (t.id === editingTrainee.id || t.name === editingTrainee.name) ? {
+                  ...t,
+                  id: data.name,
+                  name: data.name,
+                  trainingType: data.trainingType,
+                  batchName: data.batchName,
+                  accountName: data.accountName,
+                  assignedTrainer: data.assignedTrainer,
+                  status: data.status,
+                  isLoss: data.status === 'LOSS' || data.status === 'ATTRITION',
+                  isEndorsed: data.status === 'ENDORSED'
+                } : t));
+                showToast('Trainee updated successfully!', 'Trainee Updated', 'success');
+                setEditingTrainee(null);
+              } else {
+                showToast(resData.error || 'Failed to update trainee.', 'Update Failed', 'error');
+              }
+            } catch (err: any) {
+              showToast(err.message || 'Error updating trainee.', 'Update Error', 'error');
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {canManageTrainees && deletingTrainee && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in-95 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-[#ED1C25] flex items-center justify-center mx-auto mb-3">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1">Delete Trainee Record</h3>
-            <p className="text-xs text-slate-500 mb-6">
-              Are you sure you want to delete <strong className="text-slate-800">{deletingTrainee.name}</strong>? This action cannot be undone.
-            </p>
+      {/* DELETE CONFIRMATION MODAL - RENDERED VIA PORTAL */}
+      {canManageTrainees && deletingTrainee && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in-95 duration-150 text-center space-y-6 relative">
+            <button
+              onClick={() => setDeletingTrainee(null)}
+              className="absolute top-5 right-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
 
-            <div className="flex items-center justify-center gap-3">
+            <div className="w-20 h-20 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200 dark:shadow-red-900/30">
+              <Trash2 className="h-9 w-9 text-white stroke-[2.5]" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Delete Trainee Record</h3>
+              <div className="flex flex-col gap-1 text-center text-slate-500 dark:text-slate-400">
+                <span className="text-sm font-medium">
+                  Are you sure you want to delete <strong className="text-slate-800 dark:text-slate-200">{deletingTrainee.name}</strong>?
+                </span>
+                <span className="text-xs font-normal leading-relaxed">
+                  This action cannot be undone and will permanently remove this record.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setDeletingTrainee(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200"
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -1123,13 +1275,14 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 type="button"
                 onClick={handleDeleteTrainee}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-[#ED1C25] hover:bg-[#c9151c] text-white rounded-xl text-xs font-bold"
+                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200 dark:shadow-red-900/30 disabled:opacity-50"
               >
-                {isSubmitting ? 'Deleting...' : 'Confirm Delete'}
+                {isSubmitting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Trainee Detail Drawer */}

@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { logActivity } from './logger';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -234,6 +235,13 @@ export async function updateTrafficLightCell(
       }
     }
 
+    await logActivity({
+      title: 'Traffic Light Status Updated',
+      description: `Updated status for ${matchValue || 'staff'} (${colKey}) to "${newValue}" in ${account.toUpperCase()} (${quarter.toUpperCase()}).`,
+      iconType: 'success',
+      author: 'Authorized Manager'
+    });
+
     return { success: true };
   } catch (e: any) {
     console.error('Error updating cell:', e);
@@ -350,6 +358,14 @@ export async function saveTrafficLightRemark({
         .single();
 
       if (error) throw error;
+
+      await logActivity({
+        title: 'Traffic Light Remark Saved',
+        description: `Saved note for ${staffName} on ${columnKey}: "${trimmedRemarks.slice(0, 50)}${trimmedRemarks.length > 50 ? '...' : ''}"`,
+        iconType: 'system',
+        author: 'Authorized Manager'
+      });
+
       return { success: true, metric_id: inserted?.metric_id };
     }
   } catch (e: any) {
@@ -377,6 +393,14 @@ export async function deleteTrafficLightRemark({
       .eq('source_table', sourceKey);
 
     if (error) throw error;
+
+    await logActivity({
+      title: 'Traffic Light Remark Deleted',
+      description: `Removed remark note for ${staffName} on ${columnKey}.`,
+      iconType: 'alert',
+      author: 'Authorized Manager'
+    });
+
     return { success: true };
   } catch (e: any) {
     console.error('Error deleting remark:', e);

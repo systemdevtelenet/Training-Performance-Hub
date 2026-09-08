@@ -6,46 +6,40 @@ import { useRouter } from 'next/navigation';
 import DateFilter from '@/components/DateFilter';
 import NotificationDropdown from '@/components/NotificationDropdown';
 import RoleSwitcher from '@/components/RoleSwitcher';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRole } from '@/components/providers/RoleProvider';
+
+import { useToast } from '@/components/CustomToast';
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme();
-  const { email } = useRole();
+  const { role, actualRole, email } = useRole();
+  const toast = useToast();
   const router = useRouter();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [showLoginToast, setShowLoginToast] = useState(false);
-  const [toastProgress, setToastProgress] = useState(100);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // Check session flag for login toast with auto-expiration
+  const positionTitle = useMemo(() => {
+    const emailStr = (email || '').toLowerCase();
+    if (emailStr.includes('bosssilver') || (actualRole as string) === 'VIEW_ADMIN') return 'Executive Admin (View Only)';
+    if (emailStr.includes('nreguero') || actualRole === 'HOT_ADMIN' || role === 'HOT_ADMIN') return 'Head of Training';
+    if (emailStr.includes('ralasagas') || actualRole === 'QAS_ADMIN' || role === 'QAS_ADMIN') return 'QAS Head';
+    if (actualRole === 'SUPER_ADMIN' || role === 'SUPER_ADMIN') return 'Super Admin';
+    if (actualRole === 'TRAINER' || role === 'TRAINER') return 'Trainer';
+    if (actualRole === 'EMPLOYEE' || role === 'EMPLOYEE') return 'Employee';
+    return role || 'Operations User';
+  }, [email, role, actualRole]);
+
+  // Check session flag for login toast with unified custom toast
   useEffect(() => {
     if (typeof window !== 'undefined' && sessionStorage.getItem('show_login_toast') === 'true') {
       sessionStorage.removeItem('show_login_toast');
-      setShowLoginToast(true);
-      setToastProgress(100);
-
-      // Trigger progress bar shrink immediately so CSS transition handles countdown
-      const animTimer = setTimeout(() => {
-        setToastProgress(0);
-      }, 50);
-
-      return () => clearTimeout(animTimer);
+      toast.success('You have successfully logged into the hub.', 'Welcome Back');
     }
-  }, []);
-
-  // Guaranteed auto-dismiss fallback matching progress bar duration (4.5 seconds)
-  useEffect(() => {
-    if (showLoginToast) {
-      const dismissTimer = setTimeout(() => {
-        setShowLoginToast(false);
-      }, 4500);
-      return () => clearTimeout(dismissTimer);
-    }
-  }, [showLoginToast]);
+  }, [toast]);
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -74,38 +68,8 @@ export default function Topbar() {
 
   return (
     <>
-      {/* Top-Right Login Success Toast */}
-      {showLoginToast && (
-        <div className="fixed top-6 right-6 z-[100] flex flex-col bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 border-l-4 border-l-emerald-500 rounded-xl shadow-2xl animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm overflow-hidden">
-          <div className="flex items-start gap-3 p-4">
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0 pr-2">
-              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                Welcome Back
-              </h4>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                You have successfully logged into the hub.
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowLoginToast(false)} 
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 shrink-0 cursor-pointer"
-              title="Close notification"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          {/* Animated Countdown Bar */}
-          <div className="h-1 w-full bg-emerald-50 dark:bg-emerald-950 overflow-hidden">
-            <div 
-              className="h-full bg-emerald-500 transition-all duration-[4500ms] ease-linear"
-              style={{ width: `${toastProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
 
-      <header className="h-16 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40 transition-colors shadow-sm dark:shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
+      <header className="h-16 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 flex items-center justify-between sticky top-0 z-40 transition-colors shadow-xs">
       <div>
         <h1 className="text-lg font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400">
           Training Performance Hub
@@ -206,12 +170,14 @@ export default function Topbar() {
             <div className="absolute right-0 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
               <div className="border-b border-slate-100 p-4 dark:border-slate-800">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{email || "User"}</p>
-                <p className="text-[0.65rem] text-slate-500 dark:text-slate-400">Operations Analytics</p>
+                <div className="mt-1.5 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2F6798]/10 text-[#2F6798] dark:bg-blue-950/60 dark:text-blue-300 border border-[#2F6798]/20">
+                  {positionTitle}
+                </div>
               </div>
               <div className="p-2 space-y-1">
                 <button 
                   onClick={() => {
-                    router.push('/profile');
+                    router.push('/settings?tab=profile');
                     setIsProfileOpen(false);
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"

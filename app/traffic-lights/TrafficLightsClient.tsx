@@ -785,382 +785,394 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         </div>
       </div>
 
-      {/* Global Filter Bar (Account, Quarter, Team, Search) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
-        {/* Account Selector */}
-        <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
-          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-            <Building2 className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>SELECT ACCOUNT</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-          >
-            <span className="truncate">{accounts.find(a => a.id === account)?.name || account.toUpperCase()}</span>
-            {openDropdown === 'account' ? (
-              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-            )}
-          </button>
-
-          {openDropdown === 'account' && (
-            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-              {accounts.map((acc) => {
-                const isSelected = account === acc.id;
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => {
-                      setAccount(acc.id);
-                      setOpenDropdown(null);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
-                      isSelected
-                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                    )}
-                  >
-                    {acc.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Quarter Selector */}
-        <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
-          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-            <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>QUARTER</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpenDropdown(prev => prev === 'quarter' ? null : 'quarter')}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-          >
-            <span className="truncate">{quarters.find(q => q.id === quarter)?.name || quarter}</span>
-            {openDropdown === 'quarter' ? (
-              <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-            )}
-          </button>
-
-          {openDropdown === 'quarter' && (
-            <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
-              {quarters.map((q) => {
-                const isSelected = quarter === q.id;
-                return (
-                  <button
-                    key={q.id}
-                    type="button"
-                    onClick={() => {
-                      setQuarter(q.id);
-                      setOpenDropdown(null);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
-                      isSelected
-                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                    )}
-                  >
-                    {q.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Team Filter Dropdown */}
-        {teamsList.length > 0 && (
+      {/* ONE SINGLE UNIFIED EXTERNAL CONTAINER FOR FILTERS, WEEK WINDOW & TEAMS TABLE */}
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-5">
+        
+        {/* Section 1: Global Filter Bar (Account, Quarter, Team, Search) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pb-4 border-b border-slate-100 dark:border-slate-700/60">
+          {/* Account Selector */}
           <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
             <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#2F6798]" />
-              <span>TEAM FILTER</span>
+              <Building2 className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>SELECT ACCOUNT</span>
             </div>
             <button
               type="button"
-              onClick={() => setOpenDropdown(prev => prev === 'team' ? null : 'team')}
+              onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
               className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
             >
-              <span className="truncate">
-                {selectedTeam === 'ALL' ? `All Teams (${teamsList.length})` : selectedTeam}
-              </span>
-              {openDropdown === 'team' ? (
+              <span className="truncate">{accounts.find(a => a.id === account)?.name || account.toUpperCase()}</span>
+              {openDropdown === 'account' ? (
                 <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
               ) : (
                 <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
               )}
             </button>
 
-            {openDropdown === 'team' && (
-              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTeam('ALL');
-                    setOpenDropdown(null);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
-                    selectedTeam === 'ALL'
-                      ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                  )}
-                >
-                  All Teams ({teamsList.length})
-                </button>
-                {teamsList.map((t) => {
-                  const isSelected = selectedTeam === t.name;
+            {openDropdown === 'account' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                {accounts.map((acc) => {
+                  const isSelected = account === acc.id;
                   return (
                     <button
-                      key={t.name}
+                      key={acc.id}
                       type="button"
                       onClick={() => {
-                        setSelectedTeam(t.name);
+                        setAccount(acc.id);
                         setOpenDropdown(null);
                       }}
                       className={cn(
-                        "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
+                        "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
                         isSelected
                           ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
                           : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                       )}
                     >
-                      {t.name} ({t.count})
+                      {acc.name}
                     </button>
                   );
                 })}
               </div>
             )}
           </div>
-        )}
 
-        {/* Search Employee Field */}
-        <div className={cn("col-span-1 sm:col-span-2", teamsList.length > 0 ? "lg:col-span-4" : "lg:col-span-7")}>
-          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-            <Search className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>SEARCH EMPLOYEE</span>
-          </div>
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Type name or batch..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* WEEK WINDOW RANGE, CHRONOLOGICAL SORT & REMARKS FILTER CONTROLS */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-        {/* Left: Week Window Filter */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-[#2F6798]" /> Week Window:
-          </span>
-
-          <div className="inline-flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+          {/* Quarter Selector */}
+          <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
+            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>QUARTER</span>
+            </div>
             <button
               type="button"
-              onClick={() => setWeekWindow('last4')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                weekWindow === 'last4'
-                  ? 'bg-[#2F6798] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-              }`}
+              onClick={() => setOpenDropdown(prev => prev === 'quarter' ? null : 'quarter')}
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
             >
-              Last 4 Weeks
+              <span className="truncate">{quarters.find(q => q.id === quarter)?.name || quarter}</span>
+              {openDropdown === 'quarter' ? (
+                <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+              )}
             </button>
-            <button
-              type="button"
-              onClick={() => setWeekWindow('last8')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                weekWindow === 'last8'
-                  ? 'bg-[#2F6798] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-              }`}
-            >
-              Last 8 Weeks
-            </button>
-            <button
-              type="button"
-              onClick={() => setWeekWindow('all')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                weekWindow === 'all'
-                  ? 'bg-[#2F6798] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-              }`}
-            >
-              All ({allDateColumns.length} Weeks)
-            </button>
-          </div>
-        </div>
 
-        {/* Right: Remarks Filter & Chronological Sort Toggle */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setFilterWithRemarksOnly(!filterWithRemarksOnly)}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs border",
-              filterWithRemarksOnly
-                ? "bg-[#C8A54B] text-white border-[#b08e3a] shadow-md shadow-[#C8A54B]/20"
-                : "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700"
-            )}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Remarks Only</span>
-            {totalRemarksCount > 0 && (
-              <span className={cn("px-1.5 py-0.2 rounded-md text-[10px] font-black", filterWithRemarksOnly ? "bg-white/25 text-white" : "bg-[#C8A54B]/20 text-[#8e6e22] dark:bg-[#C8A54B]/30 dark:text-[#f3d994]")}>
-                {totalRemarksCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
-            title="Switch column date ordering"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>{sortOrder === 'newest' ? 'Latest Week First' : 'Oldest Week First'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Container & Full Width Data Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm overflow-hidden flex flex-col w-full">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center p-24 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin mb-4 text-[#2F6798]" />
-            <p className="text-xs font-semibold">Loading traffic light records...</p>
-          </div>
-        ) : filteredData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-24 text-slate-400">
-            <ShieldCheck className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-            <p className="text-xs font-medium text-slate-500">
-              {filterWithRemarksOnly ? 'No records with remarks found in this selection.' : 'No records found for this team / filter selection.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto min-h-[500px] max-h-[calc(100vh-14rem)]">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-slate-700">
-                <tr>
-                  <th
-                    className="px-4 py-3.5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 dark:bg-slate-900 z-30 min-w-[220px] max-w-[260px] border-r border-slate-200/80 dark:border-slate-700/80 shadow-[2px_0_4px_rgba(0,0,0,0.02)]"
-                  >
-                    {nameColumnKey}
-                  </th>
-
-                  {displayedDateColumns.map((col) => {
-                    const isLatest = col === latestDateColumn;
-                    return (
-                      <th
-                        key={col}
-                        className={`px-3 py-3.5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider text-center min-w-[155px] transition-all ${
-                          isLatest ? 'bg-blue-50/70 dark:bg-blue-950/40 text-[#2F6798] dark:text-blue-300' : ''
-                        }`}
-                      >
-                        <div className="flex flex-col items-center justify-center">
-                          {isLatest && (
-                            <span className="inline-block px-1.5 py-0.2 rounded text-[8px] font-black bg-[#2F6798] text-white tracking-widest mb-0.5 shadow-2xs">
-                              LATEST
-                            </span>
-                          )}
-                          <span className="truncate">{col}</span>
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                {filteredData.map((row, rowIndex) => {
-                  const nameVal = String(row[nameColumnKey] || '').trim();
-                  const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
-
-                  if (isTeamHeader) {
-                    return (
-                      <tr key={rowIndex} className="bg-slate-100/80 dark:bg-slate-900/80 border-y border-slate-200/80 dark:border-slate-700/80">
-                        <td
-                          colSpan={1 + displayedDateColumns.length}
-                          className="px-4 py-2.5 text-xs font-black text-[#2F6798] dark:text-[#5a9fd4] uppercase tracking-widest sticky left-0 z-10 flex items-center gap-2"
-                        >
-                          <span className="w-2 h-2 rounded-full bg-[#2F6798]" />
-                          {nameVal}
-                        </td>
-                      </tr>
-                    );
-                  }
-
+            {openDropdown === 'quarter' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
+                {quarters.map((q) => {
+                  const isSelected = quarter === q.id;
                   return (
-                    <tr key={rowIndex} className="hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
-                      <td className="px-4 py-2.5 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-slate-100 dark:border-slate-700/50 shadow-[1px_0_2px_rgba(0,0,0,0.02)]">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0">
-                            {nameVal.charAt(0) || '?'}
-                          </div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                            {nameVal || 'Unknown'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Date Cells (Full Pill Dropdowns + Remarks Button) */}
-                      {displayedDateColumns.map((col) => {
-                        const val = row[col];
-                        const userEmailStr = (email || '').toLowerCase();
-                        const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
-                        const isOwnRow =
-                          userEmailStr &&
-                          (userEmailStr.includes(nameVal.toLowerCase().replace(/\s+/g, '')) ||
-                            userEmailStr.includes(nameVal.toLowerCase().split(' ')[0]));
-                        const canEdit = canEditAll || isOwnRow;
-                        const isPending = pendingEdits[`${rowIndex}_${col}`];
-                        const isLatest = col === latestDateColumn;
-                        const remarkKey = `${nameVal}::${col}`;
-                        const existingRemark = remarksMap[remarkKey]?.remarks;
-
-                        return (
-                          <td
-                            key={col}
-                            className={`px-2 py-2 text-center align-middle ${
-                              isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
-                            }`}
-                          >
-                            <StatusSelect
-                              value={val || ''}
-                              onChange={(newVal) => handleCellChange(rowIndex, col, newVal)}
-                              disabled={!canEdit}
-                              isPending={!!isPending}
-                              remark={existingRemark}
-                              onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', rowIndex)}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => {
+                        setQuarter(q.id);
+                        setOpenDropdown(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                        isSelected
+                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      {q.name}
+                    </button>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Team Filter Dropdown */}
+          {teamsList.length > 0 && (
+            <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
+              <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#2F6798]" />
+                <span>TEAM FILTER</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenDropdown(prev => prev === 'team' ? null : 'team')}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              >
+                <span className="truncate">
+                  {selectedTeam === 'ALL' ? `All Teams (${teamsList.length})` : selectedTeam}
+                </span>
+                {openDropdown === 'team' ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                )}
+              </button>
+
+              {openDropdown === 'team' && (
+                <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeam('ALL');
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                      selectedTeam === 'ALL'
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    All Teams ({teamsList.length})
+                  </button>
+                  {teamsList.map((t) => {
+                    const isSelected = selectedTeam === t.name;
+                    return (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTeam(t.name);
+                          setOpenDropdown(null);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
+                          isSelected
+                            ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                            : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                        )}
+                      >
+                        {t.name} ({t.count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search Employee Field */}
+          <div className={cn("col-span-1 sm:col-span-2", teamsList.length > 0 ? "lg:col-span-4" : "lg:col-span-7")}>
+            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <Search className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>SEARCH EMPLOYEE</span>
+            </div>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Type name or batch..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: WEEK WINDOW RANGE, CHRONOLOGICAL SORT & REMARKS FILTER CONTROLS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700/60">
+          {/* Left: Week Window Filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-[#2F6798]" /> Week Window:
+            </span>
+
+            <div className="inline-flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setWeekWindow('last4')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  weekWindow === 'last4'
+                    ? 'bg-[#2F6798] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Last 4 Weeks
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekWindow('last8')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  weekWindow === 'last8'
+                    ? 'bg-[#2F6798] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Last 8 Weeks
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekWindow('all')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  weekWindow === 'all'
+                    ? 'bg-[#2F6798] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                All ({allDateColumns.length} Weeks)
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Remarks Filter & Chronological Sort Toggle */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setFilterWithRemarksOnly(!filterWithRemarksOnly)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs border",
+                filterWithRemarksOnly
+                  ? "bg-[#C8A54B] text-white border-[#b08e3a] shadow-md shadow-[#C8A54B]/20"
+                  : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700"
+              )}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Remarks Only</span>
+              {totalRemarksCount > 0 && (
+                <span className={cn("px-1.5 py-0.2 rounded-md text-[10px] font-black", filterWithRemarksOnly ? "bg-white/25 text-white" : "bg-[#C8A54B]/20 text-[#8e6e22] dark:bg-[#C8A54B]/30 dark:text-[#f3d994]")}>
+                  {totalRemarksCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
+              title="Switch column date ordering"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>{sortOrder === 'newest' ? 'Latest Week First' : 'Oldest Week First'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Section 3: Teams Table Container */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden flex flex-col w-full">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center p-24 text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin mb-4 text-[#2F6798]" />
+              <p className="text-xs font-semibold">Loading traffic light records...</p>
+            </div>
+          ) : filteredData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-24 text-slate-400">
+              <ShieldCheck className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
+              <p className="text-xs font-medium text-slate-500">
+                {filterWithRemarksOnly ? 'No records with remarks found in this selection.' : 'No records found for this team / filter selection.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-black border-b border-slate-200/80 dark:border-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 sticky left-0 bg-slate-50/95 dark:bg-slate-800/95 z-20 shadow-xs min-w-[220px]">
+                      {nameColumnKey}
+                    </th>
+                    {displayedDateColumns.map((col) => {
+                      const isLatest = col === latestDateColumn;
+                      return (
+                        <th
+                          key={col}
+                          className={`px-3 py-3 text-center min-w-[155px] ${
+                            isLatest ? 'bg-blue-100/60 dark:bg-blue-950/60 text-[#2F6798] dark:text-blue-300 font-extrabold' : ''
+                          }`}
+                        >
+                          <div className="flex flex-col items-center gap-0.5">
+                            {isLatest && (
+                              <span className="bg-[#2F6798] text-white text-[9px] font-black px-1.5 py-0.2 rounded-md tracking-wider">
+                                LATEST
+                              </span>
+                            )}
+                            <span>{col}</span>
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                  {filteredData.map((row, rowIndex) => {
+                    const nameVal = String(row[nameColumnKey] || '').trim();
+                    const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
+
+                    if (isTeamHeader) {
+                      return (
+                        <tr
+                          key={`team_${rowIndex}`}
+                          className="bg-slate-100/80 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-black text-xs uppercase tracking-wider"
+                        >
+                          <td
+                            colSpan={displayedDateColumns.length + 1}
+                            className="px-4 py-2.5 sticky left-0 bg-slate-100/90 dark:bg-slate-800/90 z-10 border-y border-slate-200/80 dark:border-slate-700"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-[#2F6798]" />
+                              <span>{nameVal}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const initialLetter = nameVal.charAt(0).toUpperCase() || 'E';
+
+                    return (
+                      <tr
+                        key={row.id || rowIndex}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors"
+                      >
+                        {/* Employee Name Column */}
+                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 min-w-[220px]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+                              {initialLetter}
+                            </div>
+                            <span className="truncate text-xs font-bold tracking-tight">
+                              {nameVal}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Date Cells */}
+                        {displayedDateColumns.map((col) => {
+                          const val = row[col];
+                          const userEmailStr = (email || '').toLowerCase();
+                          const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
+                          const isOwnRow =
+                            userEmailStr &&
+                            (userEmailStr.includes(nameVal.toLowerCase().replace(/\s+/g, '')) ||
+                              userEmailStr.includes(nameVal.toLowerCase().split(' ')[0]));
+                          const canEdit = canEditAll || isOwnRow;
+                          const isPending = pendingEdits[`${rowIndex}_${col}`];
+                          const isLatest = col === latestDateColumn;
+                          const remarkKey = `${nameVal}::${col}`;
+                          const existingRemark = remarksMap[remarkKey]?.remarks;
+
+                          return (
+                            <td
+                              key={col}
+                              className={`px-2 py-2 text-center align-middle ${
+                                isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
+                              }`}
+                            >
+                              <StatusSelect
+                                value={val || ''}
+                                onChange={(newVal) => handleCellChange(rowIndex, col, newVal)}
+                                disabled={!canEdit}
+                                isPending={!!isPending}
+                                remark={existingRemark}
+                                onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', rowIndex)}
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* SIDE-RIGHT DRAWER / MODAL FOR STATUS REMARKS & NOTES */}
@@ -1276,12 +1288,6 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                   />
                 </div>
 
-                <div className="p-3.5 bg-[#C8A54B]/10 dark:bg-[#C8A54B]/15 rounded-2xl border border-[#C8A54B]/35 flex items-start gap-2.5">
-                  <Info className="w-4 h-4 text-[#C8A54B] shrink-0 mt-0.5" />
-                  <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
-                    Remarks are saved directly to the database and will display a note indicator on the table cell for all authorized managers.
-                  </p>
-                </div>
               </div>
             </div>
 

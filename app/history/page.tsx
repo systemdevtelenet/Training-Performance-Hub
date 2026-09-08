@@ -29,6 +29,8 @@ const getIconProps = (type: string) => {
 export default function HistoryPage() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
@@ -56,19 +58,16 @@ export default function HistoryPage() {
     setIsExporting(true);
     setExportComplete(false);
     
-    // Log this action to our new dynamic system!
     await logActivity({
       title: 'Activity Log Exported',
       description: 'A user requested an export of the chronological activity log.',
       iconType: 'export',
-      author: 'Current User', // In a full app, grab the active user's name
+      author: 'Authorized User',
     });
     
-    // Refresh logs so the export action appears immediately
     const { data } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
     if (data) setActivities(data);
 
-    // Simulate 2 second export generation, then show success for 1 second
     setTimeout(() => {
       setExportComplete(true);
       setTimeout(() => {
@@ -78,23 +77,85 @@ export default function HistoryPage() {
     }, 2000);
   };
 
+  const filteredActivities = activities.filter((act) => {
+    if (selectedCategory === 'traffic' && !act.title.toLowerCase().includes('traffic')) return false;
+    if (selectedCategory === 'attendance' && !act.title.toLowerCase().includes('attendance')) return false;
+    if (selectedCategory === 'trainee' && !act.title.toLowerCase().includes('trainee')) return false;
+    if (selectedCategory === 'employee' && !act.title.toLowerCase().includes('employee')) return false;
+    if (selectedCategory === 'alert' && act.icon_type !== 'alert') return false;
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = act.title.toLowerCase().includes(q);
+      const matchDesc = act.description.toLowerCase().includes(q);
+      const matchAuthor = act.author.toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc && !matchAuthor) return false;
+    }
+
+    return true;
+  });
+
+  const categories = [
+    { id: 'ALL', label: 'All Activities' },
+    { id: 'traffic', label: 'Traffic Lights' },
+    { id: 'attendance', label: 'Trainer Attendance' },
+    { id: 'trainee', label: 'Trainees' },
+    { id: 'employee', label: 'Employees' },
+    { id: 'alert', label: 'Removals / Alerts' },
+  ];
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Activity Log</h1>
           <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
-            A chronological timeline of system events and administrative actions.
+            A chronological timeline of system events, edits, and administrative actions.
           </p>
         </div>
         <button 
           onClick={handleExport}
-          className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors focus:outline-none"
+          className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:outline-none shrink-0"
         >
-          <FileText className="h-4 w-4" />
+          <FileText className="h-4 w-4 text-[#2F6798]" />
           Export Log
         </button>
+      </div>
+
+      {/* Search & Category Filter Controls */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        {/* Category Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#2F6798] text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search Input */}
+        <div className="relative min-w-[220px]">
+          <input
+            type="text"
+            placeholder="Filter logs by name or action..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+          />
+        </div>
       </div>
 
       {/* Timeline Section */}
@@ -104,13 +165,17 @@ export default function HistoryPage() {
             <Loader2 className="w-8 h-8 animate-spin text-[#2F6798]" />
             <p className="text-sm text-slate-500 font-medium">Loading activity logs...</p>
           </div>
-        ) : activities.length === 0 ? (
+        ) : filteredActivities.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-500">
-            <ClipboardList className="w-10 h-10 mb-2 opacity-50" />
-            <p className="text-sm font-medium">No activity recorded yet.</p>
+            <ClipboardList className="w-10 h-10 mb-2 opacity-50 text-[#2F6798]" />
+            <p className="text-sm font-medium">
+              {searchQuery || selectedCategory !== 'ALL'
+                ? 'No activity logs matching your filter.'
+                : 'No activity recorded yet. Edits and changes will appear here automatically.'}
+            </p>
           </div>
         ) : (
-          activities.map((activity) => {
+          filteredActivities.map((activity) => {
             const { icon: Icon, bg } = getIconProps(activity.icon_type);
             return (
               <div key={activity.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-colors dark:border-slate-800/60 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 dark:hover:border-slate-700/80">

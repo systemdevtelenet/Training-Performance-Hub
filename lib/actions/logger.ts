@@ -13,16 +13,20 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
   }
 });
 
-type IconType = 'alert' | 'export' | 'user' | 'success' | 'system';
+import { sendEmailNotification } from './email-notifier';
+
+type IconType = 'alert' | 'export' | 'user' | 'success' | 'system' | 'trainer';
 
 interface LogPayload {
   title: string;
   description: string;
   iconType: IconType;
   author: string;
+  sendEmail?: boolean;
+  toEmail?: string;
 }
 
-export async function logActivity({ title, description, iconType, author }: LogPayload) {
+export async function logActivity({ title, description, iconType, author, sendEmail, toEmail }: LogPayload) {
   try {
     const { error } = await supabaseAdmin.from('activity_logs').insert([
       {
@@ -36,6 +40,21 @@ export async function logActivity({ title, description, iconType, author }: LogP
     if (error) {
       console.error('Failed to log activity:', error.message);
       return { success: false, error: error.message };
+    }
+
+    // Automatically send email notification to Gmail if marked as alert or explicitly requested
+    if (sendEmail || iconType === 'alert') {
+      try {
+        await sendEmailNotification({
+          toEmail,
+          subject: title,
+          title,
+          description,
+          author
+        });
+      } catch (emailErr) {
+        console.error('Error dispatching email alert:', emailErr);
+      }
     }
 
     return { success: true };

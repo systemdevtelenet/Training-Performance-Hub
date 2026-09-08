@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logActivity } from '@/lib/actions/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -104,6 +105,13 @@ export async function POST(req: Request) {
       }]);
     }
 
+    await logActivity({
+      title: 'Employee Profile Created',
+      description: `Created new employee record for ${employee_name} (${employee_code || 'No Code'}).`,
+      iconType: 'user',
+      author: 'Authorized Admin'
+    });
+
     return NextResponse.json({ success: true, data: newEmp });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -152,6 +160,13 @@ export async function PUT(req: Request) {
       }
     }
 
+    await logActivity({
+      title: 'Employee Profile Updated',
+      description: `Updated employee record for ${employee_name || `ID #${id}`}.`,
+      iconType: 'user',
+      author: 'Authorized Admin'
+    });
+
     return NextResponse.json({ success: true, data: updatedEmp });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -178,6 +193,13 @@ export async function DELETE(req: Request) {
       console.error('Error deleting employee:', deleteErr);
       return NextResponse.json({ error: deleteErr.message }, { status: 500 });
     }
+
+    await logActivity({
+      title: 'Employee Removed',
+      description: `Deleted employee profile #${id} from system.`,
+      iconType: 'alert',
+      author: 'Authorized Admin'
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
