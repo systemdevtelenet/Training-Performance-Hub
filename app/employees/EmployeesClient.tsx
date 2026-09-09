@@ -67,6 +67,17 @@ export default function EmployeesClient({
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedAccount, setSelectedAccount] = useState('All');
 
+  // Sync search param from URL if navigated from Topbar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('search');
+      if (s) {
+        setSearchQuery(s);
+      }
+    }
+  }, []);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);

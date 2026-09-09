@@ -73,6 +73,17 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
 
+  // Sync search param from URL if navigated from Topbar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('search');
+      if (s) {
+        setSearchQuery(s);
+      }
+    }
+  }, []);
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);

@@ -1787,20 +1787,20 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
                         {/* View All / Show More Action Buttons */}
                         {totalNotes > 2 && !isSearchingOrFiltering && (
-                          <div className="pt-0.5 flex items-center justify-between gap-1.5">
+                          <div className="pt-0.5 flex items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => setIsFullHistoryModalOpen(true)}
-                              className="flex-1 py-0.5 px-2 rounded-md bg-[#C8A54B]/10 hover:bg-[#C8A54B]/20 border border-[#C8A54B]/50 text-[#8e6e22] dark:text-[#f3d994] text-[9px] font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer hover:border-[#C8A54B]"
+                              className="h-6 px-2.5 rounded-md bg-[#C8A54B]/10 hover:bg-[#C8A54B]/20 border border-[#C8A54B]/50 text-[#8e6e22] dark:text-[#f3d994] text-[8.5px] font-bold transition-all inline-flex items-center justify-center gap-1 shadow-2xs cursor-pointer hover:border-[#C8A54B]"
                             >
-                              <ExternalLink className="w-2 h-2 text-[#C8A54B]" />
+                              <ExternalLink className="w-2.5 h-2.5 text-[#C8A54B]" />
                               <span>View All {totalNotes} Remarks</span>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => setShowAllInDrawer(prev => !prev)}
-                              className="py-0.5 px-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+                              className="h-6 px-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold transition-all inline-flex items-center justify-center gap-1 cursor-pointer border border-slate-200/80 dark:border-slate-700 shadow-2xs"
                             >
                               <span>{showAllInDrawer ? 'Show Less' : `+${totalNotes - 2} More`}</span>
                               <ChevronDown className={cn("w-2 h-2 transition-transform", showAllInDrawer ? "rotate-180" : "")} />

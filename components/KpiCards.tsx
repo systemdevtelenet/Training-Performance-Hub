@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingDown, UserCheck, LayoutTemplate } from 'lucide-react';
+import { Users, TrendingDown, UserCheck } from 'lucide-react';
 
 export default function KpiCards({ metrics }: { metrics?: any }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -13,7 +13,6 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
   const traineesCount = metrics?.totalTrainees ?? 180;
   const attritionRate = metrics?.overallAttrition ?? '1.1%';
   const trainersCount = metrics?.activeTrainers ?? 16;
-  const classesCount = metrics?.classesInSession ?? 92;
 
   const kpiData = [
     {
@@ -42,20 +41,11 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
       isPositive: true,
       icon: UserCheck,
       color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-    },
-    {
-      id: 'classes',
-      label: 'Classes in Session',
-      value: classesCount.toString(),
-      trend: 'In Session',
-      isPositive: null,
-      icon: LayoutTemplate,
-      color: 'bg-[#C8A54B]/10 text-[#C8A54B] dark:bg-[#C8A54B]/20',
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       {kpiData.map((kpi) => (
         <div key={kpi.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
           <div className="flex items-start justify-between">

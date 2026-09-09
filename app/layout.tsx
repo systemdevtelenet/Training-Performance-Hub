@@ -1,8 +1,13 @@
 import './globals.css';
-import { Open_Sans } from 'next/font/google';
+import { Poppins } from 'next/font/google';
 import ClientLayout from '@/components/ClientLayout';
 
-const openSans = Open_Sans({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600', '700', '800'] });
+const poppins = Poppins({ 
+  subsets: ['latin'], 
+  variable: '--font-sans', 
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  display: 'swap'
+});
 
 export const metadata = {
   title: 'Training Performance Hub',
@@ -11,7 +16,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${openSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${poppins.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

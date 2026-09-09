@@ -54,7 +54,14 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [selectedAccount, setSelectedAccount] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams?.get('search') || '');
+
+  useEffect(() => {
+    const s = searchParams?.get('search');
+    if (s) {
+      setSearchQuery(s);
+    }
+  }, [searchParams]);
 
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();

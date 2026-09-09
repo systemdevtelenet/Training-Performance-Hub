@@ -22,13 +22,65 @@ interface LogPayload {
   description: string;
   iconType: IconType;
   author: string;
+  actionUrl?: string;
   sendEmail?: boolean;
   toEmail?: string;
 }
 
-export async function logActivity({ title, description, iconType, author, sendEmail, toEmail }: LogPayload) {
+/**
+ * Distinguishes Training Performance Hub activities from QA Tool evaluations/events
+ * since both systems share the same notifications table in Supabase.
+ */
+function isTrainingLog(row: any): boolean {
+  if (!row) return false;
+  const title = (row.title || '').toLowerCase();
+  const desc = (row.description || '').toLowerCase();
+  const url = (row.action_url || '').toLowerCase();
+
+  // 1. Explicitly exclude QA Tool logs
+  if (
+    title.includes('evaluation') ||
+    title.includes('calibration') ||
+    desc.includes('evaluation for') ||
+    desc.includes('submitted by qa') ||
+    url.includes('/evaluation/') ||
+    url.includes('guideline=') ||
+    url.startsWith('/accounts/')
+  ) {
+    return false;
+  }
+
+  // 2. Explicitly include known Training Hub routes & keywords
+  const isTrainingUrl = 
+    url.startsWith('/traffic-lights') ||
+    url.startsWith('/trainees') ||
+    url.startsWith('/trainers') ||
+    url.startsWith('/employees') ||
+    url.startsWith('/history') ||
+    url.startsWith('/settings') ||
+    url.startsWith('/analytics') ||
+    url === '/';
+
+  const isTrainingContent =
+    title.includes('traffic light') ||
+    title.includes('login') ||
+    title.includes('trainee') ||
+    title.includes('trainer') ||
+    title.includes('employee') ||
+    title.includes('remark') ||
+    title.includes('attendance') ||
+    title.includes('reliability') ||
+    title.includes('export') ||
+    title.includes('hub') ||
+    title.includes('status');
+
+  return isTrainingUrl || isTrainingContent;
+}
+
+export async function logActivity({ title, description, iconType, author, actionUrl, sendEmail, toEmail }: LogPayload) {
   try {
     const authorStr = author || 'Authorized Manager';
+    const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/history');
 
     // 1. Insert into notifications table (active event table in Supabase)
     try {
@@ -37,7 +89,7 @@ export async function logActivity({ title, description, iconType, author, sendEm
           recipient_employee_id: 516,
           title,
           description: description.includes(authorStr) ? description : `${description} (by ${authorStr})`,
-          action_url: title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/history'
+          action_url: computedActionUrl
         }
       ]);
       if (notifError) console.warn('Notification log insert warning:', notifError.message);
@@ -57,15 +109,17 @@ export async function logActivity({ title, description, iconType, author, sendEm
       ]);
     } catch (_) {}
 
-    // 3. AUTO-PRUNE OLD LOGS: Keep strictly only the latest 10 rows in notifications database
+    // 3. AUTO-PRUNE OLD LOGS: Keep strictly only the latest 10 rows for Training Performance Hub (never prune QA Tool logs)
     try {
       const { data: allNotifs } = await supabaseAdmin
         .from('notifications')
-        .select('notification_id')
+        .select('notification_id, title, action_url, description')
         .order('created_at', { ascending: false });
 
-      if (allNotifs && allNotifs.length > 10) {
-        const excessIds = allNotifs.slice(10).map(r => r.notification_id);
+      const trainingNotifs = (allNotifs || []).filter(isTrainingLog);
+
+      if (trainingNotifs.length > 10) {
+        const excessIds = trainingNotifs.slice(10).map(r => r.notification_id);
         if (excessIds.length > 0) {
           await supabaseAdmin
             .from('notifications')
@@ -105,15 +159,20 @@ export async function getActivityLogs(limit = 10) {
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .limit(100);
 
     if (error) {
       console.error('Error in getActivityLogs:', error);
       return { data: [], error: error.message };
     }
-    return { data: data || [], error: null };
+
+    // Strictly filter to Training Performance Hub activities only (excluding QA Tool evaluation logs)
+    const trainingLogs = (data || []).filter(isTrainingLog).slice(0, limit);
+
+    return { data: trainingLogs, error: null };
   } catch (e: any) {
     console.error('Error in getActivityLogs catch:', e);
     return { data: [], error: e.message };
   }
 }
+

@@ -1,13 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, Metric, Text } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
-import { UsersRound, TrendingDown, Percent, LayoutDashboard, LineChart as LineChartIcon, ListTree, ChevronDown, ChevronUp } from 'lucide-react';
+import { 
+  UsersRound, TrendingDown, Percent, LayoutDashboard, 
+  LineChart as LineChartIcon, ListTree, ChevronDown, ChevronUp, 
+  X, Search, User, ArrowRight, Layers, CheckCircle2, AlertCircle,
+  Users, Info, ClipboardList
+} from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from './TraineeDetailDrawer';
 
 export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; rawData: any; filters: any }) {
   const [selectedTrainee, setSelectedTrainee] = useState<DrawerTrainee | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<any | null>(null);
+  const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [overallView, setOverallView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [showTableBreakdown, setShowTableBreakdown] = useState<boolean>(false);
 
@@ -39,10 +46,15 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
           const totalAtt = totalP + totalA;
           const attendanceRate = totalAtt > 0 ? ((totalP / totalAtt) * 100).toFixed(1) + '%' : '100.0%';
 
+          const assignedTrainer = group.members.find((m: any) => m.assignedTrainer || m.assigned_trainer)?.assignedTrainer ||
+            group.members.find((m: any) => m.assigned_trainer)?.assigned_trainer ||
+            group.trainer || 'Mitch';
+
           activeBatches.push({
             accountName: displayAcc,
             batchName: bName,
             trainingType: type === 'inhouse' ? 'Inhouse Training' : 'PST Training',
+            trainer: assignedTrainer,
             headcount: hc,
             ongoing: ongoingCount,
             losses,
@@ -154,7 +166,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border-l-4 border-l-amber-500 border border-slate-200 dark:border-slate-700">
-                <span className="font-bold text-xs text-slate-800 dark:text-slate-100 mb-1.5 block">TRAINERS CORPS</span>
+                <span className="font-bold text-xs text-slate-800 dark:text-slate-100 mb-1.5 block">TRAINERS</span>
                 <div className="grid grid-cols-5 gap-2 text-xs">
                   <div><span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 block">Active</span><span className="font-bold text-slate-700 dark:text-slate-200">{ts.headcount}</span></div>
                   <div><span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 block">Losses</span><span className="font-bold text-rose-600 dark:text-rose-400">{ts.totalLosses}</span></div>
@@ -168,52 +180,86 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
 
           {/* Active Accounts & Batches */}
           {activeBatches.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-xs">
-              <h3 className="mb-3 flex items-center gap-2.5 text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                <ListTree className="h-4 w-4 text-[#2F6798]" /> Active Accounts & Batches in Training
-              </h3>
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/90 dark:border-slate-700 p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-3.5">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                  <ListTree className="h-4 w-4 text-[#2F6798]" /> Active Accounts & Batches in Training
+                </h3>
+                <span className="text-[11px] font-medium text-slate-400">Click a batch to view trainees</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
+                  <thead className="bg-slate-50/90 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-3">Account</th>
-                      <th className="p-3">Batch</th>
-                      <th className="p-3">Trainee</th>
-                      <th className="p-3 text-center">HC</th>
-                      <th className="p-3 text-center">Ongoing</th>
-                      <th className="p-3 text-center">Losses</th>
-                      <th className="p-3 text-center">Attr %</th>
-                      <th className="p-3 text-center">Att %</th>
+                      <th className="py-3 px-4">Account</th>
+                      <th className="py-3 px-4">Batch</th>
+                      <th className="py-3 px-3 text-center">HC</th>
+                      <th className="py-3 px-3 text-center">Ongoing</th>
+                      <th className="py-3 px-3 text-center">Losses</th>
+                      <th className="py-3 px-4 text-center">Attrition</th>
+                      <th className="py-3 px-4 text-center">Attendance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                    {activeBatches.flatMap((b) => b.members.map((m: any, mIdx: number) => {
-                      const totalAttendance = (m.p || 0) + (m.a || 0);
-                      const trainee = { ...m, accountName: b.accountName, batchName: b.batchName, trainingType: b.trainingType } as DrawerTrainee;
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {activeBatches.map((b, idx) => {
+                      const cleanBatchNumber = b.batchName ? `${b.batchName}`.replace(/^(batch\s*|wave\s*|.*-\s*)/i, '').trim() || b.batchName : '1';
+                      const attrVal = parseFloat(b.attritionRate) || 0;
+                      const isSelected = selectedBatch?.accountName === b.accountName && selectedBatch?.batchName === b.batchName;
+
                       return (
                         <tr 
-                          key={`${b.accountName}-${b.batchName}-${mIdx}`} 
-                          role="button" 
-                          tabIndex={0} 
-                          onClick={() => setSelectedTrainee(trainee)} 
-                          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTrainee(trainee); } }} 
-                          className="cursor-pointer transition-colors duration-150 hover:bg-slate-50 dark:hover:bg-slate-700/40 focus:outline-none focus:bg-[#2F6798]/5"
+                          key={`${b.accountName}-${b.batchName}-${idx}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setSelectedBatch(b);
+                            setBatchSearchQuery('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedBatch(b);
+                              setBatchSearchQuery('');
+                            }
+                          }}
+                          className={`cursor-pointer transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-700/40 focus:outline-none ${
+                            isSelected ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''
+                          }`}
                         >
-                          <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{b.accountName}</td>
-                          <td className="p-3 font-bold text-[#2F6798] dark:text-blue-400">{b.batchName}</td>
-                          <td className="p-3 font-semibold text-slate-800 dark:text-slate-100">{m.name}</td>
-                          <td className="p-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{b.headcount}</td>
-                          <td className="p-3 text-center font-bold text-amber-600 dark:text-amber-400">{b.ongoing}</td>
-                          <td className="p-3 text-center font-bold text-rose-600 dark:text-rose-400">{b.losses}</td>
-                          <td className="p-3 text-center">
-                            <span className={parseFloat(b.attritionRate) > 10 ? 'inline-flex justify-center rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800 px-2.5 py-0.5 text-[10px] font-bold' : 'inline-flex justify-center rounded-full bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20 dark:bg-[#2F6798]/20 dark:text-blue-300 dark:border-blue-800 px-2.5 py-0.5 text-[10px] font-bold'}>
+                          <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                            {b.accountName.toUpperCase()}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center gap-1 font-bold text-slate-800 dark:text-slate-200">
+                              {cleanBatchNumber}
+                              <ArrowRight className="w-3 h-3 text-slate-400 opacity-60 ml-0.5" />
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
+                            {b.headcount}
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-bold text-amber-600 dark:text-amber-500">
+                            {b.ongoing}
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-bold text-rose-600 dark:text-rose-500">
+                            {b.losses}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={`inline-flex items-center justify-center font-bold px-2.5 py-0.5 text-xs rounded-full border ${
+                              attrVal > 0 
+                                ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50' 
+                                : 'bg-blue-50 text-[#2F6798] border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50'
+                            }`}>
                               {b.attritionRate}
                             </span>
                           </td>
-                          <td className="p-3 text-center font-bold text-slate-700 dark:text-slate-300">{totalAttendance ? `${((m.p / totalAttendance) * 100).toFixed(1)}%` : 'N/A'}</td>
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-800 dark:text-slate-200">
+                            {b.attendanceRate}
+                          </td>
                         </tr>
                       );
-                    }))}
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -361,6 +407,165 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
           </div>
         </div>
       </div>
+
+      {/* Right-Side Popup Drawer for Batch Trainees */}
+      {selectedBatch && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setSelectedBatch(null)}
+          />
+
+          {/* Slide-over Panel on the Right */}
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div className="w-screen max-w-md sm:max-w-lg bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200/80 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-300">
+              
+              {/* 1. Header Banner (Solid Deep Blue) */}
+              <div className="bg-[#2F6798] px-6 py-4 flex items-center justify-between text-white shrink-0 shadow-xs">
+                <h2 className="text-sm font-black uppercase tracking-wider text-white">
+                  BATCH DETAILS
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatch(null)}
+                  className="rounded-lg p-1 text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Close drawer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                {/* 2. Title Section */}
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {selectedBatch.batchName.toLowerCase().includes('summary') 
+                      ? selectedBatch.batchName 
+                      : `${selectedBatch.batchName} Summary`}
+                  </h3>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Account: <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedBatch.accountName}</span>
+                  </p>
+                </div>
+
+                {/* 3. KPI Cards Row (HEADCOUNT & ATTRITION) */}
+                <div className="grid grid-cols-2 gap-3.5">
+                  {/* Headcount Card */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <Users className="w-6 h-6 text-[#2F6798] shrink-0" />
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                          HEADCOUNT
+                        </span>
+                        <span className="text-2xl font-black text-slate-900 dark:text-white block mt-0.5">
+                          {selectedBatch.headcount}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Attrition Card */}
+                  <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/60 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <TrendingDown className="w-6 h-6 text-rose-500 shrink-0" />
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-rose-400 dark:text-rose-400 block">
+                          ATTRITION
+                        </span>
+                        <span className="text-2xl font-black text-rose-600 dark:text-rose-400 block mt-0.5">
+                          {selectedBatch.attritionRate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. BATCH PARAMETER & DETAILS Table */}
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xs bg-white dark:bg-slate-800">
+                  <div className="bg-[#2F6798] px-4 py-2.5 flex items-center justify-between text-white text-xs font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5">
+                      <Info className="w-4 h-4" />
+                      <span>BATCH PARAMETER</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ClipboardList className="w-4 h-4" />
+                      <span>DETAILS</span>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Account</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{selectedBatch.accountName}</span>
+                    </div>
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Training Type</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{selectedBatch.trainingType.toUpperCase()}</span>
+                    </div>
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Assigned Trainer</span>
+                      <span className="font-bold text-[#2F6798] dark:text-blue-400">{selectedBatch.trainer || 'Unassigned'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. TRAINEE LIST Section */}
+                <div className="space-y-3 pt-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-[#2F6798] dark:text-blue-400">
+                    TRAINEE LIST
+                  </h4>
+
+                  <div className="space-y-2.5">
+                    {(selectedBatch.members || []).map((m: any, mIdx: number) => {
+                      const trainee = {
+                        ...m,
+                        accountName: selectedBatch.accountName,
+                        batchName: selectedBatch.batchName,
+                        trainingType: selectedBatch.trainingType
+                      } as DrawerTrainee;
+
+                      const nameStr = (m.name || 'Trainee').trim();
+                      const parts = nameStr.split(/\s+/);
+                      const initials = parts.length >= 2 
+                        ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+                        : nameStr.slice(0, 2).toUpperCase();
+
+                      return (
+                        <div
+                          key={mIdx}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedTrainee(trainee)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedTrainee(trainee);
+                            }
+                          }}
+                          className="flex items-center gap-3.5 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:border-[#2F6798] dark:hover:border-blue-500 hover:shadow-xs transition-all cursor-pointer group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">
+                            {initials}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-blue-400 transition-colors truncate">
+                              {m.name}
+                            </h5>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <TraineeDetailDrawer trainee={selectedTrainee} onClose={() => setSelectedTrainee(null)} />
     </div>
   );

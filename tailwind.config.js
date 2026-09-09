@@ -44,7 +44,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Poppins', 'sans-serif'],
       },
     },
   },
