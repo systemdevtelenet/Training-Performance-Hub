@@ -40,13 +40,20 @@ function LoginFormContent() {
         clearTimeout(dismissTimer);
       };
     }
+
+    if (searchParams.get('error') === 'unauthorized_domain') {
+      setErrors(prev => ({
+        ...prev,
+        general: 'Access denied: Please sign in using your official company Google account (*.telenet@gmail.com or @cebutelenet.com).'
+      }));
+    }
   }, [searchParams]);
-  
+
   // Validation and Loading States
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '', general: '' });
-  
+
   // Brute Force Protection States
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
@@ -81,6 +88,10 @@ function LoginFormContent() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          },
         },
       });
       if (error) throw error;

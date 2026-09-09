@@ -2,19 +2,31 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  // The `/auth/callback` route is required for the server-side auth flow implemented
-  // by the SSR package. It exchanges an auth code for the user's session.
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
-  
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const origin = requestUrl.origin;
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const isLocalEnv = process.env.NODE_ENV === 'development';
+  const baseUrl = isLocalEnv ? requestUrl.origin : forwardedHost ? `https://${forwardedHost}` : requestUrl.origin;
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error && data?.user?.email) {
+      const email = data.user.email.toLowerCase();
+      const isAllowed = 
+        email.endsWith('.telenet@gmail.com') ||
+        email.endsWith('telenet@gmail.com') ||
+        email.endsWith('@cebutelenet.com') ||
+        email.endsWith('@cebutele-net.com');
+
+      if (!isAllowed) {
+        // Sign out unauthorized user immediately
+        await supabase.auth.signOut();
+        return NextResponse.redirect(`${baseUrl}/login?error=unauthorized_domain`);
+      }
+    }
   }
 
-  // URL to redirect to after sign in process completes
-  return NextResponse.redirect(`${origin}/`);
+  return NextResponse.redirect(`${baseUrl}/`);
 }
