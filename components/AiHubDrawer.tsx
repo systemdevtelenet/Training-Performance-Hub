@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Player } from '@lottiefiles/react-lottie-player';
 import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { toast } from 'react-hot-toast';

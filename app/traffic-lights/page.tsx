@@ -6,6 +6,8 @@ export const metadata = {
   description: 'Manage and monitor employee traffic light statuses',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function TrafficLightsPage() {
   const dynamicAccounts = await getAvailableTrafficLightAccounts();
 

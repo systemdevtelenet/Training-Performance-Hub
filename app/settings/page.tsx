@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Settings,
@@ -40,7 +40,7 @@ import { useToast } from '@/components/CustomToast';
 
 type SettingsTab = 'profile' | 'notifications' | 'general';
 
-export default function SettingsPage() {
+function SettingsContent() {
   const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
   const { userName, email: userEmail, userMeta } = useRole();
   const toast = useToast();
@@ -976,5 +976,17 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#2F6798] animate-spin" />
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   );
 }
