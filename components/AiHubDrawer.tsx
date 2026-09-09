@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { toast } from 'react-hot-toast';
+
+const Player = dynamic(
+  () => import('@lottiefiles/react-lottie-player').then((mod) => mod.Player),
+  { ssr: false }
+);
 
 type Message = {
   id: string;
