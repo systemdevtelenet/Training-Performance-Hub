@@ -1,5 +1,7 @@
 import { ExecutiveAIReport } from '@/components/ExecutiveAIReport';
 
+export const dynamic = 'force-dynamic';
+
 export default function AIInsightsPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">

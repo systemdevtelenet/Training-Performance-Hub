@@ -100,7 +100,7 @@ export function EmployeeDetailDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        className={`fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ease-out rounded-none ${
+        className={`fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl transition-transform duration-300 ease-out rounded-none ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -122,13 +122,13 @@ export function EmployeeDetailDrawer({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto font-sans">
           {/* Profile Banner */}
-          <div className="p-6 flex items-center gap-5 border-b border-slate-100 bg-white">
-            <div className="w-16 h-16 rounded-full bg-blue-50 border-2 border-slate-200 flex items-center justify-center text-[#2F6798] font-bold text-xl shadow-sm shrink-0">
+          <div className="p-6 flex items-center gap-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/60 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] font-bold text-xl shadow-sm shrink-0">
               {getInitials(displayedEmp.employee_name)}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xl font-bold text-slate-800 truncate">{displayedEmp.employee_name}</h3>
-              <p className="text-xs font-mono font-semibold text-[#2F6798] mt-0.5">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 truncate">{displayedEmp.employee_name}</h3>
+              <p className="text-xs font-mono font-semibold text-[#2F6798] dark:text-[#5a9fd4] mt-0.5">
                 Code: {displayedEmp.employee_code || 'N/A'}
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -144,7 +144,7 @@ export function EmployeeDetailDrawer({
 
           {/* TABLE STYLE DETAILS CONTAINER - EXACT MATCH WITH TRAINEES DRAWER */}
           <div className="p-6">
-            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800/80 shadow-sm">
               {/* BLUE HEADER BAR */}
               <div className="bg-[#2F6798] px-6 py-3 flex text-xs font-bold text-white tracking-wide uppercase">
                 <div className="w-1/2 flex items-center gap-2">
@@ -156,20 +156,20 @@ export function EmployeeDetailDrawer({
               </div>
 
               {/* SECTION: EMPLOYEE INFORMATION */}
-              <div className="bg-slate-50/80 px-6 py-2.5 border-b border-slate-200 text-xs font-bold text-[#2F6798] uppercase tracking-wider">
+              <div className="bg-slate-50/80 dark:bg-slate-800/90 px-6 py-2.5 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] uppercase tracking-wider">
                 EMPLOYEE INFORMATION
               </div>
 
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {infoItems.map((item, idx) => {
                   const Icon = item.icon;
                   return (
-                    <div key={idx} className="flex px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
-                      <div className="w-1/2 flex items-center gap-3 text-xs font-medium text-slate-600">
-                        <Icon className="h-4 w-4 text-[#2F6798] shrink-0" />
+                    <div key={idx} className="flex px-6 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
+                      <div className="w-1/2 flex items-center gap-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        <Icon className="h-4 w-4 text-[#2F6798] dark:text-[#5a9fd4] shrink-0" />
                         {item.label}
                       </div>
-                      <div className="w-1/2 flex items-center text-xs font-bold text-slate-800 break-words">
+                      <div className="w-1/2 flex items-center text-xs font-bold text-slate-800 dark:text-slate-100 break-words">
                         {item.value}
                       </div>
                     </div>
@@ -177,9 +177,9 @@ export function EmployeeDetailDrawer({
                 })}
 
                 {/* Vici Link Row */}
-                <div className="flex px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
-                  <div className="w-1/2 flex items-center gap-3 text-xs font-medium text-slate-600">
-                    <LinkIcon className="h-4 w-4 text-[#2F6798] shrink-0" />
+                <div className="flex px-6 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
+                  <div className="w-1/2 flex items-center gap-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                    <LinkIcon className="h-4 w-4 text-[#2F6798] dark:text-[#5a9fd4] shrink-0" />
                     Vici Stats Link
                   </div>
                   <div className="w-1/2 flex items-center text-xs font-bold">
@@ -188,12 +188,12 @@ export function EmployeeDetailDrawer({
                         href={displayedEmp.vici_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[#2F6798] hover:underline font-bold"
+                        className="inline-flex items-center gap-1.5 text-[#2F6798] dark:text-[#5a9fd4] hover:underline font-bold"
                       >
                         Open Vici <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     ) : (
-                      <span className="text-slate-400 font-normal">N/A</span>
+                      <span className="text-slate-400 dark:text-slate-500 font-normal">N/A</span>
                     )}
                   </div>
                 </div>

@@ -39,12 +39,14 @@ export const getDashboardData = unstable_cache(
       let totalLosses = 0;
       const accountsSet = new Set<string>();
 
+      const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+
       // Grouping for Inhouse
       const inhouseGroups: any = {};
       inhouseList.forEach(item => {
-        const accountName = (item.account || item.acount || 'General').trim();
+        const accountName = (item.account || item.acount || '').trim() || 'General';
         const batchName = item.batch ? `Batch ${item.batch}` : 'Unassigned Batch';
-        if (accountName) accountsSet.add(accountName);
+        accountsSet.add(accountName);
 
         if (!inhouseGroups[accountName]) inhouseGroups[accountName] = {};
         if (!inhouseGroups[accountName][batchName]) inhouseGroups[accountName][batchName] = { members: [] };
@@ -52,6 +54,13 @@ export const getDashboardData = unstable_cache(
         const statusUpper = (item.status || '').toUpperCase();
         const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
         if (isLoss) totalLosses++;
+
+        let pCount = 0, aCount = 0;
+        for (const col of inhouseAttCols) {
+          const val = (item[col] || '').toString().trim().toUpperCase();
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
 
         inhouseGroups[accountName][batchName].members.push({
           id: item.id || item.name,
@@ -62,18 +71,18 @@ export const getDashboardData = unstable_cache(
           month: item.month || 'January',
           quarter: item.quarter || 'Q1',
           isLoss,
-          p: 5,
-          a: isLoss ? 1 : 0
+          p: pCount,
+          a: aCount
         });
       });
 
       // Grouping for PST
       const pstGroups: any = {};
       pstList.forEach(item => {
-        const accountName = (item.account || item.accountName || 'General').trim();
+        const accountName = (item.account || item.accountName || '').trim() || 'General';
         const rawWave = item.wave ? `${item.wave}`.replace(/^(wave\s*)/i, '').trim() : '';
         const batchName = rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : item.batchName || 'Unassigned Batch');
-        if (accountName) accountsSet.add(accountName);
+        accountsSet.add(accountName);
 
         if (!pstGroups[accountName]) pstGroups[accountName] = {};
         if (!pstGroups[accountName][batchName]) pstGroups[accountName][batchName] = { members: [] };
@@ -81,6 +90,13 @@ export const getDashboardData = unstable_cache(
         const statusUpper = (item.status || '').toUpperCase();
         const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
         if (isLoss) totalLosses++;
+
+        let pCount = 0, aCount = 0;
+        for (let i = 1; i <= 62; i++) {
+          const val = (item[`att_status_day_${i}`] || '').toString().trim().toUpperCase();
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
 
         pstGroups[accountName][batchName].members.push({
           id: item.id || item.name,
@@ -91,8 +107,8 @@ export const getDashboardData = unstable_cache(
           month: item.month || 'January',
           quarter: item.quarter || 'Q1',
           isLoss,
-          p: 5,
-          a: isLoss ? 1 : 0
+          p: pCount,
+          a: aCount
         });
       });
 
@@ -113,11 +129,11 @@ export const getDashboardData = unstable_cache(
       transformed.inhouse.groups = inhouseGroups;
       transformed.pst.groups = pstGroups;
       transformed.summary.trainersSummary = {
-        headcount: totalTrainees,
+        headcount: activeTrainers,
         attendanceRate: '98.5%',
         reliabilityRate: '97.2%',
-        attritionRate: overallAttrition,
-        totalLosses
+        attritionRate: '0.0%',
+        totalLosses: 0
       };
 
       return transformed;

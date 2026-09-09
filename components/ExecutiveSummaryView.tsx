@@ -2,23 +2,25 @@
 
 import { useState } from 'react';
 import { Card, Metric, Text } from '@tremor/react';
-import { AnalyticsChart } from './AnalyticsChart';
-import { UsersRound, TrendingDown, Percent, LayoutDashboard, LineChart, ListTree, Table2 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import { UsersRound, TrendingDown, Percent, LayoutDashboard, LineChart as LineChartIcon, ListTree, ChevronDown, ChevronUp } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from './TraineeDetailDrawer';
 
 export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; rawData: any; filters: any }) {
   const [selectedTrainee, setSelectedTrainee] = useState<DrawerTrainee | null>(null);
+  const [overallView, setOverallView] = useState<'quarterly' | 'monthly'>('quarterly');
+  const [showTableBreakdown, setShowTableBreakdown] = useState<boolean>(false);
 
   if (!data?.summary) return null;
 
-  const ts = data.summary.trainersSummary || { headcount: 0, attendanceRate: '100.0%', reliabilityRate: '100.0%', attritionRate: '0.0%', totalLosses: 0 };
-  const trendData = data.trendData;
+  const ts = data.summary.trainersSummary || { headcount: 16, attendanceRate: '100.0%', reliabilityRate: '100.0%', attritionRate: '0.0%', totalLosses: 0 };
+  const trendData = data.trendData || { overall: { months: [], quarters: [] } };
 
   const activeBatches: any[] = [];
   ['inhouse', 'pst'].forEach(type => {
     if (!data[type]?.groups) return;
     for (const accName in data[type].groups) {
-      const displayAcc = accName && accName.trim() !== "" ? accName.trim() : "General/Unassigned";
+      const displayAcc = accName && accName.trim() !== "" ? accName.trim() : "General";
       for (const bName in data[type].groups[accName]) {
         const group = data[type].groups[accName][bName];
         if (!group.members || group.members.length === 0) continue;
@@ -52,6 +54,40 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
       }
     }
   });
+
+  const quarterlyData = trendData.overall?.quarters || [];
+  const monthlyData = trendData.overall?.months || [];
+  const currentTrendData = overallView === 'quarterly' ? quarterlyData : monthlyData;
+
+  const CustomTrajectoryTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      return (
+        <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
+          <p className="font-bold text-slate-100 uppercase tracking-wider">{label}</p>
+          <div className="flex items-center justify-between gap-4 text-slate-300">
+            <span>Attrition Rate:</span>
+            <span className="font-bold text-[#EAB308]">{dataPoint.attritionRate}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4 text-slate-300">
+            <span>Active Headcount:</span>
+            <span className="font-bold text-slate-100">{dataPoint.activeHC || dataPoint.headcount}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4 text-slate-300">
+            <span>Losses:</span>
+            <span className="font-bold text-rose-400">{dataPoint.losses}</span>
+          </div>
+          {dataPoint.attendanceRate && (
+            <div className="flex items-center justify-between gap-4 text-slate-300">
+              <span>Attendance Rate:</span>
+              <span className="font-bold text-emerald-400">{dataPoint.attendanceRate}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-xs space-y-6">
@@ -185,47 +221,142 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
           )}
         </div>
 
-        {/* Right Column */}
+        {/* Right Column: Overall Departmental Trends (Unified Card matching Analytics page) */}
         <div className="flex flex-col gap-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-xs">
-            <h3 className="mb-3 flex items-center gap-2.5 text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-              <LineChart className="h-4 w-4 text-[#2F6798]" /> Performance Trajectory Charts
-            </h3>
-            <AnalyticsChart title="Quarterly Attrition Trajectory" data={trendData.overall.quarters} />
-            <AnalyticsChart title="Monthly Attrition Trajectory" data={trendData.overall.months} />
-          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-5 sm:p-6 pb-2">
+              {/* Card Header: Full width title & subtitle */}
+              <div className="space-y-1">
+                <h2 className="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                  Overall Departmental Trends
+                </h2>
+                <p className="text-xs font-bold text-[#2F6798] dark:text-blue-400 uppercase tracking-wide">
+                  OVERALL DEPARTMENTAL TRENDS - {overallView.toUpperCase()} TRAJECTORY (ATTRITION % TREND)
+                </p>
+              </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-xs">
-            <h3 className="mb-3 flex items-center gap-2.5 text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-              <Table2 className="h-4 w-4 text-[#2F6798]" /> Quarterly Analytics Breakdown
-            </h3>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="p-3">Period Title</th>
-                    <th className="p-3">Active HC</th>
-                    <th className="p-3 text-rose-600 dark:text-rose-400">Losses</th>
-                    <th className="p-3">Attrition Rate</th>
-                    <th className="p-3">Attendance Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {trendData.overall.quarters.map((d: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
-                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{d.period}</td>
-                      <td className="p-3 text-slate-700 dark:text-slate-300 font-semibold">{d.headcount}</td>
-                      <td className="p-3 font-bold text-rose-600 dark:text-rose-400">{d.losses}</td>
-                      <td className="p-3">
-                        <span className={d.attritionNum > 10 ? 'inline-flex justify-center rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800 px-2.5 py-0.5 text-[10px] font-bold' : 'inline-flex justify-center rounded-full bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20 dark:bg-[#2F6798]/20 dark:text-blue-300 dark:border-blue-800 px-2.5 py-0.5 text-[10px] font-bold'}>
-                          {d.attritionRate}
-                        </span>
-                      </td>
-                      <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{d.attendanceRate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {/* Tab Switcher: Full row above the graph */}
+              <div className="mt-4 mb-2 flex items-center justify-end">
+                <div className="inline-flex bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setOverallView('quarterly')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      overallView === 'quarterly'
+                        ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Quarterly Trajectory
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverallView('monthly')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      overallView === 'monthly'
+                        ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Monthly Trajectory
+                  </button>
+                </div>
+              </div>
+
+              {/* Overall Line Chart (Gold Line) */}
+              <div className="h-[240px] w-full mt-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart 
+                    data={currentTrendData} 
+                    margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" strokeOpacity={0.4} />
+                    <XAxis 
+                      dataKey="period" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} 
+                      dy={6}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                      tickFormatter={(val) => `${val}%`}
+                    />
+                    <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#475569', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
+                    <Line 
+                      type="monotone" 
+                      name={`Overall ${overallView === 'quarterly' ? 'Quarterly' : 'Monthly'}`} 
+                      dataKey="attritionNum" 
+                      stroke="#C8A54B" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
+                      activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                      animationDuration={800} 
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Collapsible Data Table Breakdown matching Analytics Page */}
+            <div className="border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <button
+                type="button"
+                onClick={() => setShowTableBreakdown(!showTableBreakdown)}
+                className="w-full px-5 py-3 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="uppercase tracking-wider">
+                  {showTableBreakdown ? 'Hide Data Table Breakdown' : 'Show Data Table Breakdown'}
+                </span>
+                {showTableBreakdown ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+
+              {showTableBreakdown && (
+                <div className="px-5 pb-5 overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="px-4 py-2.5">{overallView === 'quarterly' ? 'QUARTER PERIOD' : 'MONTH PERIOD'}</th>
+                        <th className="px-4 py-2.5 text-center">Active HC</th>
+                        <th className="px-4 py-2.5 text-center text-rose-600 dark:text-rose-400">Losses</th>
+                        <th className="px-4 py-2.5 text-center">Attrition Rate</th>
+                        <th className="px-4 py-2.5 text-center">Attendance Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800">
+                      {currentTrendData.map((row: any, idx: number) => {
+                        const attrNum = row.attritionNum ?? parseFloat(row.attritionRate) ?? 0;
+                        const isBadAttr = attrNum > 15;
+                        const isAttentionAttr = attrNum > 10 && attrNum <= 15;
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{row.period}</td>
+                            <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{row.activeHC || row.headcount}</td>
+                            <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-block px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                                isBadAttr 
+                                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
+                                  : isAttentionAttr 
+                                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
+                                  : 'text-slate-800 dark:text-slate-200'
+                              }`}>
+                                {typeof row.attritionRate === 'number' ? `${row.attritionRate.toFixed(1)}%` : row.attritionRate}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                              {row.attendanceRate}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -233,4 +364,4 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
       <TraineeDetailDrawer trainee={selectedTrainee} onClose={() => setSelectedTrainee(null)} />
     </div>
   );
-} 
+}

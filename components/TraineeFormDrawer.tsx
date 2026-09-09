@@ -224,7 +224,7 @@ export function TraineeFormDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        className="fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white border-l border-slate-200 shadow-2xl transition-transform duration-300 ease-out rounded-none"
+        className="fixed inset-y-0 right-0 z-[9999] flex w-full max-w-[480px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl transition-transform duration-300 ease-out rounded-none"
         style={{
           transform: open ? 'translateX(0)' : 'translateX(100%)'
         }}
@@ -248,11 +248,11 @@ export function TraineeFormDrawer({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 font-sans space-y-5">
+          <div className="flex-1 overflow-y-auto p-6 font-sans space-y-5 bg-white dark:bg-slate-900">
             {/* Full Name */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-[#2F6798]" /> Full Name <span className="text-red-500">*</span>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Full Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -261,8 +261,8 @@ export function TraineeFormDrawer({
                 placeholder="e.g. Juan Dela Cruz"
                 className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
                   errors.name
-                    ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
-                    : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                    ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-200'
+                    : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798] focus:bg-white dark:focus:bg-slate-900'
                 }`}
               />
               {errors.name && (
@@ -276,8 +276,8 @@ export function TraineeFormDrawer({
             {/* Training Track & Status */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                  <Briefcase className="w-3.5 h-3.5 text-[#2F6798]" /> Training Track
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Training Track
                 </label>
                 <CustomSelect
                   value={formData.trainingType}
@@ -290,8 +290,8 @@ export function TraineeFormDrawer({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Status
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Status
                 </label>
                 <CustomSelect
                   value={formData.status}
@@ -309,8 +309,8 @@ export function TraineeFormDrawer({
             {/* Batch / Wave & Client Account */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-[#2F6798]" /> Batch / Wave <span className="text-red-500">*</span>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Batch / Wave <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -319,8 +319,8 @@ export function TraineeFormDrawer({
                   placeholder={formData.trainingType === 'INHOUSE' ? 'e.g. General -1' : 'e.g. Wave 1'}
                   className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
                     errors.batchName
-                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-200'
+                      : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798] focus:bg-white dark:focus:bg-slate-900'
                   }`}
                 />
                 {errors.batchName && (
@@ -332,8 +332,8 @@ export function TraineeFormDrawer({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account <span className="text-red-500">*</span>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Client Account <span className="text-red-500">*</span>
                 </label>
                 <CustomSelect
                   value={formData.accountName}
@@ -353,8 +353,8 @@ export function TraineeFormDrawer({
 
             {/* Assigned Trainer */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-[#2F6798]" /> Assigned Trainer
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Assigned Trainer
               </label>
               <CustomSelect
                 value={formData.assignedTrainer}
@@ -366,12 +366,12 @@ export function TraineeFormDrawer({
           </div>
 
           {/* Footer Controls */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-end gap-3 shrink-0">
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

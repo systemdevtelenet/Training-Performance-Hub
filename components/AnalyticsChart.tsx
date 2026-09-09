@@ -17,30 +17,35 @@ export function AnalyticsChart({ title, data }: ChartProps) {
     );
   }
 
+  const displayTitle = title.toUpperCase().includes('ATTRITION % TREND')
+    ? title.toUpperCase()
+    : `${title.toUpperCase()} (ATTRITION % TREND)`;
+
   return (
     <div className="my-5 first:mt-3 last:mb-0">
-      <div className="flex justify-between items-center mb-4">
-        <Title className="text-xs uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider">
-          {title} (Attrition % Trend)
+      <div className="flex justify-between items-center mb-3">
+        <Title className="text-xs uppercase font-bold text-slate-700 dark:text-slate-200 tracking-wider">
+          {displayTitle}
         </Title>
       </div>
-      <div className="h-48 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-2xs">
+      <div className="h-48 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 p-3 shadow-2xs">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit="%" axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" strokeOpacity={0.25} />
+            <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(val: any) => [`${val}%`, 'Attrition Rate']}
-              contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', borderColor: '#e2e8f0' }}
+              contentStyle={{ backgroundColor: '#1e293b', color: '#f8fafc', borderRadius: '10px', borderColor: '#334155', fontSize: '12px', fontWeight: 'bold' }}
+              itemStyle={{ color: '#f8fafc' }}
             />
             <Line
               type="monotone"
               dataKey="attritionNum"
-              stroke="#C8A54B"
+              stroke="#EAB308"
               strokeWidth={2.5}
-              dot={{ r: 4, fill: '#C8A54B', strokeWidth: 2, stroke: '#ffffff' }}
-              activeDot={{ r: 6, fill: '#C8A54B' }}
+              dot={{ r: 4, fill: '#EAB308', strokeWidth: 2, stroke: '#ffffff' }}
+              activeDot={{ r: 6, fill: '#EAB308' }}
             />
           </LineChart>
         </ResponsiveContainer>

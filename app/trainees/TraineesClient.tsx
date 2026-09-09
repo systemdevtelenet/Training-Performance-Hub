@@ -447,21 +447,21 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   };
 
   return (
-    <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800">
+    <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800 dark:text-slate-200">
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => window.location.reload()}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" /> Refresh Data
+            <RefreshCw className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Refresh Data
           </button>
-          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors">
-            <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export Summary
+          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+            <Download className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Export Summary
           </button>
-          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors">
-            <Printer className="w-3.5 h-3.5 text-[#2F6798]" /> Print / PDF
+          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+            <Printer className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Print / PDF
           </button>
         </div>
 
@@ -488,12 +488,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             </button>
           )}
 
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner">
             <button
               onClick={() => setViewMode('cards')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'cards'
-                  ? 'bg-white text-[#2F6798] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-[#5a9fd4] shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" /> Department Breakdown
@@ -501,8 +501,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             <button
               onClick={() => setViewMode('table')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'table'
-                  ? 'bg-white text-[#2F6798] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-[#5a9fd4] shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
             >
               <TableIcon className="w-3.5 h-3.5" /> Trainees Table
@@ -514,58 +514,58 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       {/* TOP SUMMARY KPI BOXES - PROPERLY ARRANGED & RESPONSIVE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Box 1: Total Active Headcount */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">TOTAL HEADCOUNT</p>
-            <h4 className="text-2xl font-black text-slate-800 mt-0.5">{totalHC.toLocaleString()}</h4>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">TOTAL HEADCOUNT</p>
+            <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{totalHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#2F6798] shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 2: Inhouse Trainees */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">INHOUSE TRAINEES</p>
-            <h4 className="text-2xl font-black text-blue-600 mt-0.5">{inhouseHC.toLocaleString()}</h4>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">INHOUSE TRAINEES</p>
+            <h4 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{inhouseHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 ml-2">
             <GraduationCap className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 3: PST Trainees */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">PST TRAINEES</p>
-            <h4 className="text-2xl font-black text-emerald-600 mt-0.5">{pstHC.toLocaleString()}</h4>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">PST TRAINEES</p>
+            <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{pstHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2">
             <Layers className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 4: Active Accounts */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
-            <h4 className="text-2xl font-black text-amber-600 mt-0.5">{clientAccounts.length}</h4>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
+            <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{clientAccounts.length}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2">
             <Building2 className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 5: System Attrition */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">SYSTEM ATTRITION</p>
-            <h4 className={`text-2xl font-black mt-0.5 ${parseFloat(systemAttr) > 5 ? 'text-red-600' : 'text-emerald-600'}`}>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">SYSTEM ATTRITION</p>
+            <h4 className={`text-2xl font-black mt-0.5 ${parseFloat(systemAttr) > 5 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {systemAttr}
             </h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 ml-2">
             <TrendingDown className="w-5 h-5" />
           </div>
         </div>
@@ -658,7 +658,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   breakdownTab === 'all'
                     ? 'bg-[#2F6798] text-white shadow-sm'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                    : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" /> All Overview (3 Columns)
@@ -669,7 +669,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   breakdownTab === 'inhouse'
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                    : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span> Inhouse Training ({inhouseBatches.length})
@@ -680,7 +680,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   breakdownTab === 'pst'
                     ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                    : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span> PST Training ({pstBatches.length})
@@ -691,13 +691,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   breakdownTab === 'accounts'
                     ? 'bg-amber-600 text-white shadow-sm'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                    : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span> Client Accounts ({clientAccounts.length})
               </button>
             </div>
-            <div className="text-[11px] font-semibold text-slate-400 pr-2 hidden sm:block">
+            <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 pr-2 hidden sm:block">
               {breakdownTab === 'all' && 'Side-by-side department overview'}
               {breakdownTab === 'inhouse' && `Full grid view of ${inhouseBatches.length} Inhouse batches`}
               {breakdownTab === 'pst' && `Full grid view of ${pstBatches.length} PST waves`}
@@ -716,29 +716,29 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                   <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-200/90 dark:divide-slate-700/80">
 
                 {/* Column 1: INHOUSE TRAINING */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING
                     </h3>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                       DEPT 1
                     </span>
                   </div>
                   <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
                     {inhouseBatches.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching Inhouse batches</div>
+                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching Inhouse batches</div>
                     ) : (
                       inhouseBatches.map((item, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                         >
-                          <span className="text-xs font-bold text-[#2F6798] truncate" title={item.name}>{item.name}</span>
-                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                           </span>
                         </button>
                       ))
@@ -747,34 +747,34 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 </div>
 
                 {/* Column 2: PST TRAINING */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING
                     </h3>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                       DEPT 2
                     </span>
                   </div>
                   <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
                     {pstBatches.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching PST waves</div>
+                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
                     ) : (
                       pstBatches.map((item, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                         >
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <span className="text-xs font-bold text-slate-800 truncate" title={item.name}>{item.name}</span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
                               {item.trainer}
                             </span>
                           </div>
-                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                           </span>
                         </button>
                       ))
@@ -783,29 +783,29 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 </div>
 
                 {/* Column 3: CLIENT ACCOUNTS */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS
                     </h3>
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                       SUMMARY
                     </span>
                   </div>
                   <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
                     {clientAccounts.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400">No matching client accounts</div>
+                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching client accounts</div>
                     ) : (
                       clientAccounts.map((item, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 dark:hover:border-amber-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                         >
-                          <span className="text-xs font-bold text-slate-800 uppercase truncate" title={item.name}>{item.name}</span>
-                          <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                           </span>
                         </button>
                       ))
@@ -819,17 +819,17 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
           {/* TAB 2: INHOUSE FULL EXPANDED GRID VIEW */}
           {breakdownTab === 'inhouse' && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-sm space-y-4 w-full">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING BATCHES ({inhouseBatches.length})
                 </h3>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                   DEPT 1
                 </span>
               </div>
               {inhouseBatches.length === 0 ? (
-                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching Inhouse batches</div>
+                <div className="text-center py-12 text-xs font-medium text-slate-400 dark:text-slate-500">No matching Inhouse batches</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {inhouseBatches.map((item, idx) => (
@@ -837,11 +837,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <span className="text-xs font-bold text-[#2F6798] truncate" title={item.name}>{item.name}</span>
-                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                        HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                      <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                       </span>
                     </button>
                   ))}
@@ -852,17 +852,17 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
           {/* TAB 3: PST FULL EXPANDED GRID VIEW (NO INDIVIDUAL SCROLLING) */}
           {breakdownTab === 'pst' && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-sm space-y-4 w-full">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING WAVES ({pstBatches.length})
                 </h3>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                   DEPT 2
                 </span>
               </div>
               {pstBatches.length === 0 ? (
-                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching PST waves</div>
+                <div className="text-center py-12 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {pstBatches.map((item, idx) => (
@@ -870,16 +870,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <span className="text-xs font-bold text-slate-800 truncate" title={item.name}>{item.name}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
                           {item.trainer}
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                        HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                       </span>
                     </button>
                   ))}
@@ -890,17 +890,17 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
           {/* TAB 4: CLIENT ACCOUNTS FULL EXPANDED GRID VIEW */}
           {breakdownTab === 'accounts' && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-4 w-full">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-sm space-y-4 w-full">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS SUMMARY ({clientAccounts.length})
                 </h3>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                   SUMMARY
                 </span>
               </div>
               {clientAccounts.length === 0 ? (
-                <div className="text-center py-12 text-xs font-medium text-slate-400">No matching client accounts</div>
+                <div className="text-center py-12 text-xs font-medium text-slate-400 dark:text-slate-500">No matching client accounts</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {clientAccounts.map((item, idx) => (
@@ -908,11 +908,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       key={idx}
                       type="button"
                       onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 dark:hover:border-amber-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <span className="text-xs font-bold text-slate-800 uppercase truncate" title={item.name}>{item.name}</span>
-                      <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
-                        HC: <strong className="text-slate-800">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500' : 'text-blue-600'}>{item.attr}</strong>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                       </span>
                     </button>
                   ))}
@@ -925,15 +925,15 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       {/* VIEW MODE 2: ALL TRAINEES TABLE WITH PAGINATION & UNBOXED COLORED ACTION ICONS */}
       {viewMode === 'table' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <TableIcon className="w-4 h-4 text-[#2F6798]" />
-              <h3 className="text-xs font-black tracking-wider text-slate-800 uppercase font-mono">
+              <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
+              <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase font-mono">
                 ALL TRAINEES DIRECTORY ({filteredTrainees.length})
               </h3>
             </div>
-            <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500">
+            <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span>Rows per page:</span>
                 <select
@@ -942,7 +942,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
                 >
                   <option value={10}>10</option>
                   <option value={15}>15</option>
@@ -959,7 +959,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <th className="py-3 px-4">Trainee Name</th>
                   <th className="py-3 px-4">Track Type</th>
                   <th className="py-3 px-4">Batch / Wave</th>
@@ -970,10 +970,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {paginatedTrainees.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-10 text-slate-400 font-medium">
+                    <td colSpan={8} className="text-center py-10 text-slate-400 dark:text-slate-500 font-medium">
                       No trainees found matching your criteria.
                     </td>
                   </tr>
@@ -984,30 +984,30 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     return (
                       <tr
                         key={t.id}
-                        className="hover:bg-slate-50 transition-colors"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
                       >
-                        <td className="py-3 px-4 font-bold text-slate-800">
+                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
                           {t.name}
                         </td>
                         <td className="py-3 px-4">
                           {/* Circular Pill Shape for Track Type */}
                           <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border ${t.trainingType === 'INHOUSE'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                              : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                             }`}>
                             {t.trainingType || 'TRAINING'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-semibold text-[#2F6798]">
+                        <td className="py-3 px-4 font-semibold text-[#2F6798] dark:text-[#5a9fd4]">
                           {t.batchName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
                           {t.accountName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
                           {t.assignedTrainer || 'Unassigned'}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-700">
+                        <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
                           <span className="font-bold">{attRate}</span> ({t.p || 0}P / {t.a || 0}A)
                         </td>
                         <td className="py-3 px-4">
@@ -1041,7 +1041,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                                     });
                                   }}
                                   title="Edit Trainee"
-                                  className="text-[#2F6798] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                  className="text-[#2F6798] dark:text-[#5a9fd4] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
@@ -1066,16 +1066,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
           {/* TABLE PAGINATION CONTROLS */}
           {filteredTrainees.length > 0 && (
-            <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
-              <div className="text-xs font-medium text-slate-500">
-                Page <strong className="text-slate-800">{currentPage}</strong> of <strong className="text-slate-800">{totalPages}</strong>
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-4">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong>
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Previous
                 </button>
@@ -1094,7 +1094,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             onClick={() => setCurrentPage(p)}
                             className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${currentPage === p
                                 ? 'bg-[#2F6798] text-white shadow-sm'
-                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                               }`}
                           >
                             {p}
@@ -1107,7 +1107,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 <button
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                 >
                   Next <ChevronRight className="w-3.5 h-3.5" />
                 </button>

@@ -22,48 +22,155 @@ function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-// Default benchmark data matching user's official records
+// Default benchmark data matching user's official records with exact attendance tallies
 const defaultMonthlyInhouse = [
-  { period: 'January', activeHC: 22, losses: 4, attritionRate: 18.2, attendanceRate: 89.0 },
-  { period: 'February', activeHC: 17, losses: 0, attritionRate: 0.0, attendanceRate: 98.1 },
-  { period: 'March', activeHC: 2, losses: 1, attritionRate: 50.0, attendanceRate: 66.7 },
-  { period: 'April', activeHC: 3, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
-  { period: 'May', activeHC: 8, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
-  { period: 'June', activeHC: 9, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
-  { period: 'July', activeHC: 15, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
-  { period: 'August', activeHC: 3, losses: 1, attritionRate: 33.3, attendanceRate: 85.7 },
+  { period: 'January', activeHC: 22, losses: 4, attritionRate: 18.2, attendanceRate: 81.8, sumP: 18, sumA: 4 },
+  { period: 'February', activeHC: 17, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 15, sumA: 0 },
+  { period: 'March', activeHC: 2, losses: 1, attritionRate: 50.0, attendanceRate: 66.7, sumP: 2, sumA: 1 },
+  { period: 'April', activeHC: 3, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 12, sumA: 0 },
+  { period: 'May', activeHC: 8, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 7, sumA: 0 },
+  { period: 'June', activeHC: 9, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 18, sumA: 0 },
+  { period: 'July', activeHC: 15, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 30, sumA: 0 },
+  { period: 'August', activeHC: 3, losses: 1, attritionRate: 33.3, attendanceRate: 85.7, sumP: 6, sumA: 1 },
 ];
 
 const defaultMonthlyPst = [
-  { period: 'January', activeHC: 24, losses: 2, attritionRate: 8.3, attendanceRate: 98.4 },
-  { period: 'February', activeHC: 15, losses: 3, attritionRate: 20.0, attendanceRate: 98.1 },
-  { period: 'March', activeHC: 14, losses: 2, attritionRate: 14.3, attendanceRate: 96.7 },
-  { period: 'April', activeHC: 36, losses: 6, attritionRate: 16.7, attendanceRate: 97.5 },
-  { period: 'May', activeHC: 11, losses: 1, attritionRate: 9.1, attendanceRate: 97.7 },
-  { period: 'June', activeHC: 29, losses: 2, attritionRate: 6.9, attendanceRate: 98.5 },
-  { period: 'July', activeHC: 25, losses: 3, attritionRate: 12.0, attendanceRate: 97.3 },
-  { period: 'August', activeHC: 13, losses: 1, attritionRate: 7.7, attendanceRate: 97.0 },
+  { period: 'January', activeHC: 24, losses: 2, attritionRate: 8.3, attendanceRate: 94.2, sumP: 163, sumA: 10 },
+  { period: 'February', activeHC: 15, losses: 3, attritionRate: 20.0, attendanceRate: 96.7, sumP: 89, sumA: 3 },
+  { period: 'March', activeHC: 14, losses: 2, attritionRate: 14.3, attendanceRate: 85.3, sumP: 29, sumA: 5 },
+  { period: 'April', activeHC: 36, losses: 6, attritionRate: 16.7, attendanceRate: 97.2, sumP: 769, sumA: 22 },
+  { period: 'May', activeHC: 11, losses: 1, attritionRate: 9.1, attendanceRate: 94.6, sumP: 35, sumA: 2 },
+  { period: 'June', activeHC: 29, losses: 2, attritionRate: 6.9, attendanceRate: 98.5, sumP: 319, sumA: 5 },
+  { period: 'July', activeHC: 25, losses: 3, attritionRate: 12.0, attendanceRate: 96.7, sumP: 357, sumA: 12 },
+  { period: 'August', activeHC: 13, losses: 1, attritionRate: 7.7, attendanceRate: 93.0, sumP: 40, sumA: 3 },
 ];
 
 const defaultQuarterlyInhouse = [
-  { period: 'Q1', activeHC: 41, losses: 5, attritionRate: 12.2, attendanceRate: 92.0 },
-  { period: 'Q2', activeHC: 20, losses: 0, attritionRate: 0.0, attendanceRate: 100.0 },
-  { period: 'Q3', activeHC: 18, losses: 1, attritionRate: 5.6, attendanceRate: 98.1 },
+  { period: 'Q1', activeHC: 41, losses: 5, attritionRate: 12.2, attendanceRate: 92.0, sumP: 35, sumA: 5 },
+  { period: 'Q2', activeHC: 20, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 37, sumA: 0 },
+  { period: 'Q3', activeHC: 18, losses: 1, attritionRate: 5.6, attendanceRate: 97.3, sumP: 36, sumA: 1 },
 ];
 
 const defaultQuarterlyPst = [
-  { period: 'Q1', activeHC: 36, losses: 7, attritionRate: 19.4, attendanceRate: 97.0 },
-  { period: 'Q2', activeHC: 59, losses: 9, attritionRate: 15.3, attendanceRate: 97.6 },
-  { period: 'Q3', activeHC: 29, losses: 4, attritionRate: 13.8, attendanceRate: 97.0 },
+  { period: 'Q1', activeHC: 36, losses: 7, attritionRate: 19.4, attendanceRate: 93.4, sumP: 281, sumA: 18 },
+  { period: 'Q2', activeHC: 59, losses: 9, attritionRate: 15.3, attendanceRate: 97.5, sumP: 1123, sumA: 29 },
+  { period: 'Q3', activeHC: 29, losses: 4, attritionRate: 13.8, attendanceRate: 96.2, sumP: 383, sumA: 15 },
 ];
 
 const defaultQuarterlyOverall = [
-  { period: 'Q1', activeHC: 77, losses: 12, attritionRate: 15.6, attendanceRate: 95.7 },
-  { period: 'Q2', activeHC: 79, losses: 9, attritionRate: 11.4, attendanceRate: 97.7 },
-  { period: 'Q3', activeHC: 47, losses: 5, attritionRate: 10.6, attendanceRate: 97.1 },
+  { period: 'Q1', activeHC: 77, losses: 12, attritionRate: 15.6, attendanceRate: 93.2, sumP: 316, sumA: 23 },
+  { period: 'Q2', activeHC: 79, losses: 9, attritionRate: 11.4, attendanceRate: 97.6, sumP: 1160, sumA: 29 },
+  { period: 'Q3', activeHC: 47, losses: 5, attritionRate: 10.6, attendanceRate: 96.3, sumP: 419, sumA: 16 },
 ];
 
-export default function AnalyticsPage() {
+function computeTrendsFromData(data: any) {
+  if (!data?.inhouse?.groups && !data?.pst?.groups) return null;
+
+  const extract = (groups: any) => {
+    const list: any[] = [];
+    if (!groups) return list;
+    for (const acc in groups) {
+      for (const b in groups[acc]) {
+        (groups[acc][b].members || []).forEach((m: any) => {
+          list.push({
+            name: m.name,
+            month: m.month,
+            quarter: m.quarter,
+            status: m.status,
+            isLoss: m.isLoss,
+            p: m.p || 0,
+            a: m.a || 0,
+            account: m.accountName || acc,
+            batch: m.batchName || b
+          });
+        });
+      }
+    }
+    return list;
+  };
+
+  const allInhouse = extract(data.inhouse?.groups);
+  const allPst = extract(data.pst?.groups);
+
+  const months = [
+    { key: 'Jan', label: 'January' },
+    { key: 'Feb', label: 'February' },
+    { key: 'Mar', label: 'March' },
+    { key: 'Apr', label: 'April' },
+    { key: 'May', label: 'May' },
+    { key: 'Jun', label: 'June' },
+    { key: 'Jul', label: 'July' },
+    { key: 'Aug', label: 'August' }
+  ];
+
+  const inhouseMonthly = months.map(m => {
+    const inhouseM = allInhouse.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+    const activeHC = inhouseM.length;
+    const losses = inhouseM.filter(t => t.isLoss).length;
+    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
+    const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
+  });
+
+  const pstMonthly = months.map(m => {
+    const pstM = allPst.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+    const activeHC = pstM.length;
+    const losses = pstM.filter(t => t.isLoss).length;
+    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
+    const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
+  });
+
+  const quarters = [
+    { key: 'Q1', label: 'Q1' },
+    { key: 'Q2', label: 'Q2' },
+    { key: 'Q3', label: 'Q3' }
+  ];
+
+  const inhouseQuarterly = quarters.map(q => {
+    const inhouseQ = allInhouse.filter(t => (t.quarter || '').toUpperCase().includes(q.key));
+    const activeHC = inhouseQ.length;
+    const losses = inhouseQ.filter(t => t.isLoss).length;
+    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const sumP = inhouseQ.reduce((acc, t) => acc + (t.p || 0), 0);
+    const sumA = inhouseQ.reduce((acc, t) => acc + (t.a || 0), 0);
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    return { period: q.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
+  });
+
+  const pstQuarterly = quarters.map(q => {
+    const pstQ = allPst.filter(t => (t.quarter || '').toUpperCase().includes(q.key));
+    const activeHC = pstQ.length;
+    const losses = pstQ.filter(t => t.isLoss).length;
+    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const sumP = pstQ.reduce((acc, t) => acc + (t.p || 0), 0);
+    const sumA = pstQ.reduce((acc, t) => acc + (t.a || 0), 0);
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    return { period: q.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
+  });
+
+  const overallQuarterly = quarters.map((q, idx) => {
+    const inh = inhouseQuarterly[idx];
+    const pst = pstQuarterly[idx];
+    const totalHC = inh.activeHC + pst.activeHC;
+    const totalLoss = inh.losses + pst.losses;
+    const totalAttr = totalHC > 0 ? parseFloat(((totalLoss / totalHC) * 100).toFixed(1)) : 0;
+    const totalP = inh.sumP + pst.sumP;
+    const totalA = inh.sumA + pst.sumA;
+    const totalAttd = (totalP + totalA) > 0 ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) : 100.0;
+    return { period: q.label, activeHC: totalHC, losses: totalLoss, attritionRate: totalAttr, attendanceRate: totalAttd, sumP: totalP, sumA: totalA };
+  });
+
+  return { inhouseMonthly, pstMonthly, inhouseQuarterly, pstQuarterly, overallQuarterly };
+}
+
+export default function AnalyticsPage({ initialData }: { initialData?: any }) {
+  const initialComputed = useMemo(() => computeTrendsFromData(initialData), [initialData]);
+
   const [trajectoryView, setTrajectoryView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [overallView, setOverallView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [showInhouseTable, setShowInhouseTable] = useState<boolean>(false);
@@ -88,14 +195,16 @@ export default function AnalyticsPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(defaultMonthlyInhouse);
-  const [pstMonthlyData, setPstMonthlyData] = useState(defaultMonthlyPst);
-  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(defaultQuarterlyInhouse);
-  const [pstQuarterlyData, setPstQuarterlyData] = useState(defaultQuarterlyPst);
-  const [overallQuarterlyData, setOverallQuarterlyData] = useState(defaultQuarterlyOverall);
+  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(initialComputed?.inhouseMonthly || defaultMonthlyInhouse);
+  const [pstMonthlyData, setPstMonthlyData] = useState(initialComputed?.pstMonthly || defaultMonthlyPst);
+  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(initialComputed?.inhouseQuarterly || defaultQuarterlyInhouse);
+  const [pstQuarterlyData, setPstQuarterlyData] = useState(initialComputed?.pstQuarterly || defaultQuarterlyPst);
+  const [overallQuarterlyData, setOverallQuarterlyData] = useState(initialComputed?.overallQuarterly || defaultQuarterlyOverall);
 
-  // Load real Supabase database data on mount dynamically
+  // Load real Supabase database data on mount dynamically if not provided
   useEffect(() => {
+    if (initialComputed) return;
+
     async function loadData() {
       try {
         const { data: inhouseData } = await supabase.from('inhouse').select('*');
@@ -160,7 +269,7 @@ export default function AnalyticsPage() {
             const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
             const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
-            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : (defaultMonthlyInhouse.find(d => d.period === m.label)?.attendanceRate || 100.0);
+            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
             return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
           });
 
@@ -171,7 +280,7 @@ export default function AnalyticsPage() {
             const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
             const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
-            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : (defaultMonthlyPst.find(d => d.period === m.label)?.attendanceRate || 97.5);
+            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
             return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
           });
 
@@ -183,9 +292,9 @@ export default function AnalyticsPage() {
       }
     }
     loadData();
-  }, []);
+  }, [initialComputed]);
 
-  // Compute overall monthly data using exact weighted attendance formula
+  // Compute overall monthly data using exact weighted attendance formula (Total P / Total (P + A))
   const overallMonthlyData = useMemo(() => {
     return inhouseMonthlyData.map((inh, idx) => {
       const inhAny = inh as any;
@@ -198,7 +307,9 @@ export default function AnalyticsPage() {
       const totalA = (inhAny.sumA || 0) + (pstAny.sumA || 0);
       const totalAttd = (totalP + totalA) > 0 
         ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) 
-        : parseFloat(((inh.attendanceRate + pstAny.attendanceRate) / 2).toFixed(1));
+        : (totalHC > 0 
+            ? parseFloat((((inh.attendanceRate * inh.activeHC) + (pstAny.attendanceRate * pstAny.activeHC)) / totalHC).toFixed(1)) 
+            : 100.0);
 
       return {
         period: inh.period,
