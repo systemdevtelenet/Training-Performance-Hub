@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList, UserCog, UserMinus, FileText, AlertTriangle, ShieldCheck, Download, Loader2, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
-import { logActivity } from '@/lib/actions/logger';
+import { logActivity, getActivityLogs } from '@/lib/actions/logger';
 
 interface ActivityLog {
   id: string;
@@ -14,6 +14,42 @@ interface ActivityLog {
   author: string;
   created_at: string;
 }
+
+const parseLogItem = (row: any): ActivityLog => {
+  const title = row.title || 'System Event';
+  const desc = row.description || '';
+  let author = row.author || 'Authorized User';
+  let icon_type = row.icon_type || 'alert';
+
+  // Extract author if formatted as (by Name) or submitted by Name
+  if (!row.author) {
+    const byMatch = desc.match(/\(by ([^)]+)\)/i) || desc.match(/submitted by ([^,.]+)/i);
+    if (byMatch) {
+      author = byMatch[1].trim();
+    }
+  }
+
+  // Derive icon_type if not set
+  if (!row.icon_type) {
+    const tLower = title.toLowerCase();
+    const dLower = desc.toLowerCase();
+    if (tLower.includes('traffic') || dLower.includes('traffic')) icon_type = 'alert';
+    else if (tLower.includes('evaluation') || dLower.includes('evaluation')) icon_type = 'success';
+    else if (tLower.includes('attendance') || dLower.includes('attendance')) icon_type = 'trainer';
+    else if (tLower.includes('employee') || dLower.includes('employee')) icon_type = 'user';
+    else if (tLower.includes('export') || dLower.includes('export')) icon_type = 'export';
+    else icon_type = 'alert';
+  }
+
+  return {
+    id: String(row.notification_id || row.id || Math.random()),
+    title,
+    description: desc,
+    icon_type,
+    author,
+    created_at: row.created_at || new Date().toISOString()
+  };
+};
 
 const getIconProps = (type: string) => {
   switch (type) {
@@ -37,21 +73,39 @@ export default function HistoryPage() {
   
   const supabase = createClient();
 
-  useEffect(() => {
-    async function fetchLogs() {
-      const { data, error } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (data) {
-        setActivities(data);
-      } else if (error) {
-        console.error('Error fetching logs:', error);
+  const fetchLogs = async () => {
+    try {
+      const { data: notifData } = await getActivityLogs(100);
+
+      if (notifData && notifData.length > 0) {
+        setActivities(notifData.map(parseLogItem));
+      } else {
+        setActivities([]);
       }
+    } catch (e) {
+      console.error('Error fetching activity history:', e);
+    } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchLogs();
+
+    // Supabase Realtime subscription for live activity updates
+    const channel = supabase
+      .channel('history_realtime_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        fetchLogs();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
+        fetchLogs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleExport = async () => {
@@ -65,8 +119,7 @@ export default function HistoryPage() {
       author: 'Authorized User',
     });
     
-    const { data } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
-    if (data) setActivities(data);
+    await fetchLogs();
 
     setTimeout(() => {
       setExportComplete(true);
@@ -107,26 +160,26 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Activity Log</h1>
-          <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
-            A chronological timeline of system events, edits, and administrative actions.
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Activity Log</h1>
+          <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
+            A chronological timeline of system events, edits, and administrative actions (Latest 10 logs).
           </p>
         </div>
         <button 
           onClick={handleExport}
-          className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:outline-none shrink-0"
+          className="flex items-center gap-1.5 rounded-xl bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:outline-none shrink-0"
         >
-          <FileText className="h-4 w-4 text-[#2F6798]" />
-          Export Log
+          <FileText className="h-3.5 w-3.5 text-[#2F6798]" />
+          <span>Export Log</span>
         </button>
       </div>
 
       {/* Search & Category Filter Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
         {/* Category Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {categories.map((cat) => {
             const isSelected = selectedCategory === cat.id;
             return (
@@ -134,7 +187,7 @@ export default function HistoryPage() {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-[#2F6798] text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -147,28 +200,28 @@ export default function HistoryPage() {
         </div>
 
         {/* Search Input */}
-        <div className="relative min-w-[220px]">
+        <div className="relative min-w-[200px]">
           <input
             type="text"
             placeholder="Filter logs by name or action..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1 text-[11px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
           />
         </div>
       </div>
 
       {/* Timeline Section */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950 space-y-4 min-h-[400px]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950 space-y-2.5 min-h-[350px]">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-40 space-y-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[#2F6798]" />
-            <p className="text-sm text-slate-500 font-medium">Loading activity logs...</p>
+          <div className="flex flex-col items-center justify-center h-32 space-y-2">
+            <Loader2 className="w-6 h-6 animate-spin text-[#2F6798]" />
+            <p className="text-xs text-slate-500 font-medium">Loading activity logs...</p>
           </div>
         ) : filteredActivities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-slate-500">
-            <ClipboardList className="w-10 h-10 mb-2 opacity-50 text-[#2F6798]" />
-            <p className="text-sm font-medium">
+          <div className="flex flex-col items-center justify-center h-32 text-slate-500">
+            <ClipboardList className="w-8 h-8 mb-1.5 opacity-50 text-[#2F6798]" />
+            <p className="text-xs font-medium">
               {searchQuery || selectedCategory !== 'ALL'
                 ? 'No activity logs matching your filter.'
                 : 'No activity recorded yet. Edits and changes will appear here automatically.'}
@@ -178,31 +231,31 @@ export default function HistoryPage() {
           filteredActivities.map((activity) => {
             const { icon: Icon, bg } = getIconProps(activity.icon_type);
             return (
-              <div key={activity.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-colors dark:border-slate-800/60 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 dark:hover:border-slate-700/80">
+              <div key={activity.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-colors dark:border-slate-800/60 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 dark:hover:border-slate-700/80">
                 
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3">
                   {/* Icon */}
-                  <div className={`shrink-0 flex items-center justify-center w-10 h-10 rounded-full ${bg} shadow-sm`}>
-                    <Icon className="w-5 h-5" />
+                  <div className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-full ${bg} shadow-xs`}>
+                    <Icon className="w-4 h-4" />
                   </div>
                   
                   {/* Content */}
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  <div className="space-y-0.5">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
                       {activity.title}
                     </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-snug">
                       {activity.description}
                     </p>
                   </div>
                 </div>
                 
                 {/* Meta */}
-                <div className="shrink-0 flex flex-col sm:items-end text-sm pl-14 sm:pl-0">
-                  <span className="text-slate-500 font-medium dark:text-slate-400">
+                <div className="shrink-0 flex flex-col sm:items-end text-xs pl-11 sm:pl-0">
+                  <span className="text-[11px] text-slate-500 font-medium dark:text-slate-400">
                     {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
                   </span>
-                  <span className="text-slate-400 text-xs mt-0.5 flex items-center gap-1 dark:text-slate-500">
+                  <span className="text-slate-400 text-[10px] mt-0.5 flex items-center gap-1 dark:text-slate-500">
                     By <span className="font-semibold text-slate-600 dark:text-slate-300">{activity.author}</span>
                   </span>
                 </div>

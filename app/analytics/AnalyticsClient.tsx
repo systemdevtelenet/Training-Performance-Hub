@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 import { supabase } from '@/lib/supabase';
+import { matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -104,9 +105,9 @@ function computeTrendsFromData(data: any) {
   ];
 
   const inhouseMonthly = months.map(m => {
-    const inhouseM = allInhouse.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+    const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
     const activeHC = inhouseM.length;
-    const losses = inhouseM.filter(t => t.isLoss).length;
+    const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
     const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
     const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
@@ -115,9 +116,9 @@ function computeTrendsFromData(data: any) {
   });
 
   const pstMonthly = months.map(m => {
-    const pstM = allPst.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+    const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
     const activeHC = pstM.length;
-    const losses = pstM.filter(t => t.isLoss).length;
+    const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
     const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
     const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
@@ -132,9 +133,9 @@ function computeTrendsFromData(data: any) {
   ];
 
   const inhouseQuarterly = quarters.map(q => {
-    const inhouseQ = allInhouse.filter(t => (t.quarter || '').toUpperCase().includes(q.key));
+    const inhouseQ = allInhouse.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
     const activeHC = inhouseQ.length;
-    const losses = inhouseQ.filter(t => t.isLoss).length;
+    const losses = inhouseQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
     const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
     const sumP = inhouseQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseQ.reduce((acc, t) => acc + (t.a || 0), 0);
@@ -143,9 +144,9 @@ function computeTrendsFromData(data: any) {
   });
 
   const pstQuarterly = quarters.map(q => {
-    const pstQ = allPst.filter(t => (t.quarter || '').toUpperCase().includes(q.key));
+    const pstQ = allPst.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
     const activeHC = pstQ.length;
-    const losses = pstQ.filter(t => t.isLoss).length;
+    const losses = pstQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
     const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
     const sumP = pstQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstQ.reduce((acc, t) => acc + (t.a || 0), 0);
@@ -263,9 +264,9 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           ];
 
           const computedInhouseMonthly = months.map(m => {
-            const inhouseM = allInhouse.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+            const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
             const activeHC = inhouseM.length;
-            const losses = inhouseM.filter(t => t.isLoss).length;
+            const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
             const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
             const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
@@ -274,9 +275,9 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           });
 
           const computedPstMonthly = months.map(m => {
-            const pstM = allPst.filter(t => (t.month || '').toLowerCase().includes(m.key.toLowerCase()));
+            const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
             const activeHC = pstM.length;
-            const losses = pstM.filter(t => t.isLoss).length;
+            const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
             const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
             const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);

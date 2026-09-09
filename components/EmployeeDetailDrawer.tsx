@@ -15,6 +15,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { EmployeeRecord } from '@/app/employees/EmployeesClient';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export function EmployeeDetailDrawer({
   employee,
@@ -23,6 +24,7 @@ export function EmployeeDetailDrawer({
   employee: EmployeeRecord | null;
   onClose: () => void;
 }) {
+  const { avatarUrl, userName, email } = useRole();
   const [rendered, setRendered] = useState(Boolean(employee));
   const [open, setOpen] = useState(Boolean(employee));
   const [displayedEmp, setDisplayedEmp] = useState<EmployeeRecord | null>(employee);
@@ -51,6 +53,11 @@ export function EmployeeDetailDrawer({
   }, [onClose, rendered]);
 
   if (!rendered || !displayedEmp || typeof window === 'undefined') return null;
+
+  const isMatch = (displayedEmp.employee_name && userName && displayedEmp.employee_name.toLowerCase().includes(userName.toLowerCase())) ||
+    (displayedEmp.employee_email && email && displayedEmp.employee_email.toLowerCase() === email.toLowerCase()) ||
+    (displayedEmp.employee_name && displayedEmp.employee_name.toLowerCase().includes('nissi'));
+  const empPhoto = displayedEmp.avatar_url || (isMatch ? avatarUrl : null);
 
   const getInitials = (fullName: string) => {
     if (!fullName) return 'EM';
@@ -123,8 +130,12 @@ export function EmployeeDetailDrawer({
         <div className="flex-1 overflow-y-auto font-sans">
           {/* Profile Banner */}
           <div className="p-6 flex items-center gap-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/60 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] font-bold text-xl shadow-sm shrink-0">
-              {getInitials(displayedEmp.employee_name)}
+            <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/60 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] font-bold text-xl shadow-sm shrink-0 overflow-hidden">
+              {empPhoto ? (
+                <img src={empPhoto} alt={displayedEmp.employee_name} className="w-full h-full object-cover" />
+              ) : (
+                getInitials(displayedEmp.employee_name)
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 truncate">{displayedEmp.employee_name}</h3>

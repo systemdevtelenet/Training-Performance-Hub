@@ -5,6 +5,7 @@ import { Bell, AlertTriangle, Calendar, UserCheck, UserMinus, ShieldCheck, UserC
 import { createClient } from '@/utils/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { getActivityLogs } from '@/lib/actions/logger';
 
 interface NotificationItem {
   id: string;
@@ -35,24 +36,53 @@ export default function NotificationDropdown() {
   const router = useRouter();
   const supabase = createClient();
 
+  const parseNotifItem = (row: any): NotificationItem => {
+    const title = row.title || 'Notification';
+    const desc = row.description || '';
+    let author = row.author || 'System';
+    let icon_type = row.icon_type || 'alert';
+
+    if (!row.author) {
+      const byMatch = desc.match(/\(by ([^)]+)\)/i) || desc.match(/submitted by ([^,.]+)/i);
+      if (byMatch) author = byMatch[1].trim();
+    }
+
+    if (!row.icon_type) {
+      const tLower = title.toLowerCase();
+      const dLower = desc.toLowerCase();
+      if (tLower.includes('traffic') || dLower.includes('traffic')) icon_type = 'alert';
+      else if (tLower.includes('evaluation') || dLower.includes('evaluation')) icon_type = 'success';
+      else if (tLower.includes('attendance') || dLower.includes('attendance')) icon_type = 'trainer';
+      else if (tLower.includes('employee') || dLower.includes('employee')) icon_type = 'user';
+      else icon_type = 'alert';
+    }
+
+    return {
+      id: String(row.notification_id || row.id || Math.random()),
+      title,
+      description: desc,
+      icon_type,
+      author,
+      created_at: row.created_at || new Date().toISOString()
+    };
+  };
+
   const fetchNotifications = async () => {
     try {
-      const { data, error } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const { data: notifData } = await getActivityLogs(15);
 
-      if (data) {
-        setNotifications(data);
-        const lastReadTimestamp = localStorage.getItem('notifications_read_at');
-        if (!lastReadTimestamp) {
-          setUnreadCount(data.length);
-        } else {
-          const readTime = new Date(lastReadTimestamp).getTime();
-          const unread = data.filter(item => new Date(item.created_at).getTime() > readTime).length;
-          setUnreadCount(unread);
-        }
+      const items = notifData && notifData.length > 0
+        ? notifData.map(parseNotifItem)
+        : [];
+
+      setNotifications(items);
+      const lastReadTimestamp = localStorage.getItem('notifications_read_at');
+      if (!lastReadTimestamp) {
+        setUnreadCount(items.length);
+      } else {
+        const readTime = new Date(lastReadTimestamp).getTime();
+        const unread = items.filter(item => new Date(item.created_at).getTime() > readTime).length;
+        setUnreadCount(unread);
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -64,11 +94,24 @@ export default function NotificationDropdown() {
   useEffect(() => {
     fetchNotifications();
 
+    const channel = supabase
+      .channel('notifications_realtime_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        fetchNotifications();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
+        fetchNotifications();
+      })
+      .subscribe();
+
     const interval = setInterval(() => {
       fetchNotifications();
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Close dropdown when clicking outside

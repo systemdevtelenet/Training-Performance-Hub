@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Loader2,
   Search,
@@ -32,16 +33,25 @@ import {
   BookOpen,
   AlertOctagon,
   HeartPulse,
-  LogOut
+  LogOut,
+  Edit2,
+  Plus,
+  Filter,
+  Sparkles,
+  Maximize2,
+  ExternalLink
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import {
   getTrafficLightData,
   updateTrafficLightCell,
   getTrafficLightRemarks,
-  saveTrafficLightRemark,
-  deleteTrafficLightRemark
+  addTrafficLightRemark,
+  updateTrafficLightRemark,
+  deleteTrafficLightRemarkItem,
+  type TrafficLightRemarkItem
 } from '@/lib/actions/traffic-lights';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export const STATUS_OPTIONS = [
@@ -51,6 +61,15 @@ export const STATUS_OPTIONS = [
   { value: 'Terminated', label: 'Terminated', icon: XCircle, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
   { value: 'Resigned', label: 'Resigned', icon: UserMinus, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
   { value: 'Account Removed', label: 'Account Removed', icon: UserX, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
+];
+
+export const QUICK_REASON_TAGS = [
+  { label: 'Resignation', text: 'Resignation: Submitted formal resignation notice.', icon: LogOut },
+  { label: 'Attendance', text: 'Attendance Issue: Multiple unexcused absences or NCNS recorded.', icon: UserMinus },
+  { label: 'Coaching', text: 'Coaching Note: 1-on-1 performance review / action plan initiated.', icon: BookOpen },
+  { label: 'Medical / LOA', text: 'Medical / LOA: Approved leave of absence with medical documentation.', icon: HeartPulse },
+  { label: 'Performance', text: 'Performance Flag: Low score in weekly assessment / remediation needed.', icon: AlertOctagon },
+  { label: 'Commendation', text: 'Commendation: Exceeded performance metrics and milestones.', icon: Award },
 ];
 
 export const getStatusConfig = (val: string) => {
@@ -78,6 +97,7 @@ function StatusSelect({
   disabled,
   isPending,
   remark,
+  remarksList,
   onOpenRemarks
 }: {
   value: string;
@@ -85,10 +105,14 @@ function StatusSelect({
   disabled?: boolean;
   isPending?: boolean;
   remark?: string;
+  remarksList?: TrafficLightRemarkItem[];
   onOpenRemarks?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const noteBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -99,6 +123,41 @@ function StatusSelect({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const noteCount = remarksList?.length || (remark ? 1 : 0);
+  const latestRemark = remarksList && remarksList.length > 0 
+    ? remarksList[remarksList.length - 1].remarks 
+    : (remark || '');
+
+  const handleMouseEnter = () => {
+    if (noteCount === 0 || !noteBtnRef.current) return;
+    const rect = noteBtnRef.current.getBoundingClientRect();
+    const tooltipWidth = 256;
+    let left = rect.right - tooltipWidth;
+    if (left < 16) left = 16;
+    if (left + tooltipWidth > window.innerWidth - 16) {
+      left = window.innerWidth - tooltipWidth - 16;
+    }
+
+    if (rect.top < 120) {
+      // Near top of screen: render below
+      setTooltipPos({
+        top: rect.bottom + 8,
+        left
+      });
+    } else {
+      // Render above
+      setTooltipPos({
+        bottom: window.innerHeight - rect.top + 8,
+        left
+      });
+    }
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
 
   const currentConfig = getStatusConfig(value);
   const CurrentIcon = currentConfig.icon;
@@ -122,42 +181,103 @@ function StatusSelect({
         />
       </button>
 
-      {/* Remarks Note Trigger Button */}
+      {/* Remarks Note Trigger Button with Multi-Remark Badge */}
       {onOpenRemarks && (
         <div className="relative">
           <button
+            ref={noteBtnRef}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setShowTooltip(false);
               onOpenRemarks();
             }}
-            title={remark ? `Remark: "${remark}"` : 'Add note/remark for this status'}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             className={cn(
-              "p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0",
-              remark
-                ? "bg-[#C8A54B]/20 text-[#8e6e22] dark:bg-[#C8A54B]/30 dark:text-[#f3d994] border border-[#C8A54B]/50 shadow-2xs hover:bg-[#C8A54B]/30"
+              "p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 relative",
+              noteCount > 0
+                ? "bg-[#C8A54B]/20 text-[#8e6e22] dark:bg-[#C8A54B]/30 dark:text-[#f3d994] border border-[#C8A54B]/50 shadow-2xs hover:bg-[#C8A54B]/35"
                 : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 opacity-0 group-hover/cell:opacity-100"
             )}
           >
-            {remark ? (
-              <MessageSquare className="w-3.5 h-3.5 fill-[#C8A54B]/30 text-[#8e6e22] dark:text-[#f3d994]" />
+            {noteCount > 0 ? (
+              <div className="relative flex items-center justify-center">
+                <MessageSquare className="w-3.5 h-3.5 fill-[#C8A54B]/30 text-[#8e6e22] dark:text-[#f3d994]" />
+                {noteCount > 1 && (
+                  <span className="absolute -top-2 -right-2.5 px-1 min-w-3.5 h-3.5 bg-[#C8A54B] text-white text-[8px] font-black rounded-full flex items-center justify-center shadow-xs leading-none ring-1 ring-white dark:ring-slate-900">
+                    {noteCount}
+                  </span>
+                )}
+              </div>
             ) : (
               <MessageSquarePlus className="w-3.5 h-3.5" />
             )}
           </button>
 
-          {/* Hover Tooltip for existing remarks */}
-          {remark && (
-            <div className="absolute bottom-full right-0 mb-2 hidden group-hover/cell:flex flex-col z-50 w-52 p-2.5 bg-slate-900/95 text-white text-[11px] rounded-xl shadow-2xl backdrop-blur-xs border border-slate-700 pointer-events-none animate-in fade-in zoom-in-95">
-              <div className="flex items-center gap-1 text-[10px] font-bold text-[#C8A54B] uppercase tracking-wider mb-1">
-                <MessageSquare className="w-3 h-3 text-[#C8A54B]" />
-                <span>Remarks / Notes</span>
+          {/* Solid Light-Gold Hover Tooltip rendered in Portal */}
+          {noteCount > 0 && showTooltip && tooltipPos && typeof document !== 'undefined' && createPortal(
+            <div
+              style={{
+                position: 'fixed',
+                top: tooltipPos.top,
+                bottom: tooltipPos.bottom,
+                left: tooltipPos.left,
+              }}
+              className="z-[9999] w-72 p-3.5 bg-[#FEF9E7] dark:bg-[#241C0E] text-amber-950 dark:text-amber-100 text-[11px] rounded-2xl shadow-2xl shadow-black/25 border border-[#C8A54B] dark:border-[#C8A54B] pointer-events-none animate-in fade-in zoom-in-95 duration-100 space-y-2"
+            >
+              <div className="flex items-center justify-between pb-1 border-b border-[#C8A54B]/30">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#8e6e22] dark:text-[#f3d994] uppercase tracking-wider">
+                  <MessageSquare className="w-3.5 h-3.5 text-[#8e6e22] dark:text-[#f3d994]" />
+                  <span>{noteCount > 1 ? `Remarks (${noteCount} Notes)` : 'Remark / Note'}</span>
+                </div>
+                {noteCount > 1 && (
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#C8A54B] text-white shadow-2xs">
+                    {noteCount} Total
+                  </span>
+                )}
               </div>
-              <p className="line-clamp-3 text-slate-200 leading-snug font-normal">
-                {remark}
-              </p>
-              <span className="text-[9px] text-slate-400 mt-1">Click to edit or view full note</span>
-            </div>
+
+              {/* Latest Note preview */}
+              <div className="space-y-1">
+                {noteCount > 1 && (
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-[#8e6e22] dark:text-[#f3d994] block">
+                    Latest Note (#{noteCount}):
+                  </span>
+                )}
+                <p className="line-clamp-3 text-amber-950 dark:text-amber-100 leading-snug font-medium bg-amber-500/10 dark:bg-amber-500/20 p-2 rounded-xl border border-[#C8A54B]/30">
+                  {latestRemark}
+                </p>
+              </div>
+
+              {/* If there are more notes, show previous snippets */}
+              {noteCount > 1 && remarksList && remarksList.length > 1 && (
+                <div className="space-y-1 pt-0.5">
+                  <span className="text-[9px] text-[#8e6e22]/90 dark:text-[#f3d994]/90 font-bold block">
+                    Recent Timeline:
+                  </span>
+                  <div className="space-y-0.5">
+                    {remarksList.slice(-3, -1).reverse().map((prevNote, idx) => (
+                      <div key={prevNote.metric_id || idx} className="text-[10px] text-amber-900/80 dark:text-amber-200/80 truncate flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#C8A54B] shrink-0" />
+                        <span className="truncate">{prevNote.remarks}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {noteCount > 3 && (
+                    <span className="text-[9px] text-[#8e6e22]/80 dark:text-[#f3d994]/80 italic block">
+                      +{noteCount - 3} older note{noteCount - 3 > 1 ? 's' : ''} in timeline
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-1.5 border-t border-[#C8A54B]/30 flex items-center justify-between text-[9px] text-[#8e6e22] dark:text-[#f3d994] font-semibold">
+                <span>Click icon to open full history</span>
+                <span className="underline">View all {noteCount} &rarr;</span>
+              </div>
+            </div>,
+            document.body
           )}
         </div>
       )}
@@ -197,8 +317,8 @@ function StatusSelect({
                 }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl text-[#2F6798] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all text-left"
               >
-                {remark ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquarePlus className="w-3.5 h-3.5" />}
-                <span>{remark ? 'Edit Remarks' : 'Add Remarks'}</span>
+                {noteCount > 0 ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquarePlus className="w-3.5 h-3.5" />}
+                <span>{noteCount > 0 ? `View Remarks (${noteCount})` : 'Add Remarks'}</span>
               </button>
             </>
           )}
@@ -239,19 +359,28 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [searchQuery, setSearchQuery] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | null>(null);
 
-  // Remarks / Notes State
-  const [remarksMap, setRemarksMap] = useState<Record<string, { metric_id: number; remarks: string; traffic_status?: string }>>({});
+  // Remarks / Notes State (Multi-Remarks Timeline)
+  const [remarksMap, setRemarksMap] = useState<Record<string, TrafficLightRemarkItem[]>>({});
   const [filterWithRemarksOnly, setFilterWithRemarksOnly] = useState(false);
   const [activeRemarkModal, setActiveRemarkModal] = useState<{
     staffName: string;
     teamName: string;
     columnKey: string;
     currentStatus: string;
-    remarks: string;
     rowIndex: number;
   } | null>(null);
-  const [remarkDraft, setRemarkDraft] = useState('');
-  const [isSavingRemark, setIsSavingRemark] = useState(false);
+
+  const [newRemarkDraft, setNewRemarkDraft] = useState('');
+  const [editingRemarkId, setEditingRemarkId] = useState<number | null>(null);
+  const [editingDraft, setEditingDraft] = useState('');
+  const [isPostingRemark, setIsPostingRemark] = useState(false);
+  const [isDeletingRemarkId, setIsDeletingRemarkId] = useState<number | null>(null);
+  const [confirmDeleteRemarkId, setConfirmDeleteRemarkId] = useState<number | null>(null);
+  const [drawerSearchQuery, setDrawerSearchQuery] = useState('');
+  const [drawerSortOrder, setDrawerSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [drawerTagFilter, setDrawerTagFilter] = useState('ALL');
+  const [isFullHistoryModalOpen, setIsFullHistoryModalOpen] = useState(false);
+  const [showAllInDrawer, setShowAllInDrawer] = useState(false);
 
   // UX ENHANCEMENT CONTROLS: WEEK WINDOW & SORT ORDER
   const [weekWindow, setWeekWindow] = useState<'last4' | 'last8' | 'all'>('last4');
@@ -271,7 +400,21 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // Track pending status edits before saving
   const [pendingEdits, setPendingEdits] = useState<Record<string, { rowIndex: number; colKey: string; newValue: string }>>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [toast, setToast] = useState<{ title: string; description: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const quarters = [
     { id: 'q1', name: 'Q1 2026' },
@@ -345,6 +488,24 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   useEffect(() => {
     fetchTableData();
+
+    // Supabase Realtime subscription to reflect remarks to everyone instantly
+    const channel = supabase
+      .channel(`traffic_light_realtime_${account}_${quarter}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'traffic_light_metrics' },
+        () => {
+          getTrafficLightRemarks(account, quarter).then(res => {
+            if (res.data) setRemarksMap(res.data);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [account, quarter]);
 
   // Dynamically compute active displayed columns based on weekWindow & sortOrder
@@ -424,96 +585,165 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     currentStatus: string,
     rowIndex: number
   ) => {
-    const key = `${staffName}::${columnKey}`;
-    const existing = remarksMap[key]?.remarks || '';
-    setRemarkDraft(existing);
+    setNewRemarkDraft('');
+    setEditingRemarkId(null);
+    setEditingDraft('');
+    setDrawerSearchQuery('');
+    setDrawerTagFilter('ALL');
+    setDrawerSortOrder('newest');
+    setIsFullHistoryModalOpen(false);
+    setShowAllInDrawer(false);
     setActiveRemarkModal({
       staffName,
       teamName,
       columnKey,
       currentStatus,
-      remarks: existing,
       rowIndex
     });
   };
 
-  // Save Remark to Supabase
-  const handleSaveRemark = async () => {
-    if (!activeRemarkModal) return;
-    setIsSavingRemark(true);
+  // Add a new Remark to Supabase
+  const handleAddRemark = async () => {
+    if (!activeRemarkModal || !newRemarkDraft.trim()) return;
+    setIsPostingRemark(true);
 
     const { staffName, columnKey, currentStatus } = activeRemarkModal;
-    const res = await saveTrafficLightRemark({
+    const authorName = email || 'Authorized Manager';
+
+    const res = await addTrafficLightRemark({
       account,
       quarter,
       staffName,
       columnKey,
       status: currentStatus,
-      remarks: remarkDraft
+      remarks: newRemarkDraft.trim(),
+      author: authorName
     });
 
-    setIsSavingRemark(false);
+    setIsPostingRemark(false);
 
-    if (res.success) {
+    if (res.success && res.item) {
       const key = `${staffName}::${columnKey}`;
       setRemarksMap(prev => {
-        const updated = { ...prev };
-        if (remarkDraft.trim()) {
-          updated[key] = {
-            metric_id: res.metric_id || 0,
-            remarks: remarkDraft.trim(),
-            traffic_status: currentStatus
-          };
-        } else {
-          delete updated[key];
-        }
-        return updated;
+        const existingList = prev[key] || [];
+        return {
+          ...prev,
+          [key]: [
+            ...existingList,
+            {
+              metric_id: res.item.metric_id,
+              remarks: newRemarkDraft.trim(),
+              traffic_status: currentStatus,
+              staffName,
+              columnKey,
+              source_table: res.item.source_table
+            }
+          ]
+        };
       });
 
+      setNewRemarkDraft('');
       setToast({
-        title: 'Remarks Saved',
-        description: `Updated note for ${staffName} on ${columnKey}.`,
+        title: 'Remark Added',
+        description: `New note added for ${staffName} on ${columnKey}.`,
         type: 'success'
       });
-      setActiveRemarkModal(null);
     } else {
       setToast({
-        title: 'Failed to Save Remark',
+        title: 'Failed to Add Remark',
         description: res.error || 'Server error occurred while saving note.',
         type: 'error'
       });
     }
   };
 
-  // Delete Remark from Supabase
-  const handleDeleteRemark = async () => {
-    if (!activeRemarkModal) return;
-    setIsSavingRemark(true);
+  // Update an existing Remark item
+  const handleUpdateRemark = async (metric_id: number) => {
+    if (!activeRemarkModal || !editingDraft.trim()) return;
+    setIsPostingRemark(true);
 
     const { staffName, columnKey } = activeRemarkModal;
-    const res = await deleteTrafficLightRemark({
+    const authorName = email || 'Authorized Manager';
+
+    const res = await updateTrafficLightRemark({
+      metric_id,
+      remarks: editingDraft.trim(),
+      staffName,
+      columnKey,
       account,
       quarter,
-      staffName,
-      columnKey
+      author: authorName
     });
 
-    setIsSavingRemark(false);
+    setIsPostingRemark(false);
 
     if (res.success) {
       const key = `${staffName}::${columnKey}`;
       setRemarksMap(prev => {
-        const updated = { ...prev };
-        delete updated[key];
-        return updated;
+        const existingList = prev[key] || [];
+        return {
+          ...prev,
+          [key]: existingList.map(item =>
+            item.metric_id === metric_id ? { ...item, remarks: editingDraft.trim() } : item
+          )
+        };
+      });
+
+      setEditingRemarkId(null);
+      setEditingDraft('');
+      setToast({
+        title: 'Remark Updated',
+        description: `Note updated successfully.`,
+        type: 'success'
+      });
+    } else {
+      setToast({
+        title: 'Failed to Update Remark',
+        description: res.error || 'Server error.',
+        type: 'error'
+      });
+    }
+  };
+
+  // Delete a specific Remark item from Supabase
+  const handleDeleteRemarkItem = async (metric_id: number) => {
+    if (!activeRemarkModal) return;
+    setIsDeletingRemarkId(metric_id);
+
+    const { staffName, columnKey } = activeRemarkModal;
+    const authorName = email || 'Authorized Manager';
+
+    const res = await deleteTrafficLightRemarkItem({
+      metric_id,
+      staffName,
+      columnKey,
+      account,
+      quarter,
+      author: authorName
+    });
+
+    setIsDeletingRemarkId(null);
+    setConfirmDeleteRemarkId(null);
+
+    if (res.success) {
+      const key = `${staffName}::${columnKey}`;
+      setRemarksMap(prev => {
+        const existingList = prev[key] || [];
+        const updatedList = existingList.filter(item => item.metric_id !== metric_id);
+        const updatedMap = { ...prev };
+        if (updatedList.length > 0) {
+          updatedMap[key] = updatedList;
+        } else {
+          delete updatedMap[key];
+        }
+        return updatedMap;
       });
 
       setToast({
         title: 'Remark Deleted',
-        description: `Removed note for ${staffName} on ${columnKey}.`,
+        description: `Removed note from history.`,
         type: 'info'
       });
-      setActiveRemarkModal(null);
     } else {
       setToast({
         title: 'Failed to Delete Remark',
@@ -603,9 +833,9 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     return { employeeCount, greenCount, amberCount, redCount };
   }, [data, allDateColumns, nameColumnKey]);
 
-  // Total remarks count
+  // Total remarks count across all trainees & cells
   const totalRemarksCount = useMemo(() => {
-    return Object.keys(remarksMap).length;
+    return Object.values(remarksMap).reduce((sum, list) => sum + (list?.length || 0), 0);
   }, [remarksMap]);
 
   // Filter Data by search, selected team, and optional remarks filter
@@ -639,7 +869,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       if (filterWithRemarksOnly) {
         const hasAnyRemark = displayedDateColumns.some(col => {
           const key = `${nameVal}::${col}`;
-          return !!remarksMap[key]?.remarks;
+          return (remarksMap[key]?.length || 0) > 0;
         });
         if (!hasAnyRemark) return false;
       }
@@ -663,10 +893,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   return (
     <div className="space-y-4 w-full max-w-full px-0 pb-12 font-sans">
-      {/* Top-Right Success Toast Notification */}
-      {toast && (
+      {/* Top-Right Success Toast Notification rendered in Portal to be in front of all drawers/modals */}
+      {toast && mounted && createPortal(
         <div
-          className={`fixed top-6 right-6 z-[100] flex items-start gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 px-4 py-3 rounded-xl shadow-2xl transition-all animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm ${
+          className={`fixed top-6 right-6 z-[10005] flex flex-col bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-2xl shadow-2xl transition-all animate-in slide-in-from-top-5 duration-200 min-w-[320px] max-w-sm overflow-hidden ${
             toast.type === 'success'
               ? 'border-l-4 border-l-emerald-500'
               : toast.type === 'info'
@@ -674,26 +904,46 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               : 'border-l-4 border-l-rose-500'
           }`}
         >
-          <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${
-              toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'info' ? 'bg-[#2F6798]' : 'bg-rose-500'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 text-white" />
+          <div className="flex items-start gap-3 p-4">
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${
+                toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'info' ? 'bg-[#2F6798]' : 'bg-rose-500'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0 pr-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">{toast.title}</h4>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                {toast.description}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex-1 min-w-0 pr-2">
-            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">{toast.title}</h4>
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              {toast.description}
-            </p>
+
+          {/* Animated Countdown Progress Bar */}
+          <div className="h-1 w-full bg-slate-100 dark:bg-slate-700/60 overflow-hidden">
+            <div
+              className={`h-full ${
+                toast.type === 'success'
+                  ? 'bg-emerald-500'
+                  : toast.type === 'info'
+                  ? 'bg-[#2F6798]'
+                  : 'bg-rose-500'
+              }`}
+              style={{
+                animation: 'toastCountdown 4.5s linear forwards',
+                width: '100%'
+              }}
+            />
           </div>
-          <button
-            onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Header Banner */}
@@ -1144,7 +1394,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                           const isPending = pendingEdits[`${rowIndex}_${col}`];
                           const isLatest = col === latestDateColumn;
                           const remarkKey = `${nameVal}::${col}`;
-                          const existingRemark = remarksMap[remarkKey]?.remarks;
+                          const cellRemarksList = remarksMap[remarkKey] || [];
+                          const existingRemark = cellRemarksList[cellRemarksList.length - 1]?.remarks;
 
                           return (
                             <td
@@ -1159,6 +1410,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                                 disabled={!canEdit}
                                 isPending={!!isPending}
                                 remark={existingRemark}
+                                remarksList={cellRemarksList}
                                 onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', rowIndex)}
                               />
                             </td>
@@ -1175,165 +1427,752 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       </div>
 
-      {/* SIDE-RIGHT DRAWER / MODAL FOR STATUS REMARKS & NOTES */}
-      {activeRemarkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md h-full shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200 border-l border-slate-200 dark:border-slate-700 overflow-y-auto">
+      {/* SIDE-RIGHT DRAWER / MODAL FOR MULTI-REMARKS & HISTORY TIMELINE */}
+      {activeRemarkModal && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-lg h-full shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200 border-l border-slate-200 dark:border-slate-700">
             {/* Drawer Header */}
-            <div>
-              <div className="p-6 bg-[#2F6798] text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
-                    <MessageSquare className="w-5 h-5 text-white" />
+            <div className="p-6 bg-[#2F6798] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shadow-xs">
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold">Remarks & History Timeline</h2>
+                  <p className="text-xs text-white/75">Multi-entry notes for status tracking & coaching</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveRemarkModal(null)}
+                className="p-1.5 rounded-xl hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Drawer Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Employee / Wave Metadata Card */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Employee / Trainer</span>
+                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">{activeRemarkModal.staffName}</h3>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20">
+                    {accounts.find(a => a.id === account)?.name || account.toUpperCase()} &middot; {quarter.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Target Week</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{activeRemarkModal.columnKey}</span>
                   </div>
                   <div>
-                    <h2 className="text-base font-bold">Status Remarks & Notes</h2>
-                    <p className="text-xs text-white/70">Document coaching reasons, attendance, or performance flags</p>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase mb-1">Current Status</span>
+                    {(() => {
+                      const statusVal = activeRemarkModal.currentStatus;
+                      const config = getStatusConfig(statusVal);
+                      const StatusIcon = config.icon;
+                      return (
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider",
+                          config.badgeStyle
+                        )}>
+                          <StatusIcon className={cn("w-3.5 h-3.5 shrink-0", config.iconColor)} />
+                          <span>{config.label || statusVal || 'None'}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
-                <button
-                  onClick={() => setActiveRemarkModal(null)}
-                  className="p-1.5 rounded-xl hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              {/* Drawer Content */}
-              <div className="p-6 space-y-5">
-                {/* Employee / Wave Metadata Card */}
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Employee / Trainer</span>
-                      <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">{activeRemarkModal.staffName}</h3>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20">
-                      {accounts.find(a => a.id === account)?.name || account.toUpperCase()} &middot; {quarter.toUpperCase()}
-                    </span>
-                  </div>
+              {/* SECTION 1: EXISTING REMARKS TIMELINE WITH ADVANCED SEARCH, SORT & FILTERS */}
+              {(() => {
+                const modalKey = `${activeRemarkModal.staffName}::${activeRemarkModal.columnKey}`;
+                const rawList = remarksMap[modalKey] || [];
+                const totalNotes = rawList.length;
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-bold uppercase">Target Week</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">{activeRemarkModal.columnKey}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-bold uppercase mb-1">Current Status</span>
-                      {(() => {
-                        const statusVal = activeRemarkModal.currentStatus;
-                        const config = getStatusConfig(statusVal);
-                        const StatusIcon = config.icon;
-                        return (
-                          <span className={cn(
-                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider",
-                            config.badgeStyle
-                          )}>
-                            <StatusIcon className={cn("w-3.5 h-3.5 shrink-0", config.iconColor)} />
-                            <span>{config.label || statusVal || 'None'}</span>
+                // Associate each note with its original 1-based chronological index
+                const indexedList = rawList.map((item, idx) => ({
+                  ...item,
+                  originalIndex: idx + 1,
+                  isLatest: idx === rawList.length - 1
+                }));
+
+                // Extract dynamic tag counts from the notes
+                const tagCounts: Record<string, number> = {};
+                QUICK_REASON_TAGS.forEach(t => {
+                  const count = rawList.filter(item => 
+                    item.remarks.toLowerCase().includes(t.label.toLowerCase()) || 
+                    item.remarks.toLowerCase().includes(t.text.split(':')[0].toLowerCase())
+                  ).length;
+                  if (count > 0) tagCounts[t.label] = count;
+                });
+
+                // Apply Tag Filter
+                let filteredList = indexedList;
+                if (drawerTagFilter !== 'ALL') {
+                  filteredList = filteredList.filter(item =>
+                    item.remarks.toLowerCase().includes(drawerTagFilter.toLowerCase())
+                  );
+                }
+
+                // Apply Search Query Filter
+                if (drawerSearchQuery.trim()) {
+                  const q = drawerSearchQuery.trim().toLowerCase();
+                  filteredList = filteredList.filter(item =>
+                    item.remarks.toLowerCase().includes(q) ||
+                    (item.traffic_status && item.traffic_status.toLowerCase().includes(q)) ||
+                    `note #${item.originalIndex}`.includes(q)
+                  );
+                }
+
+                // Apply Sort Order (Newest First by default for rapid review)
+                const sortedList = [...filteredList].sort((a, b) => {
+                  if (drawerSortOrder === 'newest') {
+                    return b.originalIndex - a.originalIndex;
+                  }
+                  return a.originalIndex - b.originalIndex;
+                });
+
+                // Determine notes displayed in drawer (top 2 if not showAll / not searching)
+                const isSearchingOrFiltering = Boolean(drawerSearchQuery.trim() || drawerTagFilter !== 'ALL');
+                const displayedList = (showAllInDrawer || isSearchingOrFiltering)
+                  ? sortedList
+                  : sortedList.slice(0, 2);
+
+                return (
+                  <div className="space-y-2">
+                    {/* Header & Controls Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[9px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                            <MessageSquare className="w-2.5 h-2.5 text-[#C8A54B]" />
+                            <span>Timeline History</span>
+                          </label>
+                          <span className="px-1.5 py-0.2 rounded-md bg-[#C8A54B]/20 text-[#8e6e22] dark:text-[#f3d994] text-[8px] font-black">
+                            {totalNotes} {totalNotes === 1 ? 'Note' : 'Notes'}
                           </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
+                        </div>
 
-                {/* Quick Tags Suggestions */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5 text-[#2F6798]" />
-                    <span>Quick Reason Presets</span>
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickTags.map((tag) => {
-                      const TagIcon = tag.icon;
-                      return (
+                        <div className="flex items-center gap-1">
+                          {totalNotes > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsFullHistoryModalOpen(true)}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-[#C8A54B]/15 hover:bg-[#C8A54B]/25 text-[#8e6e22] dark:text-[#f3d994] border border-[#C8A54B]/40 transition-all cursor-pointer shadow-2xs"
+                              title="Open full view modal popup"
+                            >
+                              <ExternalLink className="w-2 h-2" />
+                              <span>Full View</span>
+                            </button>
+                          )}
+
+                          {/* Sort Order Toggle */}
+                          {totalNotes > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setDrawerSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all border border-slate-200/80 dark:border-slate-700 cursor-pointer shadow-2xs"
+                              title="Toggle note sorting order"
+                            >
+                              <ArrowUpDown className="w-2 h-2 text-[#2F6798]" />
+                              <span>{drawerSortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Search Bar & Tag Chips */}
+                      {totalNotes > 1 && (
+                        <div className="space-y-1">
+                          {/* Search Input styled like Image 2 */}
+                          <div className="relative">
+                            <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={drawerSearchQuery}
+                              onChange={(e) => setDrawerSearchQuery(e.target.value)}
+                              placeholder="Type name or batch..."
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-lg pl-8 pr-6 py-1 text-[10px] font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
+                            />
+                            {drawerSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setDrawerSearchQuery('')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Quick Tag Filter Pills */}
+                          {Object.keys(tagCounts).length > 0 && (
+                            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar text-[8.5px]">
+                              <button
+                                type="button"
+                                onClick={() => setDrawerTagFilter('ALL')}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded-md font-bold transition-all cursor-pointer shrink-0",
+                                  drawerTagFilter === 'ALL'
+                                    ? "bg-[#2F6798] text-white shadow-2xs"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                                )}
+                              >
+                                All ({totalNotes})
+                              </button>
+                              {Object.entries(tagCounts).map(([tagName, count]) => (
+                                <button
+                                  key={tagName}
+                                  type="button"
+                                  onClick={() => setDrawerTagFilter(prev => prev === tagName ? 'ALL' : tagName)}
+                                  className={cn(
+                                    "px-1.5 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 border",
+                                    drawerTagFilter === tagName
+                                      ? "bg-[#C8A54B] text-white border-[#C8A54B] shadow-2xs font-bold"
+                                      : "bg-[#FFFDF7] dark:bg-slate-900 text-[#8e6e22] dark:text-[#f3d994] border-[#C8A54B]/40 hover:bg-[#C8A54B]/15"
+                                  )}
+                                >
+                                  {tagName} ({count})
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Filter / Search Match Count Notice */}
+                          {(drawerSearchQuery || drawerTagFilter !== 'ALL') && (
+                            <div className="flex items-center justify-between text-[8.5px] text-slate-500 dark:text-slate-400 px-0.5 font-medium">
+                              <span>
+                                Showing <strong className="text-slate-700 dark:text-slate-200">{sortedList.length}</strong> of {totalNotes} remarks
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDrawerSearchQuery('');
+                                  setDrawerTagFilter('ALL');
+                                }}
+                                className="text-[#2F6798] hover:underline font-bold cursor-pointer"
+                              >
+                                Reset filters
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Feed Container with dedicated scrollbar for long histories */}
+                    {totalNotes === 0 ? (
+                      <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-1">
+                        <MessageSquarePlus className="w-5 h-5 text-slate-300 dark:text-slate-600 mx-auto" />
+                        <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">No remarks logged yet</p>
+                        <p className="text-[9px] text-slate-400">Use the form below to post the first remark or coaching note.</p>
+                      </div>
+                    ) : sortedList.length === 0 ? (
+                      <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-1">
+                        <Search className="w-4 h-4 text-slate-400 mx-auto" />
+                        <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">No notes match your filter</p>
                         <button
-                          key={tag.label}
                           type="button"
                           onClick={() => {
-                            setRemarkDraft(prev => {
-                              const trimmed = prev.trim();
-                              if (!trimmed) return tag.text;
-                              return `${trimmed}\n- ${tag.text}`;
-                            });
+                            setDrawerSearchQuery('');
+                            setDrawerTagFilter('ALL');
                           }}
-                          className="px-2.5 py-1.5 text-[11px] font-semibold rounded-xl bg-slate-100 dark:bg-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all cursor-pointer border border-slate-200/80 dark:border-slate-600 flex items-center gap-1.5 shadow-2xs"
+                          className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-[#2F6798] text-white hover:bg-[#24527a] transition-all cursor-pointer shadow-xs"
                         >
-                          <TagIcon className="w-3.5 h-3.5 text-[#2F6798]" />
-                          <span>{tag.label}</span>
+                          Clear Search
                         </button>
-                      );
-                    })}
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                        {displayedList.map((item) => {
+                          const isEditing = editingRemarkId === item.metric_id;
+
+                          return (
+                            <div
+                              key={item.metric_id}
+                              className={cn(
+                                "p-2 rounded-lg bg-[#FFFDF7] dark:bg-[#231C10]/60 border transition-all space-y-1 shadow-2xs hover:shadow-xs",
+                                item.isLatest
+                                  ? "border-[#C8A54B] dark:border-[#C8A54B] ring-1 ring-[#C8A54B]/30"
+                                  : "border-[#C8A54B]/40 dark:border-[#C8A54B]/50"
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-1.5 py-0.2 rounded-md text-[8px] font-black uppercase tracking-wider bg-[#C8A54B]/25 text-[#8e6e22] dark:text-[#f3d994] flex items-center gap-1">
+                                    <span>Note #{item.originalIndex}</span>
+                                    {item.isLatest && (
+                                      <span className="text-[7.5px] bg-[#C8A54B] text-white px-1 py-0 rounded-full flex items-center gap-0.5 font-bold">
+                                        <Sparkles className="w-1.5 h-1.5" /> Latest
+                                      </span>
+                                    )}
+                                  </span>
+                                  {item.traffic_status && (
+                                    <span className="text-[8.5px] text-slate-500 dark:text-slate-400 font-semibold">
+                                      &bull; {item.traffic_status}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {!isEditing && (
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRemarkId(item.metric_id);
+                                        setEditingDraft(item.remarks);
+                                      }}
+                                      className="p-0.5 rounded-md text-slate-400 hover:text-[#2F6798] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all cursor-pointer"
+                                      title="Edit Note"
+                                    >
+                                      <Edit2 className="w-2.5 h-2.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteRemarkId(item.metric_id)}
+                                      className="p-0.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
+                                      title="Delete Note"
+                                    >
+                                      <Trash2 className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {isEditing ? (
+                                <div className="space-y-1 pt-0.5">
+                                  <textarea
+                                    rows={2}
+                                    value={editingDraft}
+                                    onChange={(e) => setEditingDraft(e.target.value)}
+                                    className="w-full bg-white dark:bg-slate-900 border border-[#C8A54B] rounded-md p-1.5 text-[10px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+                                  />
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRemarkId(null);
+                                        setEditingDraft('');
+                                      }}
+                                      className="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isPostingRemark || !editingDraft.trim()}
+                                      onClick={() => handleUpdateRemark(item.metric_id)}
+                                      className="px-2.5 py-0.5 rounded-md text-[9px] font-bold bg-[#2F6798] hover:bg-[#24527a] text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                    >
+                                      {isPostingRemark ? <Loader2 className="w-2 h-2 animate-spin" /> : <Save className="w-2 h-2" />}
+                                      <span>Save Edit</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-slate-800 dark:text-slate-100 font-medium leading-normal whitespace-pre-wrap">
+                                  {item.remarks}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* View All / Show More Action Buttons */}
+                        {totalNotes > 2 && !isSearchingOrFiltering && (
+                          <div className="pt-0.5 flex items-center justify-between gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setIsFullHistoryModalOpen(true)}
+                              className="flex-1 py-0.5 px-2 rounded-md bg-[#C8A54B]/10 hover:bg-[#C8A54B]/20 border border-[#C8A54B]/50 text-[#8e6e22] dark:text-[#f3d994] text-[9px] font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer hover:border-[#C8A54B]"
+                            >
+                              <ExternalLink className="w-2 h-2 text-[#C8A54B]" />
+                              <span>View All {totalNotes} Remarks</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setShowAllInDrawer(prev => !prev)}
+                              className="py-0.5 px-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+                            >
+                              <span>{showAllInDrawer ? 'Show Less' : `+${totalNotes - 2} More`}</span>
+                              <ChevronDown className={cn("w-2 h-2 transition-transform", showAllInDrawer ? "rotate-180" : "")} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+                );
+              })()}
+
+              {/* SECTION 2: ADD NEW REMARK COMPOSER */}
+              <div className="pt-4 border-t border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5 text-[#2F6798]" />
+                    <span>Add New Remark</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    {newRemarkDraft.length} characters
+                  </span>
                 </div>
 
-                {/* Remarks Textarea */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Detailed Remarks / Justification
-                    </label>
-                    <span className="text-[10px] text-slate-400">
-                      {remarkDraft.length} characters
-                    </span>
-                  </div>
-                  <textarea
-                    rows={6}
-                    autoFocus
-                    value={remarkDraft}
-                    onChange={(e) => setRemarkDraft(e.target.value)}
-                    placeholder="Enter reason why this status was assigned (e.g., Performance issues, Attendance, Escalation incidents, Coaching progress, Commendations)..."
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all"
-                  />
+                {/* Quick Presets */}
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_REASON_TAGS.map((tag) => {
+                    const TagIcon = tag.icon;
+                    return (
+                      <button
+                        key={tag.label}
+                        type="button"
+                        onClick={() => {
+                          setNewRemarkDraft(prev => {
+                            const trimmed = prev.trim();
+                            if (!trimmed) return tag.text;
+                            return `${trimmed}\n- ${tag.text}`;
+                          });
+                        }}
+                        className="px-2.5 py-1 text-[10px] font-semibold rounded-xl bg-slate-100 dark:bg-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all cursor-pointer border border-slate-200/80 dark:border-slate-600 flex items-center gap-1 shadow-2xs"
+                      >
+                        <TagIcon className="w-3 h-3 text-[#2F6798]" />
+                        <span>{tag.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
+                {/* New Remark Input */}
+                <textarea
+                  rows={4}
+                  value={newRemarkDraft}
+                  onChange={(e) => setNewRemarkDraft(e.target.value)}
+                  placeholder="Type a new remark or update for this employee (e.g. coaching notes, absences, progress, documentation)..."
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all shadow-2xs"
+                />
+
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    disabled={isPostingRemark || !newRemarkDraft.trim()}
+                    onClick={handleAddRemark}
+                    className="px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPostingRemark ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    <span>Post Remark</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Drawer Action Footer */}
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30">
-              {activeRemarkModal.remarks ? (
-                <button
-                  type="button"
-                  disabled={isSavingRemark}
-                  onClick={handleDeleteRemark}
-                  className="px-4 py-2.5 rounded-full text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete Note
-                </button>
-              ) : (
-                <div />
-              )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={isSavingRemark}
-                  onClick={() => setActiveRemarkModal(null)}
-                  className="px-5 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={isSavingRemark}
-                  onClick={handleSaveRemark}
-                  className="px-6 py-2.5 rounded-full bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingRemark ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  Save Remark
-                </button>
-              </div>
+            {/* Drawer Footer */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/40 shrink-0">
+              <span className="text-[11px] text-slate-400">
+                All notes are saved live and synchronized to all viewers.
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveRemarkModal(null)}
+                className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Drawer
+              </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* CENTERED MODAL POPUP FOR FULL REMARKS HISTORY */}
+      {isFullHistoryModalOpen && activeRemarkModal && mounted && createPortal(
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/65 backdrop-blur-sm animate-in fade-in duration-200 p-4 sm:p-6">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-200/90 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 bg-[#2F6798] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shadow-xs">
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold">All Remarks & Timeline History</h2>
+                  <p className="text-xs text-white/80">
+                    {activeRemarkModal.staffName} &middot; {activeRemarkModal.columnKey} ({accounts.find(a => a.id === account)?.name || account.toUpperCase()} - {quarter.toUpperCase()})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFullHistoryModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {(() => {
+                const modalKey = `${activeRemarkModal.staffName}::${activeRemarkModal.columnKey}`;
+                const rawList = remarksMap[modalKey] || [];
+                const totalNotes = rawList.length;
+
+                const indexedList = rawList.map((item, idx) => ({
+                  ...item,
+                  originalIndex: idx + 1,
+                  isLatest: idx === rawList.length - 1
+                }));
+
+                const tagCounts: Record<string, number> = {};
+                QUICK_REASON_TAGS.forEach(t => {
+                  const count = rawList.filter(item => 
+                    item.remarks.toLowerCase().includes(t.label.toLowerCase()) || 
+                    item.remarks.toLowerCase().includes(t.text.split(':')[0].toLowerCase())
+                  ).length;
+                  if (count > 0) tagCounts[t.label] = count;
+                });
+
+                let filteredList = indexedList;
+                if (drawerTagFilter !== 'ALL') {
+                  filteredList = filteredList.filter(item =>
+                    item.remarks.toLowerCase().includes(drawerTagFilter.toLowerCase())
+                  );
+                }
+
+                if (drawerSearchQuery.trim()) {
+                  const q = drawerSearchQuery.trim().toLowerCase();
+                  filteredList = filteredList.filter(item =>
+                    item.remarks.toLowerCase().includes(q) ||
+                    (item.traffic_status && item.traffic_status.toLowerCase().includes(q)) ||
+                    `note #${item.originalIndex}`.includes(q)
+                  );
+                }
+
+                const sortedList = [...filteredList].sort((a, b) => {
+                  if (drawerSortOrder === 'newest') {
+                    return b.originalIndex - a.originalIndex;
+                  }
+                  return a.originalIndex - b.originalIndex;
+                });
+
+                return (
+                  <div className="space-y-4">
+                    {/* Search & Filter bar */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          Showing {sortedList.length} of {totalNotes} Remarks
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDrawerSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all border border-slate-200/80 dark:border-slate-700 cursor-pointer shadow-2xs"
+                        >
+                          <ArrowUpDown className="w-3.5 h-3.5 text-[#2F6798]" />
+                          <span>{drawerSortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
+                        </button>
+                      </div>
+
+                      {/* Search Bar styled identical to Image 2 */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={drawerSearchQuery}
+                          onChange={(e) => setDrawerSearchQuery(e.target.value)}
+                          placeholder="Type name or batch..."
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-11 pr-9 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
+                        />
+                        {drawerSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setDrawerSearchQuery('')}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick Tag Filter Pills */}
+                      {Object.keys(tagCounts).length > 0 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setDrawerTagFilter('ALL')}
+                            className={cn(
+                              "px-3 py-1 rounded-xl font-bold transition-all cursor-pointer shrink-0",
+                              drawerTagFilter === 'ALL'
+                                ? "bg-[#2F6798] text-white shadow-2xs"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                            )}
+                          >
+                            All ({totalNotes})
+                          </button>
+                          {Object.entries(tagCounts).map(([tagName, count]) => (
+                            <button
+                              key={tagName}
+                              type="button"
+                              onClick={() => setDrawerTagFilter(prev => prev === tagName ? 'ALL' : tagName)}
+                              className={cn(
+                                "px-3 py-1 rounded-xl font-semibold transition-all cursor-pointer shrink-0 border",
+                                drawerTagFilter === tagName
+                                  ? "bg-[#C8A54B] text-white border-[#C8A54B] shadow-2xs font-bold"
+                                  : "bg-[#FFFDF7] dark:bg-slate-900 text-[#8e6e22] dark:text-[#f3d994] border-[#C8A54B]/40 hover:bg-[#C8A54B]/15"
+                              )}
+                            >
+                              {tagName} ({count})
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Full List of Remarks */}
+                    {sortedList.length === 0 ? (
+                      <div className="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
+                        <Search className="w-8 h-8 text-slate-400 mx-auto" />
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No matching remarks found</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrawerSearchQuery('');
+                            setDrawerTagFilter('ALL');
+                          }}
+                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#2F6798] text-white hover:bg-[#24527a] cursor-pointer"
+                        >
+                          Clear Search & Filter
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 custom-scrollbar">
+                        {sortedList.map((item) => {
+                          const isEditing = editingRemarkId === item.metric_id;
+
+                          return (
+                            <div
+                              key={item.metric_id}
+                              className={cn(
+                                "p-2.5 rounded-xl bg-[#FFFDF7] dark:bg-[#231C10]/60 border transition-all space-y-1 shadow-2xs",
+                                item.isLatest
+                                  ? "border-[#C8A54B] dark:border-[#C8A54B] ring-1 ring-[#C8A54B]/30"
+                                  : "border-[#C8A54B]/40 dark:border-[#C8A54B]/50"
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-1.5 py-0.2 rounded-md text-[8.5px] font-black uppercase tracking-wider bg-[#C8A54B]/25 text-[#8e6e22] dark:text-[#f3d994] flex items-center gap-1">
+                                    <span>Note #{item.originalIndex}</span>
+                                    {item.isLatest && (
+                                      <span className="text-[7.5px] bg-[#C8A54B] text-white px-1.5 py-0 rounded-full flex items-center gap-0.5 font-bold">
+                                        <Sparkles className="w-1.5 h-1.5" /> Latest
+                                      </span>
+                                    )}
+                                  </span>
+                                  {item.traffic_status && (
+                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold">
+                                      &bull; {item.traffic_status}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {!isEditing && (
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRemarkId(item.metric_id);
+                                        setEditingDraft(item.remarks);
+                                      }}
+                                      className="p-1 rounded-md text-slate-400 hover:text-[#2F6798] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all cursor-pointer"
+                                      title="Edit Note"
+                                    >
+                                      <Edit2 className="w-2.5 h-2.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteRemarkId(item.metric_id)}
+                                      className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
+                                      title="Delete Note"
+                                    >
+                                      <Trash2 className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {isEditing ? (
+                                <div className="space-y-1 pt-0.5">
+                                  <textarea
+                                    rows={2}
+                                    value={editingDraft}
+                                    onChange={(e) => setEditingDraft(e.target.value)}
+                                    className="w-full bg-white dark:bg-slate-900 border border-[#C8A54B] rounded-lg p-2 text-[10.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+                                  />
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRemarkId(null);
+                                        setEditingDraft('');
+                                      }}
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isPostingRemark || !editingDraft.trim()}
+                                      onClick={() => handleUpdateRemark(item.metric_id)}
+                                      className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-[#2F6798] hover:bg-[#24527a] text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                    >
+                                      {isPostingRemark ? <Loader2 className="w-2 h-2 animate-spin" /> : <Save className="w-2 h-2" />}
+                                      <span>Save Edit</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-[10.5px] text-slate-800 dark:text-slate-100 font-medium leading-normal whitespace-pre-wrap">
+                                  {item.remarks}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/60 shrink-0">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Live timeline synchronized with Supabase
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsFullHistoryModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Full View
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Centered Modal Loading Dialog during Save */}
-      {isSaving && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+      {isSaving && mounted && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-200/80 dark:border-slate-700 flex flex-col items-center gap-3 min-w-[260px] text-center">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center">
               <Loader2 className="w-6 h-6 animate-spin" />
@@ -1343,7 +2182,67 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Updating traffic light records in database...</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Confirmation Dialog for Deleting Remark */}
+      {confirmDeleteRemarkId && mounted && createPortal(
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-200/80 dark:border-slate-700 max-w-sm w-full space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200/80 dark:border-rose-900/60 shadow-xs">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Delete Remark Note?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Note text preview */}
+            {(() => {
+              const modalKey = activeRemarkModal ? `${activeRemarkModal.staffName}::${activeRemarkModal.columnKey}` : '';
+              const targetNote = (remarksMap[modalKey] || []).find(n => n.metric_id === confirmDeleteRemarkId);
+              if (!targetNote) return null;
+
+              return (
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/70 rounded-xl border border-slate-200/70 dark:border-slate-700/70 text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                  "{targetNote.remarks}"
+                </div>
+              );
+            })()}
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Are you sure you want to permanently remove this note from the timeline history?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/80">
+              <button
+                type="button"
+                disabled={isDeletingRemarkId === confirmDeleteRemarkId}
+                onClick={() => setConfirmDeleteRemarkId(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingRemarkId === confirmDeleteRemarkId}
+                onClick={() => handleDeleteRemarkItem(confirmDeleteRemarkId)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingRemarkId === confirmDeleteRemarkId ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Yes, Delete Note</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

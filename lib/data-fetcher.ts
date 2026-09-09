@@ -326,6 +326,7 @@ export const getTrainersData = unstable_cache(
         trainer_id: t.trainer_id,
         name: profile.name || 'Unknown',
         email: profile.gmail_account || '',
+        profilePic: profile.profile_pic || '',
         role: t.position || 'UNASSIGNED',
         status: t.status || 'ACTIVE',
         startDate: profile.start_date || t.start_date || 'N/A',

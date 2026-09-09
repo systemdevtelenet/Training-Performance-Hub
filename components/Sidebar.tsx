@@ -84,7 +84,7 @@ const getNavItems = (role: UserRole) => {
 };
 
 export default function Sidebar() {
-  const { role, email } = useRole();
+  const { role, email, avatarUrl } = useRole();
   const navItems = getNavItems(role);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -341,8 +341,8 @@ export default function Sidebar() {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs overflow-hidden">
-                  {customAvatar ? (
-                    <img src={customAvatar} alt="Profile" className="w-full h-full object-cover" />
+                  {(avatarUrl || customAvatar) ? (
+                    <img src={avatarUrl || customAvatar!} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     profile.initials
                   )}
@@ -374,8 +374,8 @@ export default function Sidebar() {
               <div className="absolute left-full bottom-0 ml-3.5 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-in fade-in slide-in-from-left-2 space-y-2">
                 <div className="flex items-center gap-3 pb-2 border-b border-white/15">
                   <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm overflow-hidden">
-                    {customAvatar ? (
-                      <img src={customAvatar} alt="Profile" className="w-full h-full object-cover" />
+                    {(avatarUrl || customAvatar) ? (
+                      <img src={avatarUrl || customAvatar!} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       profile.initials
                     )}

@@ -305,7 +305,9 @@ function SettingsContent() {
 
         const formData = new FormData();
         formData.append('file', blob, 'avatar.png');
-        formData.append('employeeId', profile.employeeId);
+        formData.append('employeeId', userMeta?.employeeId || profile.employeeId || '1597');
+        formData.append('email', userEmail || '');
+        formData.append('name', userName || '');
 
         const res = await uploadAvatar(formData);
 
@@ -314,7 +316,7 @@ function SettingsContent() {
         if (res.success && res.url) {
           setAvatarUrl(res.url);
           localStorage.setItem('user_avatar_url', res.url);
-          window.dispatchEvent(new Event('avatar-updated'));
+          window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: res.url } }));
           setShowCropModal(false);
           setRawImageSrc(null);
           showToast('Profile photo saved successfully!', 'success');
@@ -333,11 +335,11 @@ function SettingsContent() {
   const handleRemovePhoto = async () => {
     setShowAvatarDropdown(false);
     if (avatarUrl) {
-      await deleteAvatar(avatarUrl);
+      await deleteAvatar(avatarUrl, userMeta?.employeeId || profile.employeeId, userEmail || '');
     }
     setAvatarUrl(null);
     localStorage.removeItem('user_avatar_url');
-    window.dispatchEvent(new Event('avatar-updated'));
+    window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: null } }));
     showToast('Profile photo removed.', 'success');
   };
 

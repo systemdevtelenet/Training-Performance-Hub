@@ -34,12 +34,22 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 type TrainerTab = 'directory' | 'attendance' | 'reliability';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
-  const { role, email } = useRole();
+  const { role, email, avatarUrl, userName } = useRole();
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const getTrainerAvatar = useCallback((t: any) => {
+    if (!t) return null;
+    if (t.profilePic) return t.profilePic;
+    const isMatch = (t.name && userName && t.name.toLowerCase().includes(userName.toLowerCase())) ||
+      (t.email && email && t.email.toLowerCase() === email.toLowerCase()) ||
+      (t.name && t.name.toLowerCase().includes('nissi') && (email?.includes('nreguero') || !email));
+    if (isMatch && avatarUrl) return avatarUrl;
+    return null;
+  }, [userName, email, avatarUrl]);
 
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
@@ -233,10 +243,21 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
 
 {/* Master-Detail Directory Component */ }
 function DirectoryView({ trainers }: { trainers: any[] }) {
+  const { avatarUrl, userName, email } = useRole();
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedLeave, setSelectedLeave] = useState<{ type: string, dates: string[] } | null>(null);
+
+  const getTrainerAvatar = useCallback((t: any) => {
+    if (!t) return null;
+    if (t.profilePic) return t.profilePic;
+    const isMatch = (t.name && userName && t.name.toLowerCase().includes(userName.toLowerCase())) ||
+      (t.email && email && t.email.toLowerCase() === email.toLowerCase()) ||
+      (t.name && t.name.toLowerCase().includes('nissi') && (email?.includes('nreguero') || !email));
+    if (isMatch && avatarUrl) return avatarUrl;
+    return null;
+  }, [userName, email, avatarUrl]);
 
   const trainersList = trainers;
 
@@ -366,10 +387,19 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                     }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold ${isSelected ? 'bg-[#2F6798] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
-                      }`}>
-                      {trainer.name.charAt(0)}
-                    </div>
+                    {(() => {
+                      const tPhoto = getTrainerAvatar(trainer);
+                      return (
+                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold overflow-hidden border border-slate-200/60 dark:border-slate-700 ${isSelected ? 'bg-[#2F6798] text-white ring-2 ring-[#2F6798]/30' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
+                          }`}>
+                          {tPhoto ? (
+                            <img src={tPhoto} alt={trainer.name} className="w-full h-full object-cover" />
+                          ) : (
+                            trainer.name ? trainer.name.charAt(0) : '?'
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className={`text-xs font-bold truncate ${isSelected ? 'text-[#2F6798]' : 'text-slate-800 dark:text-slate-100'}`}>
@@ -410,9 +440,18 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10 w-full max-w-full min-w-0">
                   <div className="flex items-start sm:items-center gap-6 w-full max-w-full min-w-0">
-                    <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0 mt-1 sm:mt-0">
-                      {active.name ? active.name.charAt(0) : '?'}
-                    </div>
+                    {(() => {
+                      const activePhoto = getTrainerAvatar(active);
+                      return (
+                        <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0 mt-1 sm:mt-0 overflow-hidden shadow-md ring-4 ring-[#2F6798]/10 border-2 border-white dark:border-slate-700">
+                          {activePhoto ? (
+                            <img src={activePhoto} alt={active.name} className="w-full h-full object-cover" />
+                          ) : (
+                            active.name ? active.name.charAt(0) : '?'
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0 max-w-full">
                       <div className="flex flex-wrap items-center gap-3 mb-2">
                         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{active.name || 'Unknown'}</h2>

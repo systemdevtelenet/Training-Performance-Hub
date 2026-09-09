@@ -257,20 +257,30 @@ function parseDateToISO(dStr: string) {
   return '2026-01-01';
 }
 
+export interface TrafficLightRemarkItem {
+  metric_id: number;
+  remarks: string;
+  traffic_status?: string;
+  staffName: string;
+  columnKey: string;
+  source_table: string;
+}
+
 export async function getTrafficLightRemarks(account: string, quarter: string) {
   try {
     const prefix = `${account.toLowerCase()}::${quarter.toLowerCase()}::`;
     const { data, error } = await supabaseAdmin
       .from('traffic_light_metrics')
       .select('*')
-      .like('source_table', `${prefix}%`);
+      .like('source_table', `${prefix}%`)
+      .order('metric_id', { ascending: true });
 
     if (error) {
       console.error('Error fetching remarks:', error);
       return { data: {}, error: error.message };
     }
 
-    const remarksMap: Record<string, { metric_id: number; remarks: string; traffic_status?: string; updated_at?: string; staffName: string; columnKey: string }> = {};
+    const remarksMap: Record<string, TrafficLightRemarkItem[]> = {};
 
     (data || []).forEach(row => {
       const parts = (row.source_table || '').split('::');
@@ -278,13 +288,17 @@ export async function getTrafficLightRemarks(account: string, quarter: string) {
         const staffName = parts[2];
         const columnKey = parts.slice(3).join('::');
         const key = `${staffName}::${columnKey}`;
-        remarksMap[key] = {
+        if (!remarksMap[key]) {
+          remarksMap[key] = [];
+        }
+        remarksMap[key].push({
           metric_id: row.metric_id,
           remarks: row.remarks || '',
           traffic_status: row.traffic_status || '',
           staffName,
-          columnKey
-        };
+          columnKey,
+          source_table: row.source_table
+        });
       }
     });
 
@@ -295,13 +309,14 @@ export async function getTrafficLightRemarks(account: string, quarter: string) {
   }
 }
 
-export async function saveTrafficLightRemark({
+export async function addTrafficLightRemark({
   account,
   quarter,
   staffName,
   columnKey,
   status,
-  remarks
+  remarks,
+  author
 }: {
   account: string;
   quarter: string;
@@ -309,102 +324,157 @@ export async function saveTrafficLightRemark({
   columnKey: string;
   status?: string;
   remarks: string;
+  author?: string;
 }) {
   try {
     const cleanAccount = account.toLowerCase();
     const cleanQuarter = quarter.toLowerCase();
     const sourceKey = `${cleanAccount}::${cleanQuarter}::${staffName}::${columnKey}`;
     const trimmedRemarks = (remarks || '').trim();
+    const actionAuthor = author || 'Authorized Manager';
 
-    const { data: existing } = await supabaseAdmin
-      .from('traffic_light_metrics')
-      .select('metric_id')
-      .eq('source_table', sourceKey)
-      .maybeSingle();
-
-    if (existing) {
-      if (!trimmedRemarks) {
-        // If remarks emptied, delete the entry
-        await supabaseAdmin.from('traffic_light_metrics').delete().eq('metric_id', existing.metric_id);
-        return { success: true, deleted: true };
-      } else {
-        const { error } = await supabaseAdmin
-          .from('traffic_light_metrics')
-          .update({
-            remarks: trimmedRemarks,
-            traffic_status: status || null,
-            metric_date: parseDateToISO(columnKey)
-          })
-          .eq('metric_id', existing.metric_id);
-
-        if (error) throw error;
-        return { success: true, metric_id: existing.metric_id };
-      }
-    } else {
-      if (!trimmedRemarks) {
-        return { success: true };
-      }
-
-      const { data: inserted, error } = await supabaseAdmin
-        .from('traffic_light_metrics')
-        .insert({
-          metric_group: cleanAccount,
-          metric_date: parseDateToISO(columnKey),
-          traffic_status: status || null,
-          remarks: trimmedRemarks,
-          source_table: sourceKey
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await logActivity({
-        title: 'Traffic Light Remark Saved',
-        description: `Saved note for ${staffName} on ${columnKey}: "${trimmedRemarks.slice(0, 50)}${trimmedRemarks.length > 50 ? '...' : ''}"`,
-        iconType: 'system',
-        author: 'Authorized Manager'
-      });
-
-      return { success: true, metric_id: inserted?.metric_id };
+    if (!trimmedRemarks) {
+      return { success: false, error: 'Remarks content cannot be empty.' };
     }
+
+    const { data: inserted, error } = await supabaseAdmin
+      .from('traffic_light_metrics')
+      .insert({
+        metric_group: cleanAccount,
+        metric_date: parseDateToISO(columnKey),
+        traffic_status: status || null,
+        remarks: trimmedRemarks,
+        source_table: sourceKey
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logActivity({
+      title: 'Traffic Light Remark Added',
+      description: `Added note for ${staffName} on ${columnKey} (${account.toUpperCase()} - ${quarter.toUpperCase()}): "${trimmedRemarks.slice(0, 70)}${trimmedRemarks.length > 70 ? '...' : ''}"`,
+      iconType: 'alert',
+      author: actionAuthor
+    });
+
+    return { success: true, item: inserted };
   } catch (e: any) {
-    console.error('Error saving remark:', e);
+    console.error('Error adding remark:', e);
     return { success: false, error: e.message };
   }
 }
 
-export async function deleteTrafficLightRemark({
+export async function updateTrafficLightRemark({
+  metric_id,
+  remarks,
+  staffName,
+  columnKey,
   account,
   quarter,
-  staffName,
-  columnKey
+  author
 }: {
-  account: string;
-  quarter: string;
+  metric_id: number;
+  remarks: string;
   staffName: string;
   columnKey: string;
+  account: string;
+  quarter: string;
+  author?: string;
 }) {
   try {
-    const sourceKey = `${account.toLowerCase()}::${quarter.toLowerCase()}::${staffName}::${columnKey}`;
+    const trimmedRemarks = (remarks || '').trim();
+    const actionAuthor = author || 'Authorized Manager';
+
+    if (!trimmedRemarks) {
+      return { success: false, error: 'Remark cannot be empty.' };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('traffic_light_metrics')
+      .update({ remarks: trimmedRemarks })
+      .eq('metric_id', metric_id);
+
+    if (error) throw error;
+
+    await logActivity({
+      title: 'Traffic Light Remark Updated',
+      description: `Updated note for ${staffName} on ${columnKey} (${account.toUpperCase()} - ${quarter.toUpperCase()}): "${trimmedRemarks.slice(0, 70)}${trimmedRemarks.length > 70 ? '...' : ''}"`,
+      iconType: 'alert',
+      author: actionAuthor
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Error updating remark:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteTrafficLightRemarkItem({
+  metric_id,
+  staffName,
+  columnKey,
+  account,
+  quarter,
+  author
+}: {
+  metric_id: number;
+  staffName: string;
+  columnKey: string;
+  account: string;
+  quarter: string;
+  author?: string;
+}) {
+  try {
+    const actionAuthor = author || 'Authorized Manager';
+
     const { error } = await supabaseAdmin
       .from('traffic_light_metrics')
       .delete()
-      .eq('source_table', sourceKey);
+      .eq('metric_id', metric_id);
 
     if (error) throw error;
 
     await logActivity({
       title: 'Traffic Light Remark Deleted',
-      description: `Removed remark note for ${staffName} on ${columnKey}.`,
+      description: `Removed note for ${staffName} on ${columnKey} (${account.toUpperCase()} - ${quarter.toUpperCase()}).`,
       iconType: 'alert',
-      author: 'Authorized Manager'
+      author: actionAuthor
     });
 
     return { success: true };
   } catch (e: any) {
-    console.error('Error deleting remark:', e);
+    console.error('Error deleting remark item:', e);
     return { success: false, error: e.message };
   }
+}
+
+// Backwards compatibility alias
+export async function saveTrafficLightRemark(params: {
+  account: string;
+  quarter: string;
+  staffName: string;
+  columnKey: string;
+  status?: string;
+  remarks: string;
+  author?: string;
+}) {
+  return addTrafficLightRemark(params);
+}
+
+export async function deleteTrafficLightRemark(params: {
+  account: string;
+  quarter: string;
+  staffName: string;
+  columnKey: string;
+  author?: string;
+}) {
+  const sourceKey = `${params.account.toLowerCase()}::${params.quarter.toLowerCase()}::${params.staffName}::${params.columnKey}`;
+  const { error } = await supabaseAdmin
+    .from('traffic_light_metrics')
+    .delete()
+    .eq('source_table', sourceKey);
+  return { success: !error, error: error?.message };
 }
 

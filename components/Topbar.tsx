@@ -13,7 +13,7 @@ import { useToast } from '@/components/CustomToast';
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme();
-  const { role, actualRole, email } = useRole();
+  const { role, actualRole, email, avatarUrl, userName } = useRole();
   const toast = useToast();
   const router = useRouter();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -160,17 +160,33 @@ export default function Topbar() {
         <div className="relative" ref={profileRef}>
           <div 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer hover:opacity-90 hover:scale-105 transition-all ring-2 ring-white dark:ring-slate-800"
-            title={email || "User"}
+            className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer hover:opacity-90 hover:scale-105 transition-all ring-2 ring-white dark:ring-slate-800 overflow-hidden"
+            title={userName || email || "User"}
           >
-            {email ? email.charAt(0).toUpperCase() : "U"}
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
+            ) : (
+              <span>{email ? email.charAt(0).toUpperCase() : "U"}</span>
+            )}
           </div>
 
           {isProfileOpen && (
             <div className="absolute right-0 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
               <div className="border-b border-slate-100 p-4 dark:border-slate-800">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{email || "User"}</p>
-                <div className="mt-1.5 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2F6798]/10 text-[#2F6798] dark:bg-blue-950/60 dark:text-blue-300 border border-[#2F6798]/20">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{email ? email.charAt(0).toUpperCase() : "U"}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{userName || email || "User"}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{email}</p>
+                  </div>
+                </div>
+                <div className="inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-[#2F6798]/10 text-[#2F6798] dark:bg-blue-950/60 dark:text-blue-300 border border-[#2F6798]/20">
                   {positionTitle}
                 </div>
               </div>

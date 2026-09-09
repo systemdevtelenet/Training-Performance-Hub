@@ -57,7 +57,7 @@ export default function EmployeesClient({
   accounts?: any[];
   statuses?: any[];
 }) {
-  const { role, actualRole } = useRole();
+  const { role, actualRole, avatarUrl, userName, email: userEmail } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
   const canManage = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
@@ -539,12 +539,24 @@ export default function EmployeesClient({
                       className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
                     >
                       <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2F6798] dark:text-[#5a9fd4] flex items-center justify-center text-[10px] font-bold shrink-0 border border-blue-100 dark:border-blue-800">
-                            {emp.employee_name ? emp.employee_name.charAt(0).toUpperCase() : '?'}
-                          </div>
-                          <span>{emp.employee_name}</span>
-                        </div>
+                        {(() => {
+                          const isMatch = (emp.employee_name && userName && emp.employee_name.toLowerCase().includes(userName.toLowerCase())) ||
+                            (emp.employee_email && userEmail && emp.employee_email.toLowerCase() === userEmail.toLowerCase()) ||
+                            (emp.employee_name && emp.employee_name.toLowerCase().includes('nissi'));
+                          const empPhoto = emp.avatar_url || (isMatch ? avatarUrl : null);
+                          return (
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2F6798] dark:text-[#5a9fd4] flex items-center justify-center text-[10px] font-bold shrink-0 border border-blue-100 dark:border-blue-800 overflow-hidden">
+                                {empPhoto ? (
+                                  <img src={empPhoto} alt={emp.employee_name} className="w-full h-full object-cover" />
+                                ) : (
+                                  emp.employee_name ? emp.employee_name.charAt(0).toUpperCase() : '?'
+                                )}
+                              </div>
+                              <span>{emp.employee_name}</span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 font-semibold text-[#2F6798] dark:text-[#5a9fd4]">
                         {emp.employee_code || 'N/A'}

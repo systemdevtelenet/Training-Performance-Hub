@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { Card, Badge } from '@tremor/react';
 import { Camera, Calendar, Award, ClipboardList } from 'lucide-react';
 import { isTrainerMatch } from '@/lib/analytics-utils';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filters: any }) {
+  const { avatarUrl, userName, email } = useRole();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
@@ -23,6 +25,11 @@ export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filt
   if (!trainer) {
     return <Card className="p-8 text-center text-slate-500">No trainers found matching the search criteria.</Card>;
   }
+
+  const isCurrentMatch = trainer && ((trainer.name && userName && trainer.name.toLowerCase().includes(userName.toLowerCase())) ||
+    (trainer.email && email && trainer.email.toLowerCase() === email.toLowerCase()) ||
+    (trainer.name && trainer.name.toLowerCase().includes('nissi')));
+  const effectivePhoto = trainer.profilePic || (isCurrentMatch ? avatarUrl : null);
 
   const tagCounts: Record<string, number> = { ABSENCE: 0, SL: 0, VL: 0, BL: 0, MED: 0, SUS: 0, HOL: 0, ML: 0, PL: 0 };
   const tagDates: Record<string, string[]> = { ABSENCE: [], SL: [], VL: [], BL: [], MED: [], SUS: [], HOL: [], ML: [], PL: [] };
@@ -99,9 +106,9 @@ export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filt
 
       <Card className="p-6 border border-slate-200">
         <div className="flex items-center gap-5 border-b border-slate-100 pb-5 mb-5">
-          <div className="relative group cursor-pointer w-20 h-20 rounded-full bg-[#2F6798] text-white text-3xl font-bold flex items-center justify-center overflow-hidden shrink-0 shadow-md">
-            {trainer.profilePic ? (
-              <img src={trainer.profilePic} alt={trainer.name} className="w-full h-full object-cover" />
+          <div className="relative group cursor-pointer w-20 h-20 rounded-full bg-[#2F6798] text-white text-3xl font-bold flex items-center justify-center overflow-hidden shrink-0 shadow-md ring-2 ring-[#2F6798]/20">
+            {effectivePhoto ? (
+              <img src={effectivePhoto} alt={trainer.name} className="w-full h-full object-cover" />
             ) : (
               <span>{trainer.name.charAt(0).toUpperCase()}</span>
             )}

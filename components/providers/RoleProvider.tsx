@@ -18,6 +18,8 @@ interface RoleContextType {
   userName: string | null;
   assignedTrainer: string | null;
   userMeta: UserMetaDetails;
+  avatarUrl: string | null;
+  setAvatarUrl: (url: string | null) => void;
   isLoading: boolean;
   setSimulatedRole: (role: UserRole | null) => void;
   actualRole: UserRole;
@@ -37,6 +39,8 @@ const RoleContext = createContext<RoleContextType>({
   userName: 'Nissi-Jeh Reguero',
   assignedTrainer: null,
   userMeta: defaultUserMeta,
+  avatarUrl: null,
+  setAvatarUrl: () => { },
   isLoading: true,
   setSimulatedRole: () => { },
 });
@@ -48,8 +52,32 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [userName, setUserName] = useState<string | null>('Nissi-Jeh Reguero');
   const [assignedTrainer, setAssignedTrainer] = useState<string | null>(null);
   const [userMeta, setUserMeta] = useState<UserMetaDetails>(defaultUserMeta);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
+
+  // Load avatar from localStorage or database
+  useEffect(() => {
+    const handleAvatarUpdate = (e?: any) => {
+      const explicitUrl = e?.detail?.url;
+      if (explicitUrl !== undefined) {
+        setAvatarUrl(explicitUrl);
+        if (explicitUrl) localStorage.setItem('user_avatar_url', explicitUrl);
+        else localStorage.removeItem('user_avatar_url');
+      } else {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null;
+        setAvatarUrl(saved);
+      }
+    };
+
+    handleAvatarUpdate();
+    window.addEventListener('avatar-updated', handleAvatarUpdate);
+    window.addEventListener('storage', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('avatar-updated', handleAvatarUpdate);
+      window.removeEventListener('storage', handleAvatarUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchRole() {
@@ -101,6 +129,16 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           rawName = 'Nissi-Jeh Reguero';
         }
         setUserName(rawName);
+
+        // Sync avatar if found in DB and not overridden
+        const dbAvatar = trainerData?.profile_pic || empData?.avatar_url || session.user.user_metadata?.avatar_url || null;
+        if (dbAvatar) {
+          const localAvatar = localStorage.getItem('user_avatar_url');
+          if (!localAvatar) {
+            setAvatarUrl(dbAvatar);
+            localStorage.setItem('user_avatar_url', dbAvatar);
+          }
+        }
 
         // Determine effective actual role
         let effRole: UserRole = 'EMPLOYEE';
@@ -187,7 +225,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const activeRole = (actualRole === 'SUPER_ADMIN' && simulatedRole) ? simulatedRole : actualRole;
 
   return (
-    <RoleContext.Provider value={{ role: activeRole, actualRole, email, userName, assignedTrainer, userMeta, isLoading, setSimulatedRole }}>
+    <RoleContext.Provider value={{ role: activeRole, actualRole, email, userName, assignedTrainer, userMeta, avatarUrl, setAvatarUrl, isLoading, setSimulatedRole }}>
       {children}
     </RoleContext.Provider>
   );
