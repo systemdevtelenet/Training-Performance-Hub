@@ -91,7 +91,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
     }
 
     // Dynamic position title
-    const resolvedPosition = trainerData?.position || trainerData?.assigned_task || trainerRow?.pos || empData?.position || (effRole === 'HOT_ADMIN' ? 'Head of Training' : effRole === 'SUPER_ADMIN' ? 'Super Admin' : effRole === 'TRAINER' ? 'Trainer' : effRole === 'EMPLOYEE' ? 'Employee' : 'N/A');
+    const resolvedPosition = trainerData?.position || trainerData?.assigned_task || trainerRow?.pos || empData?.position || (effRole === 'HOT_ADMIN' ? 'Head of Training' : effRole === 'SUPER_ADMIN' ? 'Super Admin' : effRole === 'VIEW_ADMIN' ? 'Executive Admin (View Only)' : effRole === 'TRAINER' ? 'Trainer' : effRole === 'EMPLOYEE' ? 'Employee' : 'N/A');
 
     // Parse Name Parts
     let fName = empData?.first_name || 'N/A';
@@ -109,7 +109,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       }
     }
 
-    const roleFormatted = effRole === 'HOT_ADMIN' ? 'Admin' : effRole === 'SUPER_ADMIN' ? 'Super Admin' : effRole === 'TRAINER' ? 'Trainer' : effRole === 'EMPLOYEE' ? 'Employee' : 'N/A';
+    const roleFormatted = effRole === 'HOT_ADMIN' ? 'Admin' : effRole === 'SUPER_ADMIN' ? 'Super Admin' : effRole === 'VIEW_ADMIN' ? 'Executive Admin' : effRole === 'TRAINER' ? 'Trainer' : effRole === 'EMPLOYEE' ? 'Employee' : 'N/A';
 
     // 5. If trainee, find assigned trainer
     let assignedTrainer: string | null = null;

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchUserProfile } from '@/lib/actions/profile';
 
-export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
+export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
 
 export interface UserMetaDetails {
   employeeId: string;
