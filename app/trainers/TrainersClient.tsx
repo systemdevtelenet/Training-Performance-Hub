@@ -22,7 +22,9 @@ import {
   Calendar,
   Building2,
   CheckCircle2,
-  FileText
+  FileText,
+  UserCheck,
+  TrendingDown
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
@@ -31,7 +33,7 @@ import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilitySt
 import { useRole } from '@/components/providers/RoleProvider';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
-type TrainerTab = 'directory' | 'attendance' | 'reliability';
+type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
   const { role, email, avatarUrl, userName } = useRole();
@@ -43,7 +45,9 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
 
   const getTrainerAvatar = useCallback((t: any) => {
     if (!t) return null;
-    if (t.profilePic) return t.profilePic;
+    const pic = t.profilePic;
+    const isValidPic = pic && typeof pic === 'string' && pic.trim() !== '' && !['none', 'null', 'undefined', 'n/a'].includes(pic.trim().toLowerCase()) && (pic.startsWith('http') || pic.startsWith('/') || pic.startsWith('data:'));
+    if (isValidPic) return pic.trim();
     const isMatch = (t.name && userName && t.name.toLowerCase().includes(userName.toLowerCase())) ||
       (t.email && email && t.email.toLowerCase() === email.toLowerCase()) ||
       (t.name && t.name.toLowerCase().includes('nissi') && (email?.includes('nreguero') || !email));
@@ -237,8 +241,9 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
             <>
               <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
                 {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
-                {activeTab === 'attendance' && <AttendanceView initialTrainers={filteredInitialTrainers} />}
-                {activeTab === 'reliability' && <ReliabilityView initialTrainers={filteredInitialTrainers} />}
+                {(activeTab === 'attendance' || activeTab === 'reliability' || (activeTab as string) === 'attendance-reliability') && (
+                  <AttendanceReliabilityView initialTrainers={filteredInitialTrainers} />
+                )}
               </div>
             </>
           )}
@@ -255,10 +260,13 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedLeave, setSelectedLeave] = useState<{ type: string, dates: string[] } | null>(null);
+  const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
 
   const getTrainerAvatar = useCallback((t: any) => {
     if (!t) return null;
-    if (t.profilePic) return t.profilePic;
+    const pic = t.profilePic;
+    const isValidPic = pic && typeof pic === 'string' && pic.trim() !== '' && !['none', 'null', 'undefined', 'n/a'].includes(pic.trim().toLowerCase()) && (pic.startsWith('http') || pic.startsWith('/') || pic.startsWith('data:'));
+    if (isValidPic) return pic.trim();
     const isMatch = (t.name && userName && t.name.toLowerCase().includes(userName.toLowerCase())) ||
       (t.email && email && t.email.toLowerCase() === email.toLowerCase()) ||
       (t.name && t.name.toLowerCase().includes('nissi') && (email?.includes('nreguero') || !email));
@@ -286,6 +294,39 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
   }, [trainersList, searchQuery, statusFilter]);
 
   const active = trainersList.find(t => t.id === selectedTrainerId) || filteredTrainers[0] || trainersList[0];
+
+  const toggleBatch = (batchKey: string) => {
+    setExpandedBatches(prev => ({
+      ...prev,
+      [batchKey]: !prev[batchKey]
+    }));
+  };
+
+  const isBatchExpanded = (batchKey: string, index: number) => {
+    if (expandedBatches[batchKey] !== undefined) {
+      return expandedBatches[batchKey];
+    }
+    return false; // Collapsed by default for a clean, compact overview
+  };
+
+  const allBatchesExpanded = useMemo(() => {
+    if (!active?.batches || active.batches.length === 0) return false;
+    return active.batches.every((b: any, idx: number) => {
+      const key = `${b.account || 'GENERAL'}-${b.batch || idx}`;
+      return isBatchExpanded(key, idx);
+    });
+  }, [active?.batches, expandedBatches]);
+
+  const toggleAllBatches = () => {
+    if (!active?.batches) return;
+    const targetState = !allBatchesExpanded;
+    const next: Record<string, boolean> = {};
+    active.batches.forEach((b: any, idx: number) => {
+      const key = `${b.account || 'GENERAL'}-${b.batch || idx}`;
+      next[key] = targetState;
+    });
+    setExpandedBatches(next);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -400,7 +441,21 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                         <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold overflow-hidden border border-slate-200/60 dark:border-slate-700 ${isSelected ? 'bg-[#2F6798] text-white ring-2 ring-[#2F6798]/30' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
                           }`}>
                           {tPhoto ? (
-                            <img src={tPhoto} alt={trainer.name} className="w-full h-full object-cover" />
+                            <>
+                              <img
+                                src={tPhoto}
+                                alt={trainer.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling;
+                                  if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                }}
+                              />
+                              <span className="hidden w-full h-full items-center justify-center">
+                                {trainer.name ? trainer.name.charAt(0) : '?'}
+                              </span>
+                            </>
                           ) : (
                             trainer.name ? trainer.name.charAt(0) : '?'
                           )}
@@ -422,7 +477,9 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                     </div>
                   </div>
                   {isSelected && (
-                    <Check className="w-4 h-4 text-[#2F6798] shrink-0 ml-2" />
+                    <div className="w-4 h-4 rounded-full bg-[#2F6798] text-white flex items-center justify-center shrink-0 ml-1.5 shadow-2xs">
+                      <Check className="w-2.5 h-2.5 text-white stroke-[3]" />
+                    </div>
                   )}
                 </button>
               );
@@ -434,7 +491,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
         </div>
 
         {/* Right Detail Pane */}
-        <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-6 h-[calc(100vh-12rem)] min-h-[600px] overflow-y-auto space-y-8 no-scrollbar relative">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-3.5 sm:p-5 h-[calc(100vh-12rem)] min-h-[600px] overflow-y-auto space-y-2.5 no-scrollbar relative">
           {!active ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 py-20">
               <p>No trainer details available.</p>
@@ -442,17 +499,31 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
           ) : (
             <>
               {/* Profile Header */}
-              <div className="relative overflow-hidden pb-8 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
+              <div className="relative overflow-hidden pb-3 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-900/10 rounded-bl-full -mr-20 -mt-20 pointer-events-none" />
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10 w-full max-w-full min-w-0">
-                  <div className="flex items-start sm:items-center gap-6 w-full max-w-full min-w-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10 w-full max-w-full min-w-0">
+                  <div className="flex items-start sm:items-center gap-4 sm:gap-5 w-full max-w-full min-w-0">
                     {(() => {
                       const activePhoto = getTrainerAvatar(active);
                       return (
-                        <div className="w-20 h-20 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-3xl shrink-0 mt-1 sm:mt-0 overflow-hidden shadow-md ring-4 ring-[#2F6798]/10 border-2 border-white dark:border-slate-700">
+                        <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-[#2F6798] text-white flex items-center justify-center font-black text-2xl sm:text-3xl shrink-0 mt-1 sm:mt-0 overflow-hidden shadow-md ring-4 ring-[#2F6798]/10 border-2 border-white dark:border-slate-700">
                           {activePhoto ? (
-                            <img src={activePhoto} alt={active.name} className="w-full h-full object-cover" />
+                            <>
+                              <img
+                                src={activePhoto}
+                                alt={active.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling;
+                                  if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                }}
+                              />
+                              <span className="hidden w-full h-full items-center justify-center font-black text-2xl sm:text-3xl">
+                                {active.name ? active.name.charAt(0) : '?'}
+                              </span>
+                            </>
                           ) : (
                             active.name ? active.name.charAt(0) : '?'
                           )}
@@ -460,36 +531,36 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                       );
                     })()}
                     <div className="flex-1 min-w-0 max-w-full">
-                      <div className="flex flex-wrap items-center gap-3 mb-2">
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{active.name || 'Unknown'}</h2>
+                      <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{active.name || 'Unknown'}</h2>
                         <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-sm ${getStatusBadge(active.status || '')}`}>
                           {active.status || 'N/A'}
                         </span>
                       </div>
                       
-                      <div className="mb-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-[#2F6798]/10 text-[#2F6798] border border-[#2F6798]/20 uppercase tracking-wider shadow-2xs">
+                      <div className="mb-2.5">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#2F6798] text-white uppercase tracking-wider shadow-2xs">
                           {active.role || 'HEAD OF TRAINING'}
                         </span>
                       </div>
 
                       {/* Outer Scrollable Wrapper so horizontal scrollbar renders outside & below the box */}
-                      <div className="w-full max-w-full overflow-x-auto custom-horizontal-scrollbar pb-2.5">
-                        <div className="bg-slate-50/80 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-3.5 shadow-2xs inline-flex min-w-max">
+                      <div className="w-full max-w-full overflow-x-auto custom-horizontal-scrollbar pb-1.5">
+                        <div className="bg-slate-50/80 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/80 p-2.5 shadow-2xs inline-flex min-w-max">
                           <div className="flex items-center divide-x divide-slate-200/60 dark:divide-slate-700/60">
-                            <div className="px-4 shrink-0 min-w-[120px]">
+                            <div className="px-3 shrink-0 min-w-[110px]">
                               <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Employee ID</span>
                               <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.id}</span>
                             </div>
-                            <div className="px-4 shrink-0 min-w-[120px]">
+                            <div className="px-3 shrink-0 min-w-[110px]">
                               <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Start Date</span>
                               <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.startDate || 'N/A'}</span>
                             </div>
-                            <div className="px-4 shrink-0 min-w-[140px]">
+                            <div className="px-3 shrink-0 min-w-[130px]">
                               <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Accounts</span>
                               <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.accounts || 'N/A'}</span>
                             </div>
-                            <div className="px-4 shrink-0 min-w-[160px]">
+                            <div className="px-3 shrink-0 min-w-[150px]">
                               <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Primary Task</span>
                               <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 whitespace-nowrap block">{active.tasks || 'N/A'}</span>
                             </div>
@@ -502,53 +573,53 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
               </div>
 
               {/* Performance Snapshot */}
-              <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
-                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Performance Snapshot</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-slate-100 dark:divide-slate-700">
+              <div className="bg-slate-50/60 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700/80 p-3 sm:p-3.5 shadow-2xs">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-[#2F6798]" /> Performance Snapshot
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 divide-x divide-slate-200/60 dark:divide-slate-700/60">
                   <div className="px-2">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Attendance</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.attendanceRate || 'N/A'}</p>
-                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.attendanceRate, 'attendance').color}`}>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Attendance</p>
+                    <p className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100">{active.attendanceRate || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-0.5 ${getKPIStatus(active.attendanceRate, 'attendance').color}`}>
                       {getKPIStatus(active.attendanceRate, 'attendance').label}
                     </p>
                   </div>
-                  <div className="px-4">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Reliability</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.reliabilityRate || 'N/A'}</p>
-                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.reliabilityRate, 'reliability').color}`}>
+                  <div className="px-3">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Reliability</p>
+                    <p className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100">{active.reliabilityRate || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-0.5 ${getKPIStatus(active.reliabilityRate, 'reliability').color}`}>
                       {getKPIStatus(active.reliabilityRate, 'reliability').label}
                     </p>
                   </div>
-                  <div className="px-4">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Success Rate</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-slate-100">{active.overallSuccess || 'N/A'}</p>
-                    <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(active.overallSuccess, 'success').color}`}>
+                  <div className="px-3">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Success Rate</p>
+                    <p className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100">{active.overallSuccess || 'N/A'}</p>
+                    <p className={`text-[10px] font-bold mt-0.5 ${getKPIStatus(active.overallSuccess, 'success').color}`}>
                       {getKPIStatus(active.overallSuccess, 'success').label}
                     </p>
                   </div>
-                  <div className="px-4 relative group">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                  <div className="px-3 relative group">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5 flex items-center gap-1 shrink-0 whitespace-nowrap">
                       <span>Avg Attrition</span>
                       <span className="cursor-help inline-flex items-center">
                         <Info className="w-3.5 h-3.5 text-[#C8A54B] hover:opacity-80" />
                       </span>
                     </p>
-                    <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-[#FAF6EA] dark:bg-[#252014] text-[#7A5E18] dark:text-[#E2BD5B] text-[10px] font-normal leading-relaxed p-3 rounded-xl shadow-xl border border-[#D8BA68]/60 w-52 z-30 pointer-events-none">
+                    <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-[#FAF6EA] dark:bg-[#252014] text-[#7A5E18] dark:text-[#E2BD5B] text-[10px] font-normal leading-relaxed p-2.5 rounded-xl shadow-xl border border-[#D8BA68]/60 w-52 z-30 pointer-events-none">
                       Percentage of trainees who leave or are lost from the training process.
                     </div>
                     {(() => {
-                      if (!active.batches || active.batches.length === 0) return (
-                        <>
-                          <p className="text-xl font-black text-slate-800 dark:text-slate-100">N/A</p>
-                          <p className="text-[10px] font-bold mt-1 text-slate-400 dark:text-slate-500">N/A</p>
-                        </>
-                      );
-                      const totalAttr = active.batches.reduce((sum: number, b: any) => sum + parseFloat(b.attrition), 0);
-                      const avgAttr = (totalAttr / active.batches.length).toFixed(1) + '%';
+                      const avgAttr = active.avgAttrition && active.avgAttrition !== 'N/A' 
+                        ? active.avgAttrition 
+                        : (active.batches && active.batches.length > 0
+                            ? `${(active.batches.reduce((sum: number, b: any) => sum + parseFloat(b.attritionRate || b.attrition || '0'), 0) / active.batches.length).toFixed(1)}%`
+                            : 'N/A');
+                      
                       return (
                         <>
-                          <p className="text-xl font-black text-slate-800 dark:text-slate-100">{avgAttr}</p>
-                          <p className={`text-[10px] font-bold mt-1 ${getKPIStatus(avgAttr, 'attrition').color}`}>
+                          <p className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100">{avgAttr}</p>
+                          <p className={`text-[10px] font-bold mt-0.5 ${getKPIStatus(avgAttr, 'attrition').color}`}>
                             {getKPIStatus(avgAttr, 'attrition').label}
                           </p>
                         </>
@@ -559,15 +630,17 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
               </div>
 
               {/* Attendance & Leave Breakdown */}
-              <div className="bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col">
+              <div className="bg-slate-50/60 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700/80 p-3 sm:p-3.5 flex flex-col shadow-2xs">
                 <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-1 flex items-center justify-between">
-                  Attendance & Leave Breakdown
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#2F6798]" /> Attendance &amp; Leave Breakdown
+                  </span>
                   <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500 normal-case bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-700">
                     Click box for records
                   </span>
                 </h3>
 
-                <div className="grid grid-cols-4 sm:grid-cols-9 gap-2 text-center mt-3">
+                <div className="grid grid-cols-4 sm:grid-cols-9 gap-1.5 text-center mt-2">
                   {[
                     { label: 'ABS', val: active.leaves?.absence ?? 0 },
                     { label: 'SL', val: active.leaves?.sl ?? 0 },
@@ -583,18 +656,173 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                     <button
                       key={idx}
                       onClick={() => setSelectedLeave({ type: item.label, dates: active.leaves?.records?.[item.label] || [] })}
-                      className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${item.highlight
+                      className={`p-1.5 rounded-lg border transition-all cursor-pointer flex flex-col items-center justify-center hover:shadow-sm hover:-translate-y-0.5 focus:ring-2 focus:outline-none ${item.highlight
                         ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300 focus:ring-rose-200/50'
                         : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-200/50'
                         }`}
                     >
                       <span className={`text-[9px] font-bold block uppercase mb-0.5 ${item.highlight ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400'}`}>{item.label}</span>
-                      <span className={`text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800 dark:text-slate-100'}`}>{item.val}</span>
+                      <span className={`text-xs sm:text-sm font-black block ${item.highlight ? 'text-rose-700' : 'text-slate-800 dark:text-slate-100'}`}>{item.val}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Handled Batches & Success Rate */}
+              <div className="bg-slate-50/60 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700/80 p-3 sm:p-3.5 flex flex-col space-y-2.5 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-[#2F6798]" /> Handled Batches &amp; Success Rate
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {active.batches && active.batches.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleAllBatches}
+                        className="text-[10px] font-bold text-[#2F6798] dark:text-blue-400 hover:bg-[#2F6798]/10 px-2.5 py-0.5 rounded-md border border-[#2F6798]/20 transition-all cursor-pointer shadow-2xs"
+                      >
+                        {allBatchesExpanded ? 'Collapse All' : 'Expand All'}
+                      </button>
+                    )}
+                    <span className="text-[10px] font-extrabold text-[#2F6798] dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/60 px-2.5 py-0.5 rounded-full border border-blue-200/80 dark:border-blue-900 shadow-2xs uppercase tracking-wider">
+                      {active.batches?.length || 0} {(active.batches?.length === 1) ? 'Batch' : 'Batches'} Handled
+                    </span>
+                  </div>
+                </div>
+
+                {(!active.batches || active.batches.length === 0) ? (
+                  <div className="text-center py-8 bg-white dark:bg-slate-800/60 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">No training batches assigned to this trainer yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {active.batches.map((b: any, idx: number) => {
+                      const succRate = b.successRate || (b.headcount ? `${(((b.passed || 0) / b.headcount) * 100).toFixed(1)}%` : 'N/A');
+                      const attrRate = b.attritionRate || b.attrition || (b.headcount ? `${(((b.losses || 0) / b.headcount) * 100).toFixed(1)}%` : '0.0%');
+                      const cleanBatchNum = b.batch ? `${b.batch}`.replace(/^(batch\s*|wave\s*)/i, '').trim() : `${idx + 1}`;
+                      const trainerDisplay = b.trainees?.[0]?.assignedTrainer || active.name;
+                      const batchKey = `${b.account || 'GENERAL'}-${b.batch || idx}`;
+                      const expanded = isBatchExpanded(batchKey, idx);
+
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white dark:bg-slate-800/95 rounded-xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-xs hover:shadow-md transition-all"
+                        >
+                          {/* Card Header Bar - Clickable Accordion Toggle */}
+                          <div
+                            onClick={() => toggleBatch(batchKey)}
+                            className="p-2.5 sm:px-3.5 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-900/40 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors select-none"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-[#2F6798] text-white shadow-2xs uppercase tracking-wider shrink-0">
+                                {b.account || 'GENERAL'}
+                              </span>
+                              <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight shrink-0">
+                                Batch {cleanBatchNum}
+                              </h4>
+                              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 shadow-2xs truncate">
+                                <UserCheck className="w-3 h-3 text-[#2F6798]" />
+                                <span className="truncate max-w-[150px]">{trainerDisplay}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] font-semibold shrink-0">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+                                <Users className="w-3 h-3 text-slate-400" />
+                                <span>HC: <strong className="text-slate-900 dark:text-white font-black">{b.headcount || 0}</strong></span>
+                              </span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border shadow-2xs ${b.losses > 0 ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                <TrendingDown className="w-3 h-3 text-rose-500" />
+                                <span>Attr: <strong className="font-black">{attrRate}</strong></span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <span>Success: <strong className="font-black">{succRate}</strong></span>
+                              </span>
+                              <div className={`p-1 rounded-md text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
+                                <ChevronDown className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Trainees Table - Collapsible */}
+                          {expanded && (
+                            <div className="overflow-x-auto max-h-72 overflow-y-auto custom-horizontal-scrollbar border-t border-slate-100 dark:border-slate-700/60">
+                              <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50/60 dark:bg-slate-900/50 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white dark:bg-slate-800 z-10">
+                                  <tr>
+                                    <th className="py-2 px-3 sm:px-3.5">Trainee Name</th>
+                                    <th className="py-2 px-3">Assigned Trainer</th>
+                                    <th className="py-2 px-2.5 text-center">Present (P)</th>
+                                    <th className="py-2 px-2.5 text-center">Absent (A)</th>
+                                    <th className="py-2 px-3 text-center">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                  {b.trainees && b.trainees.length > 0 ? (
+                                    b.trainees.map((t: any, tIdx: number) => {
+                                      const sUpper = (t.status || '').toUpperCase();
+                                      const isEndorsed = sUpper === 'ENDORSED' || sUpper === 'PASSED';
+                                      const isLoss = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'REPROFILED'].some(ls => sUpper.includes(ls));
+                                      
+                                      let badgeClass = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800';
+                                      if (isEndorsed) {
+                                        badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800';
+                                      } else if (isLoss) {
+                                        badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800';
+                                      }
+
+                                      const initials = t.name ? t.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() : '?';
+
+                                      return (
+                                        <tr key={tIdx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
+                                          <td className="py-2 px-3 sm:px-3.5">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-5 h-5 rounded-full bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] dark:text-blue-300 flex items-center justify-center text-[8px] font-black shrink-0 border border-[#2F6798]/20">
+                                                {initials}
+                                              </div>
+                                              <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+                                                {t.name}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2 px-3 text-slate-600 dark:text-slate-300 font-semibold text-xs">
+                                            {t.assignedTrainer || active.name || 'N/A'}
+                                          </td>
+                                          <td className="py-2 px-2.5 text-center font-black text-slate-700 dark:text-slate-200 text-xs">
+                                            {t.p ?? 0}
+                                          </td>
+                                          <td className="py-2 px-2.5 text-center font-black text-xs">
+                                            <span className={t.a > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}>
+                                              {t.a ?? 0}
+                                            </span>
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold border uppercase tracking-wider ${badgeClass}`}>
+                                              {t.status || 'ACTIVE'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={5} className="py-3 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
+                                        No individual trainee records found for this batch.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
             </>
           )}
@@ -604,7 +832,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
             <div className={`fixed inset-0 z-[9999] pointer-events-auto`}>
               <button aria-label="Close modal" onClick={() => setSelectedLeave(null)} className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 opacity-100 cursor-default`} />
 
-              <aside role="dialog" aria-modal="true" className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 ease-out sm:w-[min(500px,calc(100%-2rem))] translate-x-0`}>
+              <aside role="dialog" aria-modal="true" className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-[480px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl transition-transform duration-300 ease-out translate-x-0`}>
 
                 <header className="bg-[#2F6798] px-6 py-4 flex items-center justify-between shrink-0">
                   <h2 className="text-sm font-bold tracking-wide text-white uppercase">

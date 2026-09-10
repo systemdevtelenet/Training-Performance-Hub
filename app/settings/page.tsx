@@ -88,14 +88,14 @@ function SettingsContent() {
   });
 
   const profile = {
-    firstName: 'Nissi-Jeh',
-    middleName: 'Nissi-Jeh',
-    lastName: 'Reguero',
-    suffix: 'N/A',
-    employeeId: 'CTN-80429',
-    systemRole: 'Admin',
-    mobileNo: '+63 912 345 6789',
-    homeAddress: 'Cebu City, Philippines'
+    firstName: userMeta?.firstName || (userName ? userName.trim().split(/\s+/).slice(0, -1).join(' ') || userName.trim().split(/\s+/)[0] : 'N/A'),
+    middleName: userMeta?.middleName || 'N/A',
+    lastName: userMeta?.lastName || (userName && userName.trim().split(/\s+/).length > 1 ? userName.trim().split(/\s+/).slice(-1)[0] : 'N/A'),
+    suffix: userMeta?.suffix || 'N/A',
+    employeeId: userMeta?.employeeId || 'N/A',
+    systemRole: userMeta?.systemRole || 'N/A',
+    mobileNo: userMeta?.mobileNo || 'N/A',
+    homeAddress: userMeta?.homeAddress || 'N/A'
   };
 
   const [notifications, setNotifications] = useState({
@@ -366,6 +366,7 @@ function SettingsContent() {
     <div className="max-w-6xl mx-auto space-y-6 pb-12 relative">
       {/* Hidden File Input */}
       <input
+        id="avatar-file-input"
         ref={fileInputRef}
         type="file"
         accept="image/*"
@@ -497,17 +498,14 @@ function SettingsContent() {
                         {/* Dropdown Menu - Compact & Always Visible */}
                         {showAvatarDropdown && (
                           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-150">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowAvatarDropdown(false);
-                                fileInputRef.current?.click();
-                              }}
+                            <label
+                              htmlFor="avatar-file-input"
+                              onClick={() => setShowAvatarDropdown(false)}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer text-left"
                             >
                               <Upload className="w-3.5 h-3.5 text-[#2F6798]" />
                               <span>Upload Photo</span>
-                            </button>
+                            </label>
                             <button
                               type="button"
                               onClick={handleRemovePhoto}
@@ -522,31 +520,31 @@ function SettingsContent() {
                     </div>
                     
                     <div className="relative text-white flex-1 text-center md:text-left">
-                      <h2 className="text-xl md:text-2xl font-black tracking-tight mb-1.5">{userName || 'Nissi-Jeh Reguero'}</h2>
+                      <h2 className="text-xl md:text-2xl font-black tracking-tight mb-1.5">{userName || 'N/A'}</h2>
                       <div className="mb-2">
                         <span className="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white font-extrabold text-[11px] uppercase tracking-wider border border-white/25 shadow-2xs">
-                          {userMeta.primaryTask || 'Head of Training'}
+                          {userMeta.primaryTask || 'N/A'}
                         </span>
                       </div>
-                      <p className="text-xs font-medium text-white/80 mb-3">{userEmail || 'n.reguero@cebutele.net'}</p>
+                      <p className="text-xs font-medium text-white/80 mb-3">{userEmail || 'N/A'}</p>
                       
                       <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/15 shadow-sm mt-3">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-white/15">
                           <div className="pr-2">
                             <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Employee ID</p>
-                            <p className="text-xs font-bold text-white">{userMeta.employeeId || '1597'}</p>
+                            <p className="text-xs font-bold text-white">{userMeta.employeeId || 'N/A'}</p>
                           </div>
                           <div className="sm:pl-3 pr-2 pt-2 sm:pt-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Start Date</p>
-                            <p className="text-xs font-bold text-white">{userMeta.startDate || '1/3/2024'}</p>
+                            <p className="text-xs font-bold text-white">{userMeta.startDate || 'N/A'}</p>
                           </div>
                           <div className="sm:pl-3 pr-2 pt-2 sm:pt-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Accounts</p>
-                            <p className="text-xs font-bold text-white truncate" title={userMeta.accounts || 'CORP'}>{userMeta.accounts || 'CORP'}</p>
+                            <p className="text-xs font-bold text-white truncate" title={userMeta.accounts || 'N/A'}>{userMeta.accounts || 'N/A'}</p>
                           </div>
                           <div className="sm:pl-3 pt-2 sm:pt-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Primary Task</p>
-                            <p className="text-xs font-bold text-white truncate" title={userMeta.primaryTask || 'Head of Training'}>{userMeta.primaryTask || 'Head of Training'}</p>
+                            <p className="text-xs font-bold text-white truncate" title={userMeta.primaryTask || 'N/A'}>{userMeta.primaryTask || 'N/A'}</p>
                           </div>
                         </div>
                       </div>

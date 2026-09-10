@@ -66,12 +66,15 @@ export async function searchGlobal(query: string): Promise<SearchResultItem[]> {
     }
   });
 
+  const cleanQ = q.replace(/[,()%\\]/g, '').trim();
+  if (!cleanQ) return results;
+
   try {
     // 2. Search Trainers (trainers & trainers_profile)
     const { data: trainersData } = await supabaseAdmin
       .from('trainers_profile')
       .select('name, position, accounts, gmail_account, profile_pic, employee_num')
-      .or(`name.ilike.%${q}%,accounts.ilike.%${q}%,position.ilike.%${q}%,gmail_account.ilike.%${q}%`)
+      .or(`name.ilike.%${cleanQ}%,accounts.ilike.%${cleanQ}%,position.ilike.%${cleanQ}%,gmail_account.ilike.%${cleanQ}%`)
       .limit(6);
 
     (trainersData || []).forEach(t => {
@@ -90,13 +93,13 @@ export async function searchGlobal(query: string): Promise<SearchResultItem[]> {
     const { data: inhouseData } = await supabaseAdmin
       .from('inhouse')
       .select('name, batch, status, acount, account')
-      .or(`name.ilike.%${q}%,batch.ilike.%${q}%,status.ilike.%${q}%,acount.ilike.%${q}%`)
+      .or(`name.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,acount.ilike.%${cleanQ}%`)
       .limit(8);
 
     const { data: pstData } = await supabaseAdmin
       .from('product_spec_training')
       .select('name, wave, batch, status, account, accountName')
-      .or(`name.ilike.%${q}%,wave.ilike.%${q}%,batch.ilike.%${q}%,status.ilike.%${q}%,account.ilike.%${q}%`)
+      .or(`name.ilike.%${cleanQ}%,wave.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,account.ilike.%${cleanQ}%`)
       .limit(8);
 
     (inhouseData || []).forEach(ih => {
@@ -129,7 +132,7 @@ export async function searchGlobal(query: string): Promise<SearchResultItem[]> {
     const { data: empData } = await supabaseAdmin
       .from('employees')
       .select('id, employee_name, employee_code, employee_email, avatar_url')
-      .or(`employee_name.ilike.%${q}%,employee_code.ilike.%${q}%,employee_email.ilike.%${q}%`)
+      .or(`employee_name.ilike.%${cleanQ}%,employee_code.ilike.%${cleanQ}%,employee_email.ilike.%${cleanQ}%`)
       .limit(6);
 
     (empData || []).forEach(emp => {

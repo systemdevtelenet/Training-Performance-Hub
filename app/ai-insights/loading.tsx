@@ -1,10 +1,10 @@
 import PageLoading from '@/components/PageLoading';
 
-export default function AnalyticsLoading() {
+export default function AiInsightsLoading() {
   return (
     <PageLoading
       title="Loading Analytics & AI Insights..."
-      subtitle="Generating department trends, attrition metrics, and quarterly analysis"
+      subtitle="Generating intelligent performance analytics and summaries"
     />
   );
 }

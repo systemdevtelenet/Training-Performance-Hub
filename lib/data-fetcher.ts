@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import dummyPayload from '@/data/dashboard-mock.json'; // Fallback
+import { isTrainerMatch } from '@/lib/analytics-utils';
 
 // Create a standard client that doesn't access Next.js cookies
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -260,11 +261,22 @@ export const getTrainersData = unstable_cache(
       }
     }
     
+    const { data: inhouseData } = await supabaseAdmin
+      .from('inhouse')
+      .select('*');
+
+    const { data: pstData } = await supabaseAdmin
+      .from('product_spec_training')
+      .select('*');
+
     if (!trainers) return [];
+
+    const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'REPROFILED'];
 
     // Map DB rows to standard format
     const mapped = trainers.map(t => {
       const profile = profileMap.get(t.employee_num) || {};
+      const trainerName = profile.name || t.name || 'Unknown';
       const attRow = attendanceMap.get(t.trainer_id);
       
       let leaves = { absence: 0, sl: 0, vl: 0, bl: 0, med: 0, sus: 0, hol: 0, ml: 0, pl: 0, und: 0, records: {} };
@@ -319,14 +331,87 @@ export const getTrainersData = unstable_cache(
         }
       }
       
-      const batches = typeof profile.batches === 'string' ? JSON.parse(profile.batches) : (profile.batches || []);
+      // Calculate handled batches
+      const allTrainees = [...(pstData || []), ...(inhouseData || [])];
+      const assignedTrainees = allTrainees.filter(row => 
+        isTrainerMatch(row.assigned_trainer || row.assignedTrainer || row.trainer, trainerName)
+      );
+
+      const batchMap: Record<string, { batch: string; account: string; headcount: number; passed: number; losses: number; successRate?: string; attritionRate?: string; attrition?: string; trainees: any[] }> = {};
+      let totalHeadcount = 0;
+      let totalPassed = 0;
+      let totalTraineeLosses = 0;
+
+      assignedTrainees.forEach(row => {
+        const batchKey = row.batch ? `Batch ${row.batch}` : (row.wave ? `Batch ${row.wave}` : 'Batch Unassigned');
+        const acc = (row.account || row.acount || row.accountName || 'General').toString().trim();
+        const fullKey = `${acc} - ${batchKey}`;
+        if (!batchMap[fullKey]) {
+          batchMap[fullKey] = { batch: batchKey, account: acc, headcount: 0, losses: 0, passed: 0, trainees: [] };
+        }
+        batchMap[fullKey].headcount++;
+        totalHeadcount++;
+
+        const s = (row.status || '').toUpperCase();
+        if (lossStatuses.some(ls => s.includes(ls))) {
+          batchMap[fullKey].losses++;
+          totalTraineeLosses++;
+        } else {
+          batchMap[fullKey].passed++;
+          totalPassed++;
+        }
+
+        let pCount = 0;
+        let aCount = 0;
+        for (let i = 1; i <= 62; i++) {
+          const val = (row[`att_status_day_${i}`] || '').toString().trim().toUpperCase();
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
+        for (const col of ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3']) {
+          const val = (row[col] || '').toString().trim().toUpperCase();
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
+
+        batchMap[fullKey].trainees.push({
+          id: row.id || row.name,
+          name: row.name,
+          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || trainerName,
+          p: pCount,
+          a: aCount,
+          status: row.status || 'ACTIVE'
+        });
+      });
+
+      const computedBatches = Object.values(batchMap).map(b => ({
+        ...b,
+        attrition: b.headcount > 0 ? `${((b.losses / b.headcount) * 100).toFixed(1)}%` : '0.0%',
+        attritionRate: b.headcount > 0 ? `${((b.losses / b.headcount) * 100).toFixed(1)}%` : '0.0%',
+        successRate: b.headcount > 0 ? `${((b.passed / b.headcount) * 100).toFixed(1)}%` : '0.0%',
+      }));
+
+      const dbBatches = typeof profile.batches === 'string' ? JSON.parse(profile.batches) : (profile.batches || []);
+      const finalBatches = computedBatches.length > 0 ? computedBatches : dbBatches;
+
+      let overallSuccess = 'N/A';
+      let avgAttrition = 'N/A';
+      if (totalHeadcount > 0) {
+        overallSuccess = `${((totalPassed / totalHeadcount) * 100).toFixed(1)}%`;
+        avgAttrition = `${((totalTraineeLosses / totalHeadcount) * 100).toFixed(1)}%`;
+      } else if (finalBatches && finalBatches.length > 0 && profile.success_rate !== undefined && profile.success_rate !== null) {
+        overallSuccess = `${profile.success_rate}%`;
+      }
+
+      const rawPic = profile.profile_pic;
+      const cleanPic = (rawPic && typeof rawPic === 'string' && rawPic.trim() !== '' && !['none', 'null', 'undefined', 'n/a'].includes(rawPic.trim().toLowerCase()) && (rawPic.startsWith('http') || rawPic.startsWith('/') || rawPic.startsWith('data:'))) ? rawPic.trim() : '';
 
       return {
         id: t.employee_num || Math.random().toString(),
         trainer_id: t.trainer_id,
         name: profile.name || 'Unknown',
         email: profile.gmail_account || '',
-        profilePic: profile.profile_pic || '',
+        profilePic: cleanPic,
         role: t.position || 'UNASSIGNED',
         status: t.status || 'ACTIVE',
         startDate: profile.start_date || t.start_date || 'N/A',
@@ -334,9 +419,10 @@ export const getTrainersData = unstable_cache(
         tasks: t.assigned_task || '',
         attendanceRate: attendanceRate,
         reliabilityRate: calculatedReliabilityRate,
-        overallSuccess: (batches && batches.length > 0 && profile.success_rate !== undefined && profile.success_rate !== null) ? `${profile.success_rate}%` : 'N/A',
+        overallSuccess: overallSuccess,
+        avgAttrition: avgAttrition,
         leaves: leaves,
-        batches: batches,
+        batches: finalBatches,
         timeline: timeline,
         present: totalPresent,
         absent: totalAbsent,

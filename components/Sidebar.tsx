@@ -50,8 +50,7 @@ const getNavItems = (role: UserRole) => {
         { name: 'Directory', href: '/trainers', icon: FileText }
       ] : [
         { name: 'Directory', href: '/trainers', icon: FileText },
-        { name: 'Attendance', href: '/trainers?tab=attendance', icon: Calendar },
-        { name: 'Reliability', href: '/trainers?tab=reliability', icon: ShieldCheck }
+        { name: 'Attendance & Reliability', href: '/trainers?tab=attendance', icon: Calendar }
       ]
     },
     { 
