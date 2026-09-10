@@ -29,15 +29,22 @@ export interface SearchResultItem {
   href: string;
 }
 
-export async function searchGlobal(query: string): Promise<SearchResultItem[]> {
+export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE'): Promise<SearchResultItem[]> {
   const q = (query || '').trim();
   if (!q) return [];
 
   const results: SearchResultItem[] = [];
   const lowerQ = q.toLowerCase();
+  const isEmployee = userRole === 'EMPLOYEE' || userRole === 'GUEST';
 
-  // 1. Navigation Pages Match
-  const systemPages = [
+  // 1. Navigation Pages Match (Role-Filtered)
+  const systemPages = isEmployee ? [
+    { title: 'My Performance Dashboard', subtitle: 'Personal attendance, active batch & trainer overview', href: '/', keywords: ['dashboard', 'home', 'overview', 'attendance', 'batch', 'my'] },
+    { title: 'Traffic Lights Status Tracking', subtitle: 'Weekly status ratings, remarks, and coaching notes', href: '/traffic-lights', keywords: ['traffic', 'lights', 'weekly', 'ratings', 'remarks', 'green', 'yellow', 'red', 'okay', 'status'] },
+    { title: 'Account Profile Information', subtitle: 'User avatar, employee ID, and personal details', href: '/settings?tab=profile', keywords: ['profile', 'settings', 'avatar', 'photo', 'id'] },
+    { title: 'Notification Preferences', subtitle: 'Manage in-app and email alert delivery', href: '/settings?tab=notifications', keywords: ['notifications', 'alerts', 'email', 'bell'] },
+    { title: 'System Preferences', subtitle: 'Dark mode theme, timezone and display options', href: '/settings?tab=general', keywords: ['theme', 'dark mode', 'preferences', 'general'] },
+  ] : [
     { title: 'Dashboard Overview', subtitle: 'Executive metrics, headcounts, attrition & summaries', href: '/', keywords: ['dashboard', 'home', 'overview', 'metrics', 'headcount'] },
     { title: 'Traffic Lights Status Tracking', subtitle: 'Weekly status ratings, remarks, and trend analysis', href: '/traffic-lights', keywords: ['traffic', 'lights', 'weekly', 'ratings', 'remarks', 'green', 'yellow', 'red', 'okay', 'status'] },
     { title: 'Trainees Directory & Rosters', subtitle: 'Inhouse & PST cohorts, batch rosters, and endorsement records', href: '/trainees', keywords: ['trainee', 'trainees', 'roster', 'endorsement', 'inhouse', 'pst', 'batch', 'cohort'] },

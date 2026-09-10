@@ -9,9 +9,10 @@ import { EmployeeDashboardView } from '@/components/EmployeeDashboardView';
 import { useRole } from '@/components/providers/RoleProvider';
 import KpiCards from '@/components/KpiCards';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import PageLoading from '@/components/PageLoading';
 
 export default function Dashboard({ initialData }: { initialData: any }) {
-  const { role } = useRole();
+  const { role, isLoading } = useRole();
   const [filters, setFilters] = useState({ month: 'ALL', quarter: 'ALL', account: 'ALL', search: '' });
 
   const processedData = useMemo(() => {
@@ -56,10 +57,21 @@ export default function Dashboard({ initialData }: { initialData: any }) {
     };
   }, [processedData, initialData]);
 
-  // If user is a regular employee / trainee, show personalized trainee portal dashboard
-  if (role === 'EMPLOYEE') {
+  // Show full screen loading while user role & session are resolving
+  if (isLoading) {
     return (
-      <div className="space-y-4 text-[#363435] dark:text-slate-200">
+      <PageLoading
+        title="Loading Dashboard..."
+        subtitle="Getting your personalized workspace ready"
+      />
+    );
+  }
+
+  // For regular employees or non-admin users, render their personalized performance view with matching executive UI design
+  const isAdminOrTrainer = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'].includes(role);
+  if (!isAdminOrTrainer) {
+    return (
+      <div className="space-y-5 text-[#363435] dark:text-slate-200">
         <EmployeeDashboardView rawData={initialData} />
       </div>
     );

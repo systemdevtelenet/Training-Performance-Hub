@@ -2,6 +2,8 @@ import './globals.css';
 import { Poppins } from 'next/font/google';
 import ClientLayout from '@/components/ClientLayout';
 
+import type { Viewport, Metadata } from 'next';
+
 const poppins = Poppins({ 
   subsets: ['latin'], 
   variable: '--font-sans', 
@@ -9,10 +11,28 @@ const poppins = Poppins({
   display: 'swap'
 });
 
-export const metadata = {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#2F6798',
+};
+
+export const metadata: Metadata = {
   title: 'Training Performance Hub',
   description: 'Enterprise Performance, Attendance & Analytics Hub',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CTNP Hub',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
+
+import PwaRegister from '@/components/PwaRegister';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans antialiased bg-background text-foreground min-h-screen transition-colors duration-200">
+        <PwaRegister />
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

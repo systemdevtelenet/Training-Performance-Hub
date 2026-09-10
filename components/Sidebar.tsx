@@ -39,18 +39,16 @@ const getNavItems = (role: UserRole) => {
       name: 'Trainees', 
       href: '/trainees', 
       icon: Users, 
-      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'] 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'] 
     },
     { 
       name: 'Trainers', 
       href: '/trainers', 
       icon: UserCheck,
-      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'],
-      subItems: role === 'EMPLOYEE' ? [
-        { name: 'Directory', href: '/trainers', icon: FileText }
-      ] : [
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'],
+      subItems: [
         { name: 'Directory', href: '/trainers', icon: FileText },
-        { name: 'Attendance & Reliability', href: '/trainers?tab=attendance', icon: Calendar }
+        { name: 'Attendance & Reliability', href: '/trainers?tab=attendance', icon: ShieldCheck }
       ]
     },
     { 
@@ -69,7 +67,7 @@ const getNavItems = (role: UserRole) => {
       name: 'Traffic Lights', 
       href: '/traffic-lights', 
       icon: Activity, 
-      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE'] 
+      roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'EMPLOYEE', 'GUEST'] 
     },
     { 
       name: 'Activity Log', 
@@ -83,37 +81,45 @@ const getNavItems = (role: UserRole) => {
 };
 
 export default function Sidebar() {
-  const { role, email, avatarUrl } = useRole();
+  const { role, email, avatarUrl, userName, userMeta } = useRole();
   const navItems = getNavItems(role);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '/trainers': true
   });
 
+  // Close mobile menu on route changes
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname, searchParams]);
+
   const profile = useMemo(() => {
-    const emailStr = (email || '').toLowerCase();
-    if (emailStr.includes('bosssilver') || (role as string) === 'VIEW_ADMIN') {
-      return { name: 'Boss Silver', title: 'Executive Admin (View Only)', initials: 'BS', email: email || 'bosssilver.telenet@gmail.com' };
-    }
-    if (emailStr.includes('nreguero') || role === 'HOT_ADMIN') {
-      return { name: 'Nissi-Jeh Reguero', title: 'Head of Training', initials: 'NJ', email: email || 'nreguero.telenet@gmail.com' };
-    }
-    if (emailStr.includes('ralasagas') || role === 'QAS_ADMIN') {
-      return { name: 'Raza Alasagas', title: 'QAS Head', initials: 'RA', email: email || 'ralasagas.telenet@gmail.com' };
-    }
-    if (email) {
-      const handle = email.split('@')[0];
-      const parts = handle.split(/[\._]/);
-      const name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-      const initials = parts.map(p => p.charAt(0).toUpperCase()).join('').slice(0, 2);
-      return { name, title: role || 'Operations User', initials: initials || 'U', email };
-    }
-    return { name: 'Nissi-Jeh Reguero', title: 'Head of Training', initials: 'NJ', email: 'nreguero.telenet@gmail.com' };
-  }, [email, role]);
+    const displayName = userName || (email ? email.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : 'User');
+    
+    // Compute dynamic initials
+    const parts = displayName.trim().split(/\s+/);
+    const initials = parts.length >= 2 
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() 
+      : (displayName.slice(0, 2).toUpperCase() || 'U');
+
+    // Dynamic role title
+    const title = userMeta?.primaryTask !== 'N/A' && userMeta?.primaryTask
+      ? userMeta.primaryTask
+      : role === 'SUPER_ADMIN' ? 'Super Admin'
+      : role === 'HOT_ADMIN' ? 'Head of Training'
+      : role === 'QAS_ADMIN' ? 'QAS Head'
+      : role === 'VIEW_ADMIN' ? 'Executive Admin (View Only)'
+      : role === 'TRAINER' ? 'Trainer'
+      : role === 'EMPLOYEE' ? 'Employee'
+      : role || 'Operations User';
+
+    return { name: displayName, title, initials, email: email || '' };
+  }, [email, role, userName, userMeta]);
 
   const handleConfirmLogout = async () => {
     setShowLogoutModal(false);
@@ -123,30 +129,23 @@ export default function Sidebar() {
     router.push('/login?logout=true');
   };
 
-  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadAvatar = () => {
-      const saved = localStorage.getItem('user_avatar_url');
-      setCustomAvatar(saved);
-    };
-    loadAvatar();
-
-    window.addEventListener('avatar-updated', loadAvatar);
-    return () => window.removeEventListener('avatar-updated', loadAvatar);
-  }, []);
-
   useEffect(() => {
     const handleOpenLogout = () => setShowLogoutModal(true);
+    const handleOpenMobile = () => setIsMobileOpen(true);
     window.addEventListener('open-logout-modal', handleOpenLogout);
-    return () => window.removeEventListener('open-logout-modal', handleOpenLogout);
+    window.addEventListener('open-mobile-menu', handleOpenMobile);
+    return () => {
+      window.removeEventListener('open-logout-modal', handleOpenLogout);
+      window.removeEventListener('open-mobile-menu', handleOpenMobile);
+    };
   }, []);
 
   return (
     <>
+      {/* Desktop Sidebar (Hidden on Mobile) */}
       <aside
         className={cn(
-          "bg-primary dark:bg-[#1A1C1E] text-primary-foreground border-r border-primary/20 dark:border-slate-800 flex flex-col justify-between h-screen sticky top-0 shrink-0 transition-[width] duration-200 ease-out will-change-[width] shadow-md z-50 overflow-x-hidden",
+          "hidden lg:flex bg-primary dark:bg-[#1A1C1E] text-primary-foreground border-r border-primary/20 dark:border-slate-800 flex-col justify-between h-screen sticky top-0 shrink-0 transition-[width] duration-200 ease-out will-change-[width] shadow-md z-50 overflow-x-hidden",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
@@ -213,7 +212,7 @@ export default function Sidebar() {
                           const currentTab = searchParams?.get('tab');
                           const subUrl = new URL(subItem.href, 'http://localhost');
                           const subTab = subUrl.searchParams.get('tab');
-                          const isSubActive = (subTab === currentTab) || (!subTab && !currentTab);
+                          const isSubActive = (subTab === currentTab) || (!subTab && !currentTab) || (subTab === 'attendance' && (currentTab === 'attendance' || currentTab === 'reliability' || currentTab === 'attendance-reliability'));
                           const SubIcon = subItem.icon || FileText;
                           
                           return (
@@ -340,8 +339,8 @@ export default function Sidebar() {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs overflow-hidden">
-                  {(avatarUrl || customAvatar) ? (
-                    <img src={avatarUrl || customAvatar!} alt="Profile" className="w-full h-full object-cover" />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     profile.initials
                   )}
@@ -373,8 +372,8 @@ export default function Sidebar() {
               <div className="absolute left-full bottom-0 ml-3.5 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-[100] bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-in fade-in slide-in-from-left-2 space-y-2">
                 <div className="flex items-center gap-3 pb-2 border-b border-white/15">
                   <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm overflow-hidden">
-                    {(avatarUrl || customAvatar) ? (
-                      <img src={avatarUrl || customAvatar!} alt="Profile" className="w-full h-full object-cover" />
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       profile.initials
                     )}
@@ -412,6 +411,157 @@ export default function Sidebar() {
           </div>
         </div>
       </aside>
+
+      {/* Mobile Slide-Over Navigation Drawer */}
+      {isMobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-[100] flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsMobileOpen(false)}
+          />
+
+          {/* Drawer Panel */}
+          <div className="relative flex flex-col w-[82vw] max-w-xs bg-primary dark:bg-[#1A1C1E] text-white h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/15">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center shadow-md">
+                  <Image src="/images/ctnp-logo.png" alt="CTNP" width={36} height={36} className="object-contain p-1" />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-sm text-white tracking-tight">Cebu Tele-Net</h2>
+                  <p className="text-[10px] font-medium text-white/60 uppercase tracking-wider">Operations Analytics</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 custom-scrollbar">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                const isExpanded = expandedMenus[item.href];
+
+                if (item.subItems) {
+                  return (
+                    <div key={item.href} className="space-y-1">
+                      <button
+                        onClick={() => setExpandedMenus(prev => ({ ...prev, [item.href]: !prev[item.href] }))}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all",
+                          isActive
+                            ? "bg-white/20 text-white font-bold"
+                            : "text-white/80 hover:bg-white/10 hover:text-white"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span>{item.name}</span>
+                        </div>
+                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5 opacity-60" /> : <ChevronDown className="h-3.5 w-3.5 opacity-60" />}
+                      </button>
+
+                      {isExpanded && (
+                        <div className="pl-6 space-y-1 pt-1">
+                          {item.subItems.map((sub) => {
+                            const isSubActive = pathname === sub.href;
+                            const SubIcon = sub.icon;
+                            return (
+                              <Link
+                                key={sub.href}
+                                href={sub.href}
+                                onClick={() => setIsMobileOpen(false)}
+                                className={cn(
+                                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                                  isSubActive
+                                    ? "bg-white/20 text-white font-bold"
+                                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                                )}
+                              >
+                                <SubIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                                <span>{sub.name}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all",
+                      isActive
+                        ? "bg-white/20 text-white font-bold"
+                        : "text-white/80 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Mobile Footer */}
+            <div className="p-3 border-t border-white/15 space-y-2">
+              <Link
+                href="/settings"
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all",
+                  pathname === '/settings'
+                    ? "bg-white/20 text-white font-bold"
+                    : "text-white/80 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+
+              <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/10 border border-white/10">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-white/20 text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      profile.initials
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0 pr-1">
+                    <span className="text-xs font-bold text-white truncate leading-tight">{profile.name}</span>
+                    <span className="text-[10px] font-medium text-white/60 truncate leading-tight">{profile.title}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileOpen(false);
+                    setShowLogoutModal(true);
+                  }}
+                  className="p-1.5 rounded-xl text-white/70 hover:text-red-300 hover:bg-red-500/20 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">

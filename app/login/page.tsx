@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { createClient, createAuthClient } from '@/utils/supabase/client';
 import { logActivity } from '@/lib/actions/logger';
+import { autoProvisionUser } from '@/lib/actions/auth-dynamic';
 
 const ALLOWED_DOMAINS = ['cebutelenet.com', 'cebutele-net.com', 'telenet@gmail.com', 'gmail.com'];
 const MAX_FAILED_ATTEMPTS = 5;
@@ -159,41 +160,27 @@ function LoginFormContent() {
     try {
       // 4. Credential Match (Authentication)
       const authClient = createAuthClient(formData.rememberMe);
+      const cleanEmail = formData.email.trim();
+      const cleanPass = formData.password.trim();
+
       let { data, error } = await authClient.auth.signInWithPassword({
-        email: formData.email.trim(),
-        password: formData.password.trim(),
+        email: cleanEmail,
+        password: cleanPass,
       });
 
-      // Employee password variations fallback (e.g. CTN-XXXX vs CTNP-XXXX vs raw code)
-      if (error && formData.password.trim().toUpperCase().startsWith('CTN-')) {
-        const altPassword = formData.password.trim().replace(/^CTN-/i, 'CTNP-');
-        const retry = await authClient.auth.signInWithPassword({
-          email: formData.email.trim(),
-          password: altPassword,
-        });
-        if (!retry.error) {
-          data = retry.data;
-          error = null;
-        }
-      } else if (error && formData.password.trim().toUpperCase().startsWith('CTNP-')) {
-        const altPassword = formData.password.trim().replace(/^CTNP-/i, 'CTN-');
-        const retry = await authClient.auth.signInWithPassword({
-          email: formData.email.trim(),
-          password: altPassword,
-        });
-        if (!retry.error) {
-          data = retry.data;
-          error = null;
-        }
-      } else if (error && !formData.password.includes('-') && formData.password.trim().length < 6) {
-        const altPassword = `CTNP-${formData.password.trim()}`;
-        const retry = await authClient.auth.signInWithPassword({
-          email: formData.email.trim(),
-          password: altPassword,
-        });
-        if (!retry.error) {
-          data = retry.data;
-          error = null;
+      // If initial login failed, dynamically attempt roster verification and auto-provisioning on the server
+      if (error) {
+        const provisionResult = await autoProvisionUser(cleanEmail, cleanPass);
+        if (provisionResult.success) {
+          // Retry signIn now that the account/credentials have been dynamically provisioned
+          const retry = await authClient.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPass,
+          });
+          if (!retry.error) {
+            data = retry.data;
+            error = null;
+          }
         }
       }
 

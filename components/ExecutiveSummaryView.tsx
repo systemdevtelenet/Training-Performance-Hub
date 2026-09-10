@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Card, Metric, Text } from '@tremor/react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   UsersRound, TrendingDown, Percent, LayoutDashboard, 
   LineChart as LineChartIcon, ListTree, ChevronDown, ChevronUp, 
@@ -75,24 +75,32 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
       return (
-        <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
-          <p className="font-bold text-slate-100 uppercase tracking-wider">{label}</p>
-          <div className="flex items-center justify-between gap-4 text-slate-300">
-            <span>Attrition Rate:</span>
-            <span className="font-bold text-[#EAB308]">{dataPoint.attritionRate}</span>
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-500/40 shadow-xl rounded-xl p-3 text-xs space-y-1.5 min-w-[170px]">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-1">
+            <span className="font-mono font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest text-[11px] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+              {label}
+            </span>
+            <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 px-1.5 py-0.5 rounded">
+              OVERALL
+            </span>
           </div>
-          <div className="flex items-center justify-between gap-4 text-slate-300">
-            <span>Active Headcount:</span>
-            <span className="font-bold text-slate-100">{dataPoint.activeHC || dataPoint.headcount}</span>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Attrition Rate:</span>
+            <span className="font-mono font-black text-[#C8A54B] dark:text-amber-400 text-sm">{dataPoint.attritionRate || `${dataPoint.attritionNum || 0}%`}</span>
           </div>
-          <div className="flex items-center justify-between gap-4 text-slate-300">
-            <span>Losses:</span>
-            <span className="font-bold text-rose-400">{dataPoint.losses}</span>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Active Headcount:</span>
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{dataPoint.activeHC || dataPoint.headcount || 0}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Losses:</span>
+            <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{dataPoint.losses || 0}</span>
           </div>
           {dataPoint.attendanceRate && (
-            <div className="flex items-center justify-between gap-4 text-slate-300">
-              <span>Attendance Rate:</span>
-              <span className="font-bold text-emerald-400">{dataPoint.attendanceRate}</span>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Attendance:</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{dataPoint.attendanceRate}</span>
             </div>
           )}
         </div>
@@ -188,8 +196,8 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                 <span className="text-[11px] font-medium text-slate-400">Click a batch to view trainees</span>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800">
-                <table className="w-full text-xs text-left">
+              <div className="overflow-x-auto custom-horizontal-scrollbar touch-pan-x rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800">
+                <table className="w-full text-xs text-left min-w-[650px]">
                   <thead className="bg-slate-50/90 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="py-3 px-4">Account</th>
@@ -269,7 +277,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
 
         {/* Right Column: Overall Departmental Trends (Unified Card matching Analytics page) */}
         <div className="flex flex-col gap-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden relative">
             <div className="p-5 sm:p-6 pb-2">
               {/* Card Header: Full width title & subtitle */}
               <div className="space-y-1">
@@ -283,7 +291,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
 
               {/* Tab Switcher: Full row above the graph */}
               <div className="mt-4 mb-2 flex items-center justify-end">
-                <div className="inline-flex bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-700">
+                <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-700">
                   <button
                     type="button"
                     onClick={() => setOverallView('quarterly')}
@@ -309,49 +317,60 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                 </div>
               </div>
 
-              {/* Overall Line Chart (Gold Line) */}
-              <div className="h-[240px] w-full mt-3">
+              {/* Gold Gradient Area Chart with Laser Crosshair */}
+              <div className="h-[240px] w-full mt-3 relative">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
+                  <AreaChart 
                     data={currentTrendData} 
-                    margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                    margin={{ top: 15, right: 15, left: -20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" strokeOpacity={0.4} />
+                    <defs>
+                      <linearGradient id="cryptoExecGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#C8A54B" stopOpacity={0.4} />
+                        <stop offset="60%" stopColor="#C8A54B" stopOpacity={0.12} />
+                        <stop offset="100%" stopColor="#C8A54B" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" strokeOpacity={0.7} />
                     <XAxis 
                       dataKey="period" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} 
+                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 700 }} 
                       dy={6}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                      tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 700 }}
                       tickFormatter={(val) => `${val}%`}
                     />
-                    <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#475569', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
-                    <Line 
-                      type="monotone" 
+                    <RechartsTooltip 
+                      content={<CustomTrajectoryTooltip />} 
+                      cursor={{ stroke: '#C8A54B', strokeWidth: 1.5, strokeDasharray: 'none', opacity: 0.8 }} 
+                    />
+                    <Area 
+                      type="linear" 
                       name={`Overall ${overallView === 'quarterly' ? 'Quarterly' : 'Monthly'}`} 
                       dataKey="attritionNum" 
                       stroke="#C8A54B" 
                       strokeWidth={3} 
-                      dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
-                      activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                      fill="url(#cryptoExecGoldGrad)"
+                      dot={{ r: 4, strokeWidth: 2, fill: '#FFFFFF', stroke: '#C8A54B' }} 
+                      activeDot={{ r: 6.5, fill: '#C8A54B', stroke: '#FFFFFF', strokeWidth: 2 }} 
                       animationDuration={800} 
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Collapsible Data Table Breakdown matching Analytics Page */}
-            <div className="border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
               <button
                 type="button"
                 onClick={() => setShowTableBreakdown(!showTableBreakdown)}
-                className="w-full px-5 py-3 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+                className="w-full px-5 py-3 flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
               >
                 <span className="uppercase tracking-wider">
                   {showTableBreakdown ? 'Hide Data Table Breakdown' : 'Show Data Table Breakdown'}
@@ -360,8 +379,8 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
               </button>
 
               {showTableBreakdown && (
-                <div className="px-5 pb-5 overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                <div className="px-5 pb-5 overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
+                  <table className="w-full text-xs text-left min-w-[550px]">
                     <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-4 py-2.5">{overallView === 'quarterly' ? 'QUARTER PERIOD' : 'MONTH PERIOD'}</th>
@@ -371,24 +390,24 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                         <th className="px-4 py-2.5 text-center">Attendance Rate</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {currentTrendData.map((row: any, idx: number) => {
                         const attrNum = row.attritionNum ?? parseFloat(row.attritionRate) ?? 0;
                         const isBadAttr = attrNum > 15;
                         const isAttentionAttr = attrNum > 10 && attrNum <= 15;
 
                         return (
-                          <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors">
+                          <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{row.period}</td>
                             <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{row.activeHC || row.headcount}</td>
                             <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
                             <td className="px-4 py-3 text-center">
-                              <span className={`inline-block px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                                 isBadAttr 
                                   ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
                                   : isAttentionAttr 
                                   ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
-                                  : 'text-slate-800 dark:text-slate-200'
+                                  : 'text-slate-700 dark:text-slate-300'
                               }`}>
                                 {typeof row.attritionRate === 'number' ? `${row.attritionRate.toFixed(1)}%` : row.attritionRate}
                               </span>

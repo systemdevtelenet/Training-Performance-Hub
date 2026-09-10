@@ -13,7 +13,7 @@ import {
   Sparkles, Loader2, MessageSquare, ExternalLink, FileText, Maximize2, Users
 } from 'lucide-react';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 import { supabase } from '@/lib/supabase';
@@ -396,23 +396,33 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     return 'activeHC';
   };
 
-  // Custom tooltip for recharts
+  // Crypto-style trajectory HUD tooltip (Clean White & Gold)
   const CustomTrajectoryTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const val = payload[0]?.value;
+      const numVal = parseFloat(val) || 0;
+      const formattedVal = metric === 'Attrition' || metric === 'Attendance' ? `${numVal.toFixed(1)}%` : numVal;
+
       return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl p-3 text-xs">
-          <p className="font-bold text-slate-800 dark:text-slate-100 mb-2 border-b border-slate-100 dark:border-slate-800 pb-1">{label} 2026</p>
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-3 mb-1">
-              <div className="flex items-center gap-1.5 min-w-[80px]">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{metric}</span>
-              </div>
-              <span className="font-bold text-slate-900 dark:text-slate-100">
-                {entry.value}{metric === 'Attrition' || metric === 'Attendance' ? '%' : ''}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-500/40 shadow-xl rounded-xl p-3 text-xs min-w-[150px] animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+            <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label} 2026</span>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              TREND
+            </span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">{metric}:</span>
+              <span className="text-base font-black text-[#C8A54B] dark:text-amber-400 font-mono tracking-tight">
+                {formattedVal}
               </span>
             </div>
-          ))}
+            <div className="text-[9.5px] text-slate-400 font-mono text-right">
+              {payload[0]?.name || 'Trajectory'}
+            </div>
+          </div>
         </div>
       );
     }
@@ -425,8 +435,8 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       {/* Top Header - Tight Spacing */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 pb-1">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Analytics &amp; AI Insights</h1>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">Analytics &amp; AI Insights</h1>
+          <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
             Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">{quarterFilter === 'All' ? 'Jan–Aug 2026' : quarterFilter} &middot; {accountFilter === 'All' ? 'All Accounts' : accountFilter}</span>
           </p>
         </div>
@@ -814,47 +824,58 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       {/* Side-by-Side Dual Department Cards: INHOUSE vs PST */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         
-        {/* CARD 1: INHOUSE Training Trends */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+        {/* CARD 1: INHOUSE Training Trends (Gold Crypto Area Chart in White Card) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
           <div className="p-5 sm:p-6 pb-2">
-            <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex items-start justify-between gap-2 mb-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
-                  INHOUSE TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+                <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  INHOUSE TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''})
                 </h3>
               </div>
             </div>
 
-            {/* Inhouse Line Chart (Gold Line) */}
-            <div className="h-[220px] w-full mt-2">
+            {/* Inhouse Gold Gradient Area Chart */}
+            <div className="h-[220px] w-full mt-1">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={currentInhouseData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <AreaChart data={currentInhouseData} margin={{ top: 15, right: 15, left: -20, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="inhouseGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#C8A54B" stopOpacity={0.38} />
+                      <stop offset="60%" stopColor="#C8A54B" stopOpacity={0.10} />
+                      <stop offset="100%" stopColor="#C8A54B" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" strokeOpacity={0.7} />
                   <XAxis 
                     dataKey="period" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} 
                     dy={6}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }}
                     tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
                   />
-                  <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
-                  <Line 
-                    type="monotone" 
+                  <RechartsTooltip 
+                    content={<CustomTrajectoryTooltip />} 
+                    cursor={{ stroke: '#C8A54B', strokeWidth: 1.5, strokeDasharray: 'none', opacity: 0.8 }} 
+                  />
+                  <Area 
+                    type="linear" 
                     name="Inhouse" 
                     dataKey={getMetricKey()} 
                     stroke="#C8A54B" 
-                    strokeWidth={2.5} 
-                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
-                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                    strokeWidth={2.8} 
+                    fill="url(#inhouseGoldGrad)" 
+                    dot={{ r: 4, strokeWidth: 2, stroke: '#C8A54B', fill: '#FFFFFF' }} 
+                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#FFFFFF', strokeWidth: 2 }} 
                     animationDuration={800} 
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -863,7 +884,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           <button
             type="button"
             onClick={() => setShowInhouseTable(!showInhouseTable)}
-            className="w-full flex items-center justify-between px-5 py-3 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 hover:bg-slate-100/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
           >
             <span className="uppercase tracking-wider text-[10px]">{showInhouseTable ? 'Hide Data Table Breakdown' : 'Show Data Table Breakdown'}</span>
             <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", showInhouseTable && "rotate-180")} />
@@ -871,9 +892,9 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
           {/* Inhouse Data Table */}
           {showInhouseTable && (
-            <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+            <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto custom-horizontal-scrollbar touch-pan-x bg-white dark:bg-slate-900">
+              <table className="w-full text-left text-xs min-w-[600px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-2.5">PERIOD TITLE</th>
                     <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
@@ -887,16 +908,16 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                     const isBadAttr = row.attritionRate > 15;
                     const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
                     return (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                      <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">{row.period}</td>
                         <td className="px-4 py-3 text-center">{row.activeHC}</td>
                         <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
-                            "inline-block px-2 py-0.5 rounded-full font-bold",
+                            "inline-block px-2.5 py-0.5 rounded-full font-bold text-[11px]",
                             isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
                             isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
-                            "text-slate-800 dark:text-slate-200"
+                            "text-slate-700 dark:text-slate-300"
                           )}>
                             {row.attritionRate.toFixed(1)}%
                           </span>
@@ -913,47 +934,58 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           )}
         </div>
 
-        {/* CARD 2: PST Training Trends */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+        {/* CARD 2: PST Training Trends (Gold Crypto Area Chart in White Card) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
           <div className="p-5 sm:p-6 pb-2">
-            <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex items-start justify-between gap-2 mb-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
-                  PST TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+                <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  PST TRAINING TRENDS - {trajectoryView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''})
                 </h3>
               </div>
             </div>
 
-            {/* PST Line Chart (Gold Line) */}
-            <div className="h-[220px] w-full mt-2">
+            {/* PST Gold Gradient Area Chart */}
+            <div className="h-[220px] w-full mt-1">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={currentPstData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <AreaChart data={currentPstData} margin={{ top: 15, right: 15, left: -20, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="pstGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#C8A54B" stopOpacity={0.38} />
+                      <stop offset="60%" stopColor="#C8A54B" stopOpacity={0.10} />
+                      <stop offset="100%" stopColor="#C8A54B" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" strokeOpacity={0.7} />
                   <XAxis 
                     dataKey="period" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} 
                     dy={6}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }}
                     tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
                   />
-                  <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
-                  <Line 
-                    type="monotone" 
+                  <RechartsTooltip 
+                    content={<CustomTrajectoryTooltip />} 
+                    cursor={{ stroke: '#C8A54B', strokeWidth: 1.5, strokeDasharray: 'none', opacity: 0.8 }} 
+                  />
+                  <Area 
+                    type="linear" 
                     name="PST" 
                     dataKey={getMetricKey()} 
                     stroke="#C8A54B" 
-                    strokeWidth={2.5} 
-                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
-                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                    strokeWidth={2.8} 
+                    fill="url(#pstGoldGrad)" 
+                    dot={{ r: 4, strokeWidth: 2, stroke: '#C8A54B', fill: '#FFFFFF' }} 
+                    activeDot={{ r: 6, fill: '#C8A54B', stroke: '#FFFFFF', strokeWidth: 2 }} 
                     animationDuration={800} 
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -962,7 +994,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           <button
             type="button"
             onClick={() => setShowPstTable(!showPstTable)}
-            className="w-full flex items-center justify-between px-5 py-3 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 hover:bg-slate-100/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
           >
             <span className="uppercase tracking-wider text-[10px]">{showPstTable ? 'Hide Data Table Breakdown' : 'Show Data Table Breakdown'}</span>
             <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", showPstTable && "rotate-180")} />
@@ -970,9 +1002,9 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
           {/* PST Data Table */}
           {showPstTable && (
-            <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+            <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto custom-horizontal-scrollbar touch-pan-x bg-white dark:bg-slate-900">
+              <table className="w-full text-left text-xs min-w-[600px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-2.5">PERIOD TITLE</th>
                     <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
@@ -986,16 +1018,16 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                     const isBadAttr = row.attritionRate > 15;
                     const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
                     return (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                      <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">{row.period}</td>
                         <td className="px-4 py-3 text-center">{row.activeHC}</td>
                         <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
-                            "inline-block px-2 py-0.5 rounded-full font-bold",
+                            "inline-block px-2.5 py-0.5 rounded-full font-bold text-[11px]",
                             isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
                             isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
-                            "text-slate-800 dark:text-slate-200"
+                            "text-slate-700 dark:text-slate-300"
                           )}>
                             {row.attritionRate.toFixed(1)}%
                           </span>
@@ -1014,21 +1046,21 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
       </div>
 
-      {/* CARD 3: Overall Departmental Trends (Unified Single Card with Tab Switcher) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+      {/* CARD 3: Overall Departmental Trends (White Card with Gold Crypto Area Chart) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden relative">
         <div className="p-5 sm:p-6 pb-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="space-y-1">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight">
                 Overall Departmental Trends
               </h2>
-              <p className="text-xs font-bold text-[#2F6798] dark:text-blue-400 uppercase tracking-wide mt-0.5">
-                OVERALL DEPARTMENTAL TRENDS - {overallView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''} TREND)
+              <p className="text-[11px] font-bold text-[#2F6798] dark:text-blue-400 uppercase tracking-wide">
+                OVERALL DEPARTMENTAL TRENDS - {overallView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''})
               </p>
             </div>
 
             {/* Tab Switcher for Overall Trends */}
-            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-800 shrink-0 self-start sm:self-auto">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-700 shrink-0 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setOverallView('quarterly')}
@@ -1056,39 +1088,50 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             </div>
           </div>
 
-          {/* Overall Line Chart (Gold Line) */}
-          <div className="h-[240px] w-full mt-3">
+          {/* Overall Gold Gradient Area Chart */}
+          <div className="h-[250px] w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
+              <AreaChart 
                 data={overallView === 'quarterly' ? filterByQueryAndPeriod(overallQuarterlyData, true) : filterByQueryAndPeriod(overallMonthlyData, false)} 
-                margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                margin={{ top: 15, right: 15, left: -20, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <defs>
+                  <linearGradient id="overallGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#C8A54B" stopOpacity={0.4} />
+                    <stop offset="60%" stopColor="#C8A54B" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#C8A54B" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" strokeOpacity={0.7} />
                 <XAxis 
                   dataKey="period" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 700 }} 
                   dy={6}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 700 }}
                   tickFormatter={(val) => metric === 'Attrition' || metric === 'Attendance' ? `${val}%` : val}
                 />
-                <RechartsTooltip content={<CustomTrajectoryTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '3 3' }} />
-                <Line 
-                  type="monotone" 
+                <RechartsTooltip 
+                  content={<CustomTrajectoryTooltip />} 
+                  cursor={{ stroke: '#C8A54B', strokeWidth: 1.5, strokeDasharray: 'none', opacity: 0.8 }} 
+                />
+                <Area 
+                  type="linear" 
                   name={`Overall ${overallView === 'quarterly' ? 'Quarterly' : 'Monthly'}`} 
                   dataKey={getMetricKey()} 
                   stroke="#C8A54B" 
                   strokeWidth={3} 
-                  dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
-                  activeDot={{ r: 6, fill: '#C8A54B', stroke: '#fff', strokeWidth: 2 }} 
+                  fill="url(#overallGoldGrad)" 
+                  dot={{ r: 4, strokeWidth: 2, stroke: '#C8A54B', fill: '#FFFFFF' }} 
+                  activeDot={{ r: 6.5, fill: '#C8A54B', stroke: '#FFFFFF', strokeWidth: 2 }} 
                   animationDuration={800} 
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -1097,7 +1140,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
         <button
           type="button"
           onClick={() => setShowOverallTable(!showOverallTable)}
-          className="w-full flex items-center justify-between px-5 py-3 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 hover:bg-slate-100/60 dark:bg-slate-900/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <span className="uppercase tracking-wider text-[10px]">{showOverallTable ? 'Hide Data Table Breakdown' : 'Show Data Table Breakdown'}</span>
           <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", showOverallTable && "rotate-180")} />
@@ -1105,9 +1148,9 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
         {/* Overall Data Table */}
         {showOverallTable && (
-          <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50/90 dark:bg-slate-800/60 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+          <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto custom-horizontal-scrollbar touch-pan-x bg-white dark:bg-slate-900">
+            <table className="w-full text-left text-xs min-w-[600px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                 <tr>
                   <th className="px-5 py-3">{overallView === 'quarterly' ? 'QUARTER PERIOD' : 'MONTH TITLE'}</th>
                   <th className="px-5 py-3 text-center">ACTIVE HC</th>
@@ -1121,16 +1164,16 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                   const isBadAttr = row.attritionRate > 15;
                   const isAttentionAttr = row.attritionRate > 10 && row.attritionRate <= 15;
                   return (
-                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-slate-100">{row.period}</td>
+                    <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-5 py-3.5 font-bold text-slate-800 dark:text-slate-100">{row.period}</td>
                       <td className="px-5 py-3.5 text-center font-bold">{row.activeHC}</td>
                       <td className="px-5 py-3.5 text-center font-bold text-rose-600 dark:text-rose-400">{row.losses}</td>
                       <td className="px-5 py-3.5 text-center">
                         <span className={cn(
-                          "inline-block px-2.5 py-1 rounded-full font-bold",
+                          "inline-block px-2.5 py-1 rounded-full font-bold text-[11px]",
                           isBadAttr ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
                           isAttentionAttr ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
-                          "text-slate-800 dark:text-slate-200"
+                          "text-slate-700 dark:text-slate-300"
                         )}>
                           {row.attritionRate.toFixed(1)}%
                         </span>

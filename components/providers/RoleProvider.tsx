@@ -71,28 +71,44 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
-  // Load avatar from localStorage or database
+  // Scope avatar storage to user email so accounts never leak avatars on shared browsers
+  const getAvatarKey = (userMail: string) => `user_avatar_url_${userMail.toLowerCase().trim()}`;
+
+  // Listen for avatar updates
   useEffect(() => {
+    // Purge obsolete legacy un-scoped key if present
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('user_avatar_url');
+      } catch (err) {
+        // ignore
+      }
+    }
+
     const handleAvatarUpdate = (e?: any) => {
       const explicitUrl = e?.detail?.url;
+      const targetEmail = e?.detail?.email || email;
+      
       if (explicitUrl !== undefined) {
         setAvatarUrl(explicitUrl);
-        if (explicitUrl) localStorage.setItem('user_avatar_url', explicitUrl);
-        else localStorage.removeItem('user_avatar_url');
-      } else {
-        const saved = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null;
+        if (targetEmail) {
+          const key = getAvatarKey(targetEmail);
+          if (explicitUrl) localStorage.setItem(key, explicitUrl);
+          else localStorage.removeItem(key);
+        }
+      } else if (targetEmail) {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem(getAvatarKey(targetEmail)) : null;
         setAvatarUrl(saved);
       }
     };
 
-    handleAvatarUpdate();
     window.addEventListener('avatar-updated', handleAvatarUpdate);
     window.addEventListener('storage', handleAvatarUpdate);
     return () => {
       window.removeEventListener('avatar-updated', handleAvatarUpdate);
       window.removeEventListener('storage', handleAvatarUpdate);
     };
-  }, []);
+  }, [email]);
 
   useEffect(() => {
     async function fetchRole() {
@@ -104,6 +120,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setEmail(null);
           setUserName(null);
           setUserMeta(defaultUserMeta);
+          setAvatarUrl(null);
           setIsLoading(false);
           return;
         }
@@ -120,13 +137,16 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setAssignedTrainer(res.assignedTrainer || null);
           setUserMeta(res.userMeta || defaultUserMeta);
 
+          const emailKey = getAvatarKey(userEmail);
           if (res.avatarUrl) {
-            const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null;
-            if (!localAvatar) {
-              setAvatarUrl(res.avatarUrl);
-              localStorage.setItem('user_avatar_url', res.avatarUrl);
-            }
+            setAvatarUrl(res.avatarUrl);
+            localStorage.setItem(emailKey, res.avatarUrl);
+          } else {
+            const localSaved = typeof window !== 'undefined' ? localStorage.getItem(emailKey) : null;
+            setAvatarUrl(localSaved || null);
           }
+        } else {
+          setAvatarUrl(null);
         }
       } catch (e) {
         console.error('Error fetching role:', e);
@@ -134,6 +154,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setEmail(null);
         setUserName(null);
         setUserMeta(defaultUserMeta);
+        setAvatarUrl(null);
       } finally {
         setIsLoading(false);
       }
@@ -150,6 +171,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setUserMeta(defaultUserMeta);
         setAssignedTrainer(null);
         setSimulatedRole(null);
+        setAvatarUrl(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchRole();
       }

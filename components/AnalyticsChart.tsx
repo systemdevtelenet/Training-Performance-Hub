@@ -40,7 +40,7 @@ export function AnalyticsChart({ title, data }: ChartProps) {
               itemStyle={{ color: '#f8fafc' }}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="attritionNum"
               stroke="#EAB308"
               strokeWidth={2.5}

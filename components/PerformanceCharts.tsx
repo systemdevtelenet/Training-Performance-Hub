@@ -48,7 +48,7 @@ export default function PerformanceCharts() {
                 <YAxis domain={[0, 36]} ticks={[0, 9, 18, 27, 36]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} className="text-xs text-slate-400 font-medium" />
                 <Tooltip content={<ChartTooltipContent formatter={(value) => `${value}%`} />} />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="attrition"
                   stroke="#2F6798"
                   strokeWidth={2.5}
@@ -76,7 +76,7 @@ export default function PerformanceCharts() {
                 <YAxis domain={[0, 60]} ticks={[0, 15, 30, 45, 60]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} className="text-xs text-slate-400 font-medium" />
                 <Tooltip content={<ChartTooltipContent formatter={(value) => `${value}%`} />} />
                 <Line
-                  type="natural"
+                  type="linear"
                   dataKey="attrition"
                   stroke="#2F6798"
                   strokeWidth={2.5}

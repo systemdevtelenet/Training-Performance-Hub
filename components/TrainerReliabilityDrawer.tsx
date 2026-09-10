@@ -108,7 +108,20 @@ export function TrainerReliabilityDrawer({ trainer, onClose }: TrainerReliabilit
 
   if (!rendered || !displayed || typeof window === 'undefined') return null;
 
-  const rateNum = parseFloat(displayed.rate);
+  const rateNum = (() => {
+    const rawRate = displayed.rate;
+    if (rawRate) {
+      const parsed = parseFloat(String(rawRate).replace('%', '').trim());
+      if (!isNaN(parsed)) return parsed;
+    }
+    const total = (displayed.present || 0) + (displayed.losses || 0);
+    if (total > 0) {
+      return Math.round(((displayed.present || 0) / total) * 1000) / 10;
+    }
+    return 100.0;
+  })();
+
+  const displayRateString = `${rateNum.toFixed(1)}%`;
   const status = getReliabilityStatus(rateNum);
 
   const modalContent = (
@@ -124,17 +137,17 @@ export function TrainerReliabilityDrawer({ trainer, onClose }: TrainerReliabilit
         className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'} cursor-default`}
       />
       
-      <aside className={`absolute bottom-3 right-3 top-3 flex w-[calc(100%-1.5rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-800 shadow-2xl border border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-out sm:w-[min(500px,calc(100%-2rem))] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}`}>
+      <aside className={`absolute inset-y-0 right-0 top-0 bottom-0 flex w-full max-w-[520px] sm:max-w-[560px] flex-col overflow-hidden rounded-none bg-white dark:bg-slate-800 shadow-2xl border-l border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         
-        {/* Header - Solid Primary */}
-        <header className="bg-primary px-6 py-4 flex items-center justify-between shrink-0">
-          <h2 className="text-sm font-bold tracking-wide text-white uppercase">Trainer Reliability Details</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-white/80 hover:text-white transition-colors focus:outline-none">
+        {/* Header - Solid Primary with safe-area top padding */}
+        <header className="bg-primary px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shrink-0 pt-[max(0.875rem,env(safe-area-inset-top))]">
+          <h2 className="text-xs sm:text-sm font-bold tracking-wide text-white uppercase">Trainer Reliability Details</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-white/80 hover:text-white transition-colors focus:outline-none p-1 rounded-lg hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-[max(2rem,env(safe-area-inset-bottom))]">
           {/* Profile Section */}
           <div className="p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 dark:border-slate-700/50">
             {/* Avatar */}
@@ -155,7 +168,7 @@ export function TrainerReliabilityDrawer({ trainer, onClose }: TrainerReliabilit
                   {status.label}
                 </span>
                 <span className="px-4 py-1.5 rounded-full text-xs font-bold shadow-sm bg-primary text-white">
-                  {displayed.rate}% Reliability
+                  {displayRateString} Reliability
                 </span>
               </div>
             </div>
@@ -262,8 +275,8 @@ export function TrainerReliabilityDrawer({ trainer, onClose }: TrainerReliabilit
                         </div>
                       </button>
                       {isExpanded && (
-                        <div className="border-t border-slate-100 dark:border-slate-700/50">
-                          <table className="w-full text-sm">
+                        <div className="border-t border-slate-100 dark:border-slate-700/50 overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
+                          <table className="w-full text-sm min-w-[320px]">
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                               {months.map(({ month, p, a, losses }) => (
                                 <tr key={month} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">

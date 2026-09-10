@@ -193,8 +193,8 @@ export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filt
           <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-3">
             <Award className="w-4 h-4" /> Handled Batches & Success Rates ({handledBatches.length})
           </h4>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-xs text-left">
+          <div className="overflow-x-auto custom-horizontal-scrollbar touch-pan-x rounded-lg border border-slate-200">
+            <table className="w-full text-xs text-left min-w-[550px]">
               <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[0.65rem]">
                 <tr>
                   <th className="p-2">Dept</th>

@@ -67,20 +67,27 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     // Determine actual full name (prefer real name from trainers_profile, else employees table, else N/A)
     let rawName = trainerData?.name || empData?.employee_name || null;
-    if (rawName && (rawName.toUpperCase().includes('HOT NISSI') || rawName.toUpperCase() === 'HOT')) {
-      rawName = trainerData?.name || 'Nissi-Jeh Reguero';
-    }
 
-    // Determine effective role
+    // Determine effective role dynamically from user_roles or trainer/employee profile position
     let effRole = 'EMPLOYEE';
     if (roleData?.role) {
       effRole = roleData.role;
     } else if (trainerData) {
-      effRole = 'TRAINER';
+      const pos = (trainerData.position || '').toUpperCase();
+      if (pos.includes('HOT') || pos.includes('HEAD OF TRAINING')) {
+        effRole = 'HOT_ADMIN';
+      } else if (pos.includes('QAS')) {
+        effRole = 'QAS_ADMIN';
+      } else {
+        effRole = 'TRAINER';
+      }
     } else if (empData) {
-      effRole = 'EMPLOYEE';
-    } else if (userEmail.toLowerCase().includes('nreguero')) {
-      effRole = 'HOT_ADMIN';
+      const pos = (empData.position || '').toUpperCase();
+      if (pos.includes('ADMIN')) {
+        effRole = 'SUPER_ADMIN';
+      } else {
+        effRole = 'EMPLOYEE';
+      }
     }
 
     // Dynamic position title

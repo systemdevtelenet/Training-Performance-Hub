@@ -1,9 +1,10 @@
 import {
   Bell, Sun, Moon, Search, UserCheck, LayoutDashboard, FileText, User,
   Settings, LogOut, HelpCircle, CheckCircle2, X, Activity, Users,
-  ClipboardList, ArrowRight, Loader2, Sparkles, Building2, CornerDownLeft
+  ClipboardList, ArrowRight, Loader2, Sparkles, Building2, CornerDownLeft, Menu
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useTheme } from '@/components/ThemeProvider';
 import { useRouter } from 'next/navigation';
 import DateFilter from '@/components/DateFilter';
@@ -16,7 +17,7 @@ import { searchGlobal, type SearchResultItem } from '@/lib/actions/search';
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme();
-  const { role, actualRole, email, avatarUrl, userName } = useRole();
+  const { role, actualRole, email, avatarUrl, userName, userMeta } = useRole();
   const toast = useToast();
   const router = useRouter();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -29,15 +30,31 @@ export default function Topbar() {
   const profileRef = useRef<HTMLDivElement>(null);
 
   const positionTitle = useMemo(() => {
-    const emailStr = (email || '').toLowerCase();
-    if (emailStr.includes('bosssilver') || (actualRole as string) === 'VIEW_ADMIN') return 'Executive Admin (View Only)';
-    if (emailStr.includes('nreguero') || actualRole === 'HOT_ADMIN' || role === 'HOT_ADMIN') return 'Head of Training';
-    if (emailStr.includes('ralasagas') || actualRole === 'QAS_ADMIN' || role === 'QAS_ADMIN') return 'QAS Head';
-    if (actualRole === 'SUPER_ADMIN' || role === 'SUPER_ADMIN') return 'Super Admin';
-    if (actualRole === 'TRAINER' || role === 'TRAINER') return 'Trainer';
-    if (actualRole === 'EMPLOYEE' || role === 'EMPLOYEE') return 'Employee';
-    return role || 'Operations User';
-  }, [email, role, actualRole]);
+    if (userMeta?.primaryTask && userMeta.primaryTask !== 'N/A') return userMeta.primaryTask;
+    const effRole = role || actualRole;
+    if (effRole === 'SUPER_ADMIN') return 'Super Admin';
+    if (effRole === 'HOT_ADMIN') return 'Head of Training';
+    if (effRole === 'QAS_ADMIN') return 'QAS Head';
+    if (effRole === 'VIEW_ADMIN') return 'Executive Admin (View Only)';
+    if (effRole === 'TRAINER') return 'Trainer';
+    if (effRole === 'EMPLOYEE') return 'Employee';
+    return effRole || 'Operations User';
+  }, [role, actualRole, userMeta]);
+
+  const userInitials = useMemo(() => {
+    if (userName) {
+      const parts = userName.trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return userName.slice(0, 2).toUpperCase();
+    }
+    if (email) {
+      const handle = email.split('@')[0];
+      const parts = handle.split(/[\._]/);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return handle.slice(0, 2).toUpperCase();
+    }
+    return 'U';
+  }, [userName, email]);
 
   // Check session flag for login toast with unified custom toast
   useEffect(() => {
@@ -73,7 +90,7 @@ export default function Topbar() {
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await searchGlobal(q);
+        const res = await searchGlobal(q, role);
         setSearchResults(res);
       } catch (err) {
         console.error('Error in search:', err);
@@ -83,7 +100,7 @@ export default function Topbar() {
     }, 180);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, role]);
 
   // Global Ctrl+K / Cmd+K listener
   useEffect(() => {
@@ -109,63 +126,168 @@ export default function Topbar() {
     router.push(href);
   }, [router]);
 
-  // Real Suggested Navigation Actions
-  const suggestedActions = useMemo(() => [
-    {
-      title: 'Traffic Lights Status Tracking',
-      subtitle: 'Weekly trainer & trainee ratings, notes & coaching',
-      icon: Activity,
-      iconColor: 'text-amber-500',
-      iconBg: 'bg-amber-50 dark:bg-amber-950/50',
-      badge: 'Live',
-      href: '/traffic-lights'
-    },
-    {
-      title: 'Trainees Directory & Rosters',
-      subtitle: 'Inhouse & PST cohorts, batch rosters & status',
-      icon: Users,
-      iconColor: 'text-emerald-500',
-      iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
-      badge: 'Roster',
-      href: '/trainees'
-    },
-    {
-      title: 'Trainers Reliability Matrix',
-      subtitle: 'View trainer reliability scores, attendance & leaves',
-      icon: UserCheck,
-      iconColor: 'text-blue-500',
-      iconBg: 'bg-blue-50 dark:bg-blue-950/50',
-      badge: 'Trainers',
-      href: '/trainers?tab=reliability'
-    },
-    {
-      title: 'Employees Management',
-      subtitle: 'Employee codes, account assignments & vici links',
-      icon: Building2,
-      iconColor: 'text-purple-500',
-      iconBg: 'bg-purple-50 dark:bg-purple-950/50',
-      badge: 'Staff',
-      href: '/employees'
-    },
-    {
-      title: 'Activity Log & Audit Trail',
-      subtitle: 'Live history log, remarks updates & alerts',
-      icon: ClipboardList,
-      iconColor: 'text-rose-500',
-      iconBg: 'bg-rose-50 dark:bg-rose-950/50',
-      badge: 'Logs',
-      href: '/history'
-    },
-    {
-      title: 'Dashboard Overview',
-      subtitle: 'Headcount summaries, attrition rates & key charts',
-      icon: LayoutDashboard,
-      iconColor: 'text-cyan-500',
-      iconBg: 'bg-cyan-50 dark:bg-cyan-950/50',
-      badge: 'Executive',
-      href: '/'
-    },
-  ], []);
+  // Real Suggested Navigation Actions tailored by Role
+  const suggestedActions = useMemo(() => {
+    const isEmployee = role === 'EMPLOYEE' || role === 'GUEST';
+    const isTrainer = role === 'TRAINER';
+
+    if (isEmployee) {
+      return [
+        {
+          title: 'My Performance Dashboard',
+          subtitle: 'Track your personal attendance, active batch & trainer',
+          icon: LayoutDashboard,
+          iconColor: 'text-cyan-500',
+          iconBg: 'bg-cyan-50 dark:bg-cyan-950/50',
+          badge: 'Portal',
+          href: '/'
+        },
+        {
+          title: 'Traffic Lights Status Tracking',
+          subtitle: 'View your weekly performance flags, ratings & coaching notes',
+          icon: Activity,
+          iconColor: 'text-amber-500',
+          iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+          badge: 'Status',
+          href: '/traffic-lights'
+        },
+        {
+          title: 'My Profile Information',
+          subtitle: 'View employee ID, contact details & account assignment',
+          icon: User,
+          iconColor: 'text-blue-500',
+          iconBg: 'bg-blue-50 dark:bg-blue-950/50',
+          badge: 'Profile',
+          href: '/settings?tab=profile'
+        },
+        {
+          title: 'Notification Preferences',
+          subtitle: 'Configure in-app and email alert preferences',
+          icon: Bell,
+          iconColor: 'text-purple-500',
+          iconBg: 'bg-purple-50 dark:bg-purple-950/50',
+          badge: 'Alerts',
+          href: '/settings?tab=notifications'
+        },
+        {
+          title: 'System Preferences',
+          subtitle: 'Customize dark mode theme, timezone & date display',
+          icon: Settings,
+          iconColor: 'text-emerald-500',
+          iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+          badge: 'Settings',
+          href: '/settings?tab=general'
+        },
+      ];
+    }
+
+    if (isTrainer) {
+      return [
+        {
+          title: 'Trainer Dashboard',
+          subtitle: 'Class progress, batch sessions & active trainees',
+          icon: LayoutDashboard,
+          iconColor: 'text-cyan-500',
+          iconBg: 'bg-cyan-50 dark:bg-cyan-950/50',
+          badge: 'Dashboard',
+          href: '/'
+        },
+        {
+          title: 'Traffic Lights Status Tracking',
+          subtitle: 'Weekly trainee ratings, coaching notes & flags',
+          icon: Activity,
+          iconColor: 'text-amber-500',
+          iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+          badge: 'Live',
+          href: '/traffic-lights'
+        },
+        {
+          title: 'Trainees Directory & Rosters',
+          subtitle: 'Inhouse & PST cohorts, batch rosters & status',
+          icon: Users,
+          iconColor: 'text-emerald-500',
+          iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+          badge: 'Roster',
+          href: '/trainees'
+        },
+        {
+          title: 'Trainers Reliability Matrix',
+          subtitle: 'View trainer reliability scores, attendance & leaves',
+          icon: UserCheck,
+          iconColor: 'text-blue-500',
+          iconBg: 'bg-blue-50 dark:bg-blue-950/50',
+          badge: 'Trainers',
+          href: '/trainers?tab=reliability'
+        },
+        {
+          title: 'Settings & Profile',
+          subtitle: 'Manage profile photo, notifications & preferences',
+          icon: Settings,
+          iconColor: 'text-purple-500',
+          iconBg: 'bg-purple-50 dark:bg-purple-950/50',
+          badge: 'Settings',
+          href: '/settings'
+        },
+      ];
+    }
+
+    return [
+      {
+        title: 'Traffic Lights Status Tracking',
+        subtitle: 'Weekly trainer & trainee ratings, notes & coaching',
+        icon: Activity,
+        iconColor: 'text-amber-500',
+        iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+        badge: 'Live',
+        href: '/traffic-lights'
+      },
+      {
+        title: 'Trainees Directory & Rosters',
+        subtitle: 'Inhouse & PST cohorts, batch rosters & status',
+        icon: Users,
+        iconColor: 'text-emerald-500',
+        iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+        badge: 'Roster',
+        href: '/trainees'
+      },
+      {
+        title: 'Trainers Reliability Matrix',
+        subtitle: 'View trainer reliability scores, attendance & leaves',
+        icon: UserCheck,
+        iconColor: 'text-blue-500',
+        iconBg: 'bg-blue-50 dark:bg-blue-950/50',
+        badge: 'Trainers',
+        href: '/trainers?tab=reliability'
+      },
+      {
+        title: 'Employees Management',
+        subtitle: 'Employee codes, account assignments & vici links',
+        icon: Building2,
+        iconColor: 'text-purple-500',
+        iconBg: 'bg-purple-50 dark:bg-purple-950/50',
+        badge: 'Staff',
+        href: '/employees'
+      },
+      {
+        title: 'Activity Log & Audit Trail',
+        subtitle: 'Live history log, remarks updates & alerts',
+        icon: ClipboardList,
+        iconColor: 'text-rose-500',
+        iconBg: 'bg-rose-50 dark:bg-rose-950/50',
+        badge: 'Logs',
+        href: '/history'
+      },
+      {
+        title: 'Dashboard Overview',
+        subtitle: 'Headcount summaries, attrition rates & key charts',
+        icon: LayoutDashboard,
+        iconColor: 'text-cyan-500',
+        iconBg: 'bg-cyan-50 dark:bg-cyan-950/50',
+        badge: 'Executive',
+        href: '/'
+      },
+    ];
+  }, [role]);
 
   const getCategoryBadgeClass = (category: string) => {
     switch (category) {
@@ -189,14 +311,29 @@ export default function Topbar() {
 
   return (
     <>
-      <header className="h-16 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 flex items-center justify-between sticky top-0 z-40 transition-colors shadow-xs">
-      <div>
-        <h1 className="text-lg font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400">
-          Training Performance Hub
-        </h1>
+      <header className="h-16 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 transition-colors shadow-xs">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Mobile Hamburger Button */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event('open-mobile-menu'))}
+          className="lg:hidden p-2 -ml-1 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="lg:hidden w-7 h-7 rounded-lg overflow-hidden shrink-0 bg-primary flex items-center justify-center shadow-xs">
+            <Image src="/images/ctnp-logo.png" alt="CTNP" width={22} height={22} className="object-contain p-0.5" />
+          </div>
+          <h1 className="text-sm sm:text-lg font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 truncate">
+            Training Performance Hub
+          </h1>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Search Input Container */}
         <div className="relative hidden md:block" ref={searchContainerRef}>
           <div className="relative flex items-center">
@@ -431,7 +568,7 @@ export default function Topbar() {
             {avatarUrl ? (
               <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
             ) : (
-              <span>{email ? email.charAt(0).toUpperCase() : "U"}</span>
+              <span>{userInitials}</span>
             )}
           </div>
 
@@ -443,7 +580,7 @@ export default function Topbar() {
                     {avatarUrl ? (
                       <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
                     ) : (
-                      <span>{email ? email.charAt(0).toUpperCase() : "U"}</span>
+                      <span>{userInitials}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

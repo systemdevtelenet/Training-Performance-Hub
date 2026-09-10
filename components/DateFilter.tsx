@@ -153,14 +153,14 @@ export default function DateFilter() {
 
       {/* Modern Calendar Popover */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 flex w-[520px] origin-top-right overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
+        <div className="fixed left-3 right-3 top-16 max-w-lg mx-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 flex flex-col sm:flex-row sm:w-[520px] origin-top-right overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
           
           {/* Left Side: Presets */}
-          <div className="w-40 border-r border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50 flex flex-col">
+          <div className="w-full sm:w-40 border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50 flex flex-col">
             <div className="px-2 py-2 mb-1">
               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Presets</p>
             </div>
-            <div className="space-y-0.5">
+            <div className="grid grid-cols-2 sm:grid-cols-1 gap-1 sm:space-y-0.5">
               {options.map((option) => (
                 <button
                   key={option}

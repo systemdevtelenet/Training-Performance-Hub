@@ -521,18 +521,18 @@ export default function EmployeesClient({
           </div>
         </div>
 
-        <div className="overflow-x-auto min-h-[360px]">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="w-full overflow-x-auto custom-horizontal-scrollbar touch-pan-x overscroll-x-contain pb-1 min-h-[360px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[950px]">
             <thead>
-              <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Employee Name</th>
-                <th className="py-3 px-4">Employee Code</th>
-                <th className="py-3 px-4">Email</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Hire Date</th>
-                <th className="py-3 px-4">Vici Link</th>
-                <th className="py-3 px-4">Assigned Accounts</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+              <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">
+                <th className="py-3 px-4 min-w-[180px]">Employee Name</th>
+                <th className="py-3 px-4 min-w-[120px]">Employee Code</th>
+                <th className="py-3 px-4 min-w-[180px]">Email</th>
+                <th className="py-3 px-4 min-w-[100px]">Status</th>
+                <th className="py-3 px-4 min-w-[110px]">Hire Date</th>
+                <th className="py-3 px-4 min-w-[110px]">Vici Link</th>
+                <th className="py-3 px-4 min-w-[160px]">Assigned Accounts</th>
+                <th className="py-3 px-4 text-right min-w-[90px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -547,9 +547,9 @@ export default function EmployeesClient({
                   return (
                     <tr
                       key={emp.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors whitespace-nowrap"
                     >
-                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
+                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 min-w-[180px]">
                         {(() => {
                           const isMatch = (emp.employee_name && userName && emp.employee_name.toLowerCase().includes(userName.toLowerCase())) ||
                             (emp.employee_email && userEmail && emp.employee_email.toLowerCase() === userEmail.toLowerCase()) ||

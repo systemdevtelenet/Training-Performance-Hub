@@ -6,6 +6,7 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   RefreshCw,
   Download,
   Users,
@@ -24,7 +25,10 @@ import {
   CheckCircle2,
   FileText,
   UserCheck,
-  TrendingDown
+  TrendingDown,
+  LayoutGrid,
+  Table as TableIcon,
+  Eye
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
@@ -32,6 +36,8 @@ import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/component
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+
+import PageLoading from '@/components/PageLoading';
 
 type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability';
 
@@ -77,7 +83,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
     return ['All', ...Array.from(set).sort()];
   }, [initialTrainers]);
 
-  // Filter trainers based on search & selects
+  // Filter trainers based on search & selects for Directory
   const filteredInitialTrainers = useMemo(() => {
     return initialTrainers.filter((t: any) => {
       if (role === 'EMPLOYEE' && email && t.email !== email) return false;
@@ -107,14 +113,73 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
+  if (isLoading) {
+    if (activeTab === 'directory') {
+      return (
+        <div className="space-y-6 w-full max-w-full pb-12">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">Trainers Management</h1>
+              <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
+                Real-time directory, automated attendance tracking, and reliability analytics
+              </p>
+            </div>
+          </div>
+          <TrainersDirectorySkeleton />
+        </div>
+      );
+    }
+    return (
+      <PageLoading
+        title="Loading Attendance & Reliability..."
+        subtitle="Retrieving attendance tracking, leave breakdown, and reliability records"
+      />
+    );
+  }
+
+  if (role === 'EMPLOYEE' && activeTab !== 'directory') {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-12">
+        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
+          <ShieldCheck className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Trainer Attendance Restricted</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            Trainer Attendance &amp; Reliability records are internal operational records for Trainers and Supervisors.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+        >
+          Return to My Dashboard
+        </a>
+      </div>
+    );
+  }
+
+  // Attendance & Reliability View
+  if (activeTab !== 'directory') {
+    return (
+      <div className="space-y-6 w-full max-w-full pb-12">
+        <AttendanceReliabilityView
+          initialTrainers={initialTrainers}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
+      </div>
+    );
+  }
+
+  // Directory View
   return (
     <div className="space-y-6 w-full max-w-full pb-12">
-
       {/* Top Header & Global Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Trainers Management</h1>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">Trainers Management</h1>
+          <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
             Real-time directory, automated attendance tracking, and reliability analytics
           </p>
         </div>
@@ -138,9 +203,8 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
         </div>
       </div>
 
-      {/* Unified Global Filter & Sub-Tabs Container matching Employee & Trainees styling */}
+      {/* Directory Filter Container */}
       <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20 space-y-4">
-        {/* Row 1: Filters with CustomSelect and Longer Search Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-2 sm:col-span-1">
             <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
@@ -215,38 +279,11 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
           </div>
         </div>
 
-        {/* Dynamic Tab Content Views inside the main container */}
+        {/* Directory Content */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
-          {isLoading ? (
-            <TrainersDirectorySkeleton />
-          ) : role === 'EMPLOYEE' && activeTab !== 'directory' ? (
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-6">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Trainer Analytics Restricted</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Trainer Attendance & Reliability analytics are internal records for Training Supervisors. To view your personal trainee attendance and performance records, please visit the Trainees Portal.
-                </p>
-              </div>
-              <a
-                href="/trainees"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
-              >
-                Open My Trainee Records
-              </a>
-            </div>
-          ) : (
-            <>
-              <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
-                {activeTab === 'directory' && <DirectoryView trainers={filteredInitialTrainers} />}
-                {(activeTab === 'attendance' || activeTab === 'reliability' || (activeTab as string) === 'attendance-reliability') && (
-                  <AttendanceReliabilityView initialTrainers={filteredInitialTrainers} />
-                )}
-              </div>
-            </>
-          )}
+          <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-50' : 'opacity-100'}`}>
+            <DirectoryView trainers={filteredInitialTrainers} />
+          </div>
         </div>
       </div>
     </div>
@@ -748,8 +785,8 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
 
                           {/* Trainees Table - Collapsible */}
                           {expanded && (
-                            <div className="overflow-x-auto max-h-72 overflow-y-auto custom-horizontal-scrollbar border-t border-slate-100 dark:border-slate-700/60">
-                              <table className="w-full text-xs text-left">
+                            <div className="overflow-x-auto max-h-72 overflow-y-auto custom-horizontal-scrollbar touch-pan-x border-t border-slate-100 dark:border-slate-700/60">
+                              <table className="w-full text-xs text-left min-w-[550px]">
                                 <thead className="bg-slate-50/60 dark:bg-slate-900/50 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white dark:bg-slate-800 z-10">
                                   <tr>
                                     <th className="py-2 px-3 sm:px-3.5">Trainee Name</th>
@@ -915,271 +952,76 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
   );
 }
 
-{/* Attendance View Component */ }
-function AttendanceView({ initialTrainers = [] }: { initialTrainers: any[] }) {
-  const attendanceData = useMemo<TrainerAttendanceData[]>(() => {
-    return initialTrainers.map(t => ({
-      name: t.name,
-      present: t.present || 0,
-      absent: t.absent ?? t.leaves?.absence ?? 0,
-      suspension: t.suspension ?? t.leaves?.sus ?? 0,
-      rate: t.attendanceRate || '0%',
-      timeline: t.timeline || []
-    }));
-  }, [initialTrainers]);
-
-
+{/* Unified Attendance & Reliability View Component */}
+function AttendanceReliabilityView({
+  initialTrainers = [],
+  onRefresh,
+  isRefreshing
+}: {
+  initialTrainers: any[];
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}) {
+  const { avatarUrl, userName, email } = useRole();
+  const [selectedQuarter, setSelectedQuarter] = useState('All');
+  const [selectedMonth, setSelectedMonth] = useState('All');
+  const [selectedAccount, setSelectedAccount] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'rate' | 'name' | 'present' | 'absent'>('rate');
-  const [selectedTrainer, setSelectedTrainer] = useState<TrainerAttendanceData | null>(null);
+  const [sortBy, setSortBy] = useState<'attRate' | 'relRate' | 'name' | 'present' | 'absent' | 'losses'>('attRate');
+  const [viewFocus, setViewFocus] = useState<'all' | 'attendance' | 'reliability'>('all');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
-  const getAttendanceStatus = useCallback((rate: number) => {
-    if (rate >= 95) return { label: 'Excellent', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
-    if (rate >= 90) return { label: 'Good', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' };
-    if (rate >= 80) return { label: 'Needs Attention', color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' };
-    return { label: 'Critical', color: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' };
-  }, []);
+  // Drawer states
+  const [selectedTrainer, setSelectedTrainer] = useState<any | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'attendance' | 'reliability'>('attendance');
 
-  const getRateColor = useCallback((rate: number) => {
-    if (rate < 80) return 'text-rose-600';
-    if (rate >= 95) return 'text-emerald-600';
-    return 'text-[#2F6798]';
-  }, []);
+  const getTrainerAvatar = useCallback((t: any) => {
+    if (!t) return null;
+    const pic = t.profilePic;
+    const isValidPic = pic && typeof pic === 'string' && pic.trim() !== '' && !['none', 'null', 'undefined', 'n/a'].includes(pic.trim().toLowerCase()) && (pic.startsWith('http') || pic.startsWith('/') || pic.startsWith('data:'));
+    if (isValidPic) return pic.trim();
+    const isMatch = (t.name && userName && t.name.toLowerCase().includes(userName.toLowerCase())) ||
+      (t.email && email && t.email.toLowerCase() === email.toLowerCase()) ||
+      (t.name && t.name.toLowerCase().includes('nissi') && (email?.includes('nreguero') || !email));
+    if (isMatch && avatarUrl) return avatarUrl;
+    return null;
+  }, [userName, email, avatarUrl]);
 
-  const filteredAndSorted = useMemo(() => {
-    let data = [...attendanceData];
-    if (searchQuery) {
-      data = data.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    if (statusFilter !== 'all') {
-      data = data.filter(t => {
-        const rate = parseFloat(t.rate);
-        if (statusFilter === 'excellent') return rate >= 95;
-        if (statusFilter === 'good') return rate >= 90 && rate < 95;
-        if (statusFilter === 'attention') return rate >= 80 && rate < 90;
-        if (statusFilter === 'critical') return rate < 80;
-        return true;
-      });
-    }
-    data.sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'present') return b.present - a.present;
-      if (sortBy === 'absent') return b.absent - a.absent;
-      return parseFloat(b.rate) - parseFloat(a.rate);
-    });
-    return data;
-  }, [attendanceData, searchQuery, statusFilter, sortBy]);
+  const lossCodes = useMemo(() => ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'], []);
 
-  const kpis = useMemo(() => {
-    const totalPresent = attendanceData.reduce((s, t) => s + t.present, 0);
-    const totalAbsent = attendanceData.reduce((s, t) => s + t.absent, 0);
-    const totalSUS = attendanceData.reduce((s, t) => s + t.suspension, 0);
-    const totalTrainers = attendanceData.length;
-    const avgRate = totalPresent + totalAbsent > 0
-      ? ((totalPresent / (totalPresent + totalAbsent)) * 100).toFixed(1) + '%'
-      : '0.0%';
-    return { totalPresent, totalAbsent, totalSUS, totalTrainers, avgRate };
-  }, [attendanceData]);
-
-  const handleTrainerClick = useCallback((trainer: TrainerAttendanceData) => {
-    setSelectedTrainer(prev => prev?.name === trainer.name ? null : trainer);
-  }, []);
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide">
-            Trainer Attendance (SUS counted as a loss) Breakdown
-          </h2>
-          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
-            {attendanceData.length} trainers &middot; Click a card to view details
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-[#2F6798]" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Rate</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.avgRate}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Present</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalPresent.toLocaleString()}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
-              <BarChart3 className="w-3.5 h-3.5 text-rose-600" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Absent</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalAbsent}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Trainers</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.totalTrainers}</p>
-        </div>
-      </div>
-
-      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs relative z-10">
-        <div className="flex flex-col md:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full group">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
-            <input
-              type="text"
-              placeholder="Search trainer name or details..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-sm"
-            />
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto shrink-0">
-            <div className="w-full sm:w-48">
-              <CustomSelect
-                value={statusFilter}
-                onChange={val => setStatusFilter(val)}
-                options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: 'excellent', label: 'Excellent (≥95%)' },
-                  { value: 'good', label: 'Good (90-94%)' },
-                  { value: 'attention', label: 'Needs Attention (80-89%)' },
-                  { value: 'critical', label: 'Critical (<80%)' }
-                ]}
-              />
-            </div>
-            <div className="w-full sm:w-44">
-              <CustomSelect
-                value={sortBy}
-                onChange={val => setSortBy(val as typeof sortBy)}
-                options={[
-                  { value: 'rate', label: 'Sort by Rate' },
-                  { value: 'name', label: 'Sort by Name' },
-                  { value: 'present', label: 'Sort by Present' },
-                  { value: 'absent', label: 'Sort by Absent' }
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {filteredAndSorted.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-8 text-center">
-          <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-          <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No trainers match your search criteria.</p>
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {filteredAndSorted.map((trainer) => {
-            const rateNum = parseFloat(trainer.rate);
-            const status = getAttendanceStatus(rateNum);
-            const rateColor = getRateColor(rateNum);
-            const isSelected = selectedTrainer?.name === trainer.name;
-
-            return (
-              <button
-                key={trainer.name}
-                type="button"
-                onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
-                  ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                  : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
-                  }`}
-                aria-label={`${trainer.name}, attendance rate ${trainer.rate}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-50 tracking-wide truncate">
-                      {trainer.name}
-                    </h3>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold border whitespace-nowrap ${status.color}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
-                      {status.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    <span>Present <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.present}</strong></span>
-                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
-                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.absent}</strong></span>
-                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
-                    <span>SUS <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.suspension}</strong></span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 sm:gap-5 shrink-0">
-                  <div className="text-right">
-                    <span className={`text-xl font-black ${rateColor}`}>{trainer.rate}</span>
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Attendance Rate</p>
-                  </div>
-                  <div className="hidden sm:block w-24">
-                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
-                        style={{ width: `${Math.min(rateNum, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <TrainerAttendanceDrawer trainer={selectedTrainer} onClose={() => setSelectedTrainer(null)} />
-    </div>
-  );
-}
-
-function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
-  const reliabilityData = useMemo<TrainerReliabilityData[]>(() => {
-    const lossCodes = ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
-
-    return initialTrainers.map(t => {
-      let sl = t.leaves?.sl || 0;
-      let vl = t.leaves?.vl || 0;
-      let med = t.leaves?.med || 0;
-      let sus = t.leaves?.sus || 0;
-      let hol = t.leaves?.hol || 0;
-      let ml = t.leaves?.ml || 0;
-      let pl = t.leaves?.pl || 0;
-      let bl = t.leaves?.bl || 0;
-      let absence = t.leaves?.absence || 0;
-      let und = t.leaves?.und || 0;
-
-      // Count all attendance loss types (SL, VL, ML, PL, SUS, MED, BL, ABS, UND) - Holidays excluded
-      let losses = t.losses ?? (sl + vl + med + sus + ml + pl + bl + absence + und);
-      let present = t.present || 0;
-
-      const totalEvaluated = present + losses;
-      let rateStr = t.reliabilityRate || '100.0%';
-      if (totalEvaluated > 0) {
-        rateStr = `${((present / totalEvaluated) * 100).toFixed(1)}%`;
+  const availableAccounts = useMemo(() => {
+    const set = new Set<string>();
+    initialTrainers.forEach((t: any) => {
+      if (t.accounts) {
+        t.accounts.split(',').forEach((a: string) => set.add(a.trim()));
       }
+    });
+    return ['All', ...Array.from(set).sort()];
+  }, [initialTrainers]);
 
-      // Calculate the timeline grouped by month/quarter
+  const data = useMemo(() => {
+    return initialTrainers.map(t => {
+      const sl = t.leaves?.sl || 0;
+      const vl = t.leaves?.vl || 0;
+      const med = t.leaves?.med || 0;
+      const sus = t.leaves?.sus || 0;
+      const hol = t.leaves?.hol || 0;
+      const ml = t.leaves?.ml || 0;
+      const pl = t.leaves?.pl || 0;
+      const bl = t.leaves?.bl || 0;
+      const absence = t.leaves?.absence || 0;
+      const und = t.leaves?.und || 0;
+
+      const losses = t.losses ?? (sl + vl + med + sus + ml + pl + bl + absence + und);
+      const present = t.present || 0;
+
+      // Group timeline by month
       const monthMap = new Map();
-
       const getQuarter = (monthName: string) => {
-        const m = monthName.toLowerCase();
+        const m = (monthName || '').toLowerCase();
         if (['january', 'february', 'march'].includes(m)) return 'Q1';
         if (['april', 'may', 'june'].includes(m)) return 'Q2';
         if (['july', 'august', 'september'].includes(m)) return 'Q3';
@@ -1208,223 +1050,744 @@ function ReliabilityView({ initialTrainers = [] }: { initialTrainers: any[] }) {
 
       return {
         name: t.name,
+        profilePic: t.profilePic,
+        email: t.email,
+        role: t.role || t.position || 'TRAINER',
+        accounts: t.accounts || '',
+        status: t.status || 'ACTIVE',
         present: present,
-        absent: t.absent || absence,
+        absent: t.absent ?? absence,
+        suspension: t.suspension ?? sus,
         losses: losses,
-        rate: rateStr,
+        attendanceRate: t.attendanceRate || '0.0%',
+        reliabilityRate: t.reliabilityRate || '100.0%',
+        timeline: t.timeline || [],
         lossBreakdown: { sl, vl, other: med + sus + ml + pl + bl + und },
-        timeline: Array.from(monthMap.values())
+        monthlyTimeline: Array.from(monthMap.values()),
+        leaves: t.leaves || {}
       };
     });
-  }, [initialTrainers]);
+  }, [initialTrainers, lossCodes]);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'low' | 'high'>('low');
-  const [selectedTrainer, setSelectedTrainer] = useState<TrainerReliabilityData | null>(null);
+  const getAttendanceStatus = useCallback((rate: number) => {
+    if (rate >= 95) return { label: 'Excellent', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50', dot: 'bg-emerald-500' };
+    if (rate >= 90) return { label: 'Good', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50', dot: 'bg-blue-500' };
+    if (rate >= 80) return { label: 'Needs Attention', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50', dot: 'bg-amber-500' };
+    return { label: 'Critical', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50', dot: 'bg-rose-500' };
+  }, []);
+
+  const getRateColor = useCallback((rate: number) => {
+    if (rate < 80) return 'text-rose-600 dark:text-rose-400';
+    if (rate >= 95) return 'text-emerald-600 dark:text-emerald-400';
+    return 'text-[#2F6798] dark:text-blue-400';
+  }, []);
 
   const filteredAndSorted = useMemo(() => {
-    let data = [...reliabilityData];
-    if (searchQuery) {
-      data = data.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    let list = [...data];
+
+    if (selectedAccount !== 'All') {
+      list = list.filter(t => (t.accounts || '').toLowerCase().includes(selectedAccount.toLowerCase()));
     }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(t => t.name.toLowerCase().includes(q) || t.role.toLowerCase().includes(q) || t.accounts.toLowerCase().includes(q));
+    }
+
     if (statusFilter !== 'all') {
-      data = data.filter(t => {
-        const rate = parseFloat(t.rate);
-        if (statusFilter === 'excellent') return rate >= 95;
-        if (statusFilter === 'good') return rate >= 90 && rate < 95;
-        if (statusFilter === 'attention') return rate >= 80 && rate < 90;
-        if (statusFilter === 'critical') return rate < 80;
+      list = list.filter(t => {
+        const attNum = parseFloat(t.attendanceRate);
+        const relNum = parseFloat(t.reliabilityRate);
+        const targetNum = viewFocus === 'reliability' ? relNum : attNum;
+        if (statusFilter === 'excellent') return targetNum >= 95;
+        if (statusFilter === 'good') return targetNum >= 90 && targetNum < 95;
+        if (statusFilter === 'attention') return targetNum >= 80 && targetNum < 90;
+        if (statusFilter === 'critical') return targetNum < 80;
         return true;
       });
     }
-    data.sort((a, b) => {
-      const aRate = parseFloat(a.rate);
-      const bRate = parseFloat(b.rate);
-      return sortBy === 'low' ? aRate - bRate : bRate - aRate;
+
+    list.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'present') return b.present - a.present;
+      if (sortBy === 'absent') return b.absent - a.absent;
+      if (sortBy === 'losses') return b.losses - a.losses;
+      if (sortBy === 'relRate') return parseFloat(b.reliabilityRate) - parseFloat(a.reliabilityRate);
+      return parseFloat(b.attendanceRate) - parseFloat(a.attendanceRate);
     });
-    return data;
-  }, [reliabilityData, searchQuery, statusFilter, sortBy]);
+
+    return list;
+  }, [data, selectedAccount, searchQuery, statusFilter, sortBy, viewFocus]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedQuarter, selectedMonth, selectedAccount, searchQuery, statusFilter, sortBy, viewFocus]);
+
+  const totalPages = Math.ceil(filteredAndSorted.length / pageSize) || 1;
+  const paginatedTrainers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(start, start + pageSize);
+  }, [filteredAndSorted, currentPage, pageSize]);
 
   const kpis = useMemo(() => {
-    const totalTrainers = reliabilityData.length;
-    let sumRate = 0;
-    let reliable = 0;
-    let attention = 0;
-    let critical = 0;
+    const totalTrainers = filteredAndSorted.length;
+    const totalPresent = filteredAndSorted.reduce((s, t) => s + t.present, 0);
+    const totalAbsent = filteredAndSorted.reduce((s, t) => s + t.absent, 0);
+    const totalLosses = filteredAndSorted.reduce((s, t) => s + t.losses, 0);
 
-    reliabilityData.forEach(t => {
-      const rate = parseFloat(t.rate) || 0;
-      sumRate += rate;
-      if (rate >= 90) reliable++;
-      else if (rate >= 80) attention++;
-      else critical++;
+    let sumAtt = 0;
+    let sumRel = 0;
+    filteredAndSorted.forEach(t => {
+      sumAtt += parseFloat(t.attendanceRate) || 0;
+      sumRel += parseFloat(t.reliabilityRate) || 0;
     });
 
-    const avgRate = totalTrainers > 0 ? (sumRate / totalTrainers).toFixed(1) + '%' : '0.0%';
-    return { avgRate, reliable, attention, critical };
-  }, [reliabilityData]);
+    const avgAtt = totalTrainers > 0 ? (sumAtt / totalTrainers).toFixed(1) + '%' : '0.0%';
+    const avgRel = totalTrainers > 0 ? (sumRel / totalTrainers).toFixed(1) + '%' : '0.0%';
 
-  const handleTrainerClick = useCallback((trainer: TrainerReliabilityData) => {
-    setSelectedTrainer(prev => prev?.name === trainer.name ? null : trainer);
-  }, []);
+    return { totalTrainers, totalPresent, totalAbsent, totalLosses, avgAtt, avgRel };
+  }, [filteredAndSorted]);
+
+  const handleOpenDrawer = (trainer: any, defaultTab: 'attendance' | 'reliability' = 'attendance') => {
+    setSelectedTrainer(trainer);
+    setDrawerTab(defaultTab);
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-6">
+      {/* 1. Header Row (No icon, text-lg title) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide">
-            Trainer Reliability (SL, VL, ML, PL, SUS, MED, BL counted as losses) Breakdown
-          </h2>
-          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
-            {reliabilityData.length} trainers &middot; Click a card to view details
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            Trainer Attendance &amp; Reliability
+          </h1>
+          <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
+            Unified tracking for attendance (working days &amp; absences) and reliability (SL, VL, leaves &amp; suspensions)
           </p>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-[#2F6798]/10 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-[#2F6798]" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Reliability</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.avgRate}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reliable</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.reliable}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Needs Attention</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.attention}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Critical</span>
-          </div>
-          <p className="text-xl font-black text-slate-900 dark:text-slate-50">{kpis.critical}</p>
+        <div className="flex items-center gap-2.5">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRefreshing ? (
+                <Loader2 className="w-3.5 h-3.5 text-[#2F6798] animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 text-[#2F6798]" />
+              )}
+              Refresh Data
+            </button>
+          )}
+          <button className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs hover:bg-slate-50/80 dark:hover:bg-slate-700/50 hover:border-slate-300 transition-all">
+            <Download className="w-3.5 h-3.5 text-[#2F6798]" /> Export Summary
+          </button>
         </div>
       </div>
 
-      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs relative z-10">
-        <div className="flex flex-col md:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full group">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
-            <input
-              type="text"
-              placeholder="Search trainer name or details..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-sm"
+      {/* 2. 4 Summary Boxes Above Filter */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Box 1: Avg Attendance */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
+              Avg Attendance
+            </span>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
+              {kpis.avgAtt}
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] flex items-center justify-center shrink-0">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Box 2: Avg Reliability */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
+              Avg Reliability
+            </span>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+              {kpis.avgRel}
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Box 3: Total Present */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
+              Total Present
+            </span>
+            <p className="text-2xl sm:text-3xl font-black text-[#2F6798] dark:text-[#5a9fd4] tracking-tight">
+              {kpis.totalPresent.toLocaleString()}
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] dark:text-[#5a9fd4] flex items-center justify-center shrink-0">
+            <BarChart3 className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Box 4: Absences & Losses */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
+              Absences &amp; Losses
+            </span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-500 tracking-tight">
+                {kpis.totalAbsent}
+              </span>
+              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                / {kpis.totalLosses} total
+              </span>
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. UNIFIED SINGLE EXTERNAL WHITE CONTAINER (Wraps Filters + Cards/Table) */}
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+        {/* Row 1: 5 Equal Width Select Filters */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Quarter Filter
+            </label>
+            <CustomSelect
+              value={selectedQuarter}
+              onChange={setSelectedQuarter}
+              options={[
+                { value: 'All', label: 'All Quarters' },
+                { value: 'Q1', label: 'Q1' },
+                { value: 'Q2', label: 'Q2' },
+                { value: 'Q3', label: 'Q3' },
+                { value: 'Q4', label: 'Q4' }
+              ]}
             />
           </div>
-          <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto shrink-0">
-            <div className="w-full sm:w-48">
-              <CustomSelect
-                value={statusFilter}
-                onChange={val => setStatusFilter(val)}
-                options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: 'excellent', label: 'Excellent (≥95%)' },
-                  { value: 'good', label: 'Good (90-94%)' },
-                  { value: 'attention', label: 'Needs Attention (80-89%)' },
-                  { value: 'critical', label: 'Critical (<80%)' }
-                ]}
-              />
+
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Month Filter
+            </label>
+            <CustomSelect
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              options={[
+                { value: 'All', label: 'All Months' },
+                { value: 'January', label: 'January' },
+                { value: 'February', label: 'February' },
+                { value: 'March', label: 'March' },
+                { value: 'April', label: 'April' },
+                { value: 'May', label: 'May' },
+                { value: 'June', label: 'June' },
+                { value: 'July', label: 'July' },
+                { value: 'August', label: 'August' },
+                { value: 'September', label: 'September' },
+                { value: 'October', label: 'October' },
+                { value: 'November', label: 'November' },
+                { value: 'December', label: 'December' }
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account Filter
+            </label>
+            <CustomSelect
+              value={selectedAccount}
+              onChange={setSelectedAccount}
+              options={availableAccounts.map(acct => ({
+                value: acct,
+                label: acct === 'All' ? 'All Client Accounts' : acct
+              }))}
+            />
+          </div>
+
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#2F6798]" /> Status Filter
+            </label>
+            <CustomSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'excellent', label: 'Excellent (≥95%)' },
+                { value: 'good', label: 'Good (90-94%)' },
+                { value: 'attention', label: 'Needs Attention (80-89%)' },
+                { value: 'critical', label: 'Critical (<80%)' }
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#2F6798]" /> Sort Filter
+            </label>
+            <CustomSelect
+              value={sortBy}
+              onChange={val => setSortBy(val as typeof sortBy)}
+              options={[
+                { value: 'attRate', label: 'Sort: Attendance Rate' },
+                { value: 'relRate', label: 'Sort: Reliability Rate' },
+                { value: 'name', label: 'Sort: Name (A-Z)' },
+                { value: 'present', label: 'Sort: Present Days' },
+                { value: 'absent', label: 'Sort: Absent Days' },
+                { value: 'losses', label: 'Sort: Total Losses' }
+              ]}
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Left View Mode Tabs + View Switcher (Cards/Table) + Right Search Bar */}
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-3 pt-0">
+          {/* Left Side: View Focus Tabs + Cards/Table Switcher */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            {/* Metric Focus Tabs */}
+            <div className="inline-flex bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewFocus('all')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewFocus === 'all'
+                    ? 'bg-white dark:bg-slate-800 text-[#2F6798] dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All Metrics
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewFocus('attendance')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewFocus === 'attendance'
+                    ? 'bg-white dark:bg-slate-800 text-[#2F6798] dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Attendance
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewFocus('reliability')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewFocus === 'reliability'
+                    ? 'bg-white dark:bg-slate-800 text-[#2F6798] dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Reliability
+              </button>
             </div>
-            <div className="w-full sm:w-44">
-              <CustomSelect
-                value={sortBy}
-                onChange={val => setSortBy(val as 'low' | 'high')}
-                options={[
-                  { value: 'low', label: 'Sort: Low → High' },
-                  { value: 'high', label: 'Sort: High → Low' }
-                ]}
-              />
+
+            {/* Layout Mode Toggle (Cards vs Table) */}
+            <div className="inline-flex bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewMode === 'cards'
+                    ? 'bg-white dark:bg-slate-800 text-[#2F6798] dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewMode === 'table'
+                    ? 'bg-white dark:bg-slate-800 text-[#2F6798] dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Table</span>
+              </button>
             </div>
           </div>
+
+          {/* Right Side: Search */}
+          <div className="relative group w-full lg:max-w-md">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Type trainer name, position, or account..."
+              className="h-9 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-1.5 pl-9 pr-4 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs"
+            />
+          </div>
+        </div>
+
+        {/* Row 3: Content Section (Inside the SAME container) */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          {filteredAndSorted.length === 0 ? (
+            <div className="py-12 text-center">
+              <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No trainers match your search criteria.</p>
+            </div>
+          ) : viewMode === 'table' ? (
+            /* TABLE VIEW */
+            <div className="w-full overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900/40 shadow-xs">
+              <div className="w-full overflow-x-auto custom-horizontal-scrollbar touch-pan-x overscroll-x-contain pb-1">
+                <table className="w-full text-left border-collapse text-xs min-w-[980px]">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-700/80 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                      <th className="py-3.5 px-4 min-w-[220px]">Trainer</th>
+                      <th className="py-3.5 px-4 min-w-[140px]">Account(s)</th>
+                      <th className="py-3.5 px-4 text-center min-w-[95px]">Present (P)</th>
+                      <th className="py-3.5 px-4 text-center min-w-[95px]">Absent (A)</th>
+                      <th className="py-3.5 px-4 text-center min-w-[95px]">Losses</th>
+                      {(viewFocus === 'all' || viewFocus === 'attendance') && (
+                        <th className="py-3.5 px-4 text-center min-w-[125px]">Attendance Rate</th>
+                      )}
+                      {(viewFocus === 'all' || viewFocus === 'reliability') && (
+                        <th className="py-3.5 px-4 text-center min-w-[125px]">Reliability Rate</th>
+                      )}
+                      <th className="py-3.5 px-4 text-center min-w-[100px]">Status</th>
+                      <th className="py-3.5 px-4 text-center min-w-[80px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {paginatedTrainers.map((trainer) => {
+                      const attNum = parseFloat(trainer.attendanceRate) || 0;
+                      const relNum = parseFloat(trainer.reliabilityRate) || 0;
+                      const attColor = getRateColor(attNum);
+                      const relColor = getRateColor(relNum);
+                      const isSelected = selectedTrainer?.name === trainer.name;
+                      const tPhoto = getTrainerAvatar(trainer);
+
+                      const initials = trainer.name
+                        ? trainer.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                        : '?';
+
+                      return (
+                        <tr
+                          key={trainer.name}
+                          onClick={() => handleOpenDrawer(trainer)}
+                          className={`hover:bg-slate-50/80 dark:hover:bg-slate-700/40 transition-colors cursor-pointer group whitespace-nowrap ${
+                            isSelected ? 'bg-[#2F6798]/5' : ''
+                          }`}
+                        >
+                          {/* Trainer Info */}
+                          <td className="py-3.5 px-4 font-medium min-w-[220px]">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#2F6798]/10 text-[#2F6798] dark:text-blue-300 flex items-center justify-center text-xs font-black shrink-0 border border-[#2F6798]/20 overflow-hidden">
+                                {tPhoto ? (
+                                  <img
+                                    src={tPhoto}
+                                    alt={trainer.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  initials
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                  {trainer.name}
+                                </div>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold bg-[#2F6798] text-white uppercase tracking-wider mt-0.5 shadow-2xs">
+                                  {trainer.role}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Account */}
+                          <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 text-xs font-medium min-w-[140px]">
+                            {trainer.accounts || 'General'}
+                          </td>
+
+                          {/* Present Days */}
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-800 dark:text-slate-100 min-w-[95px]">
+                            {trainer.present}
+                          </td>
+
+                          {/* Absent Days */}
+                          <td className="py-3.5 px-4 text-center min-w-[95px]">
+                            <span className={`font-bold ${trainer.absent > 0 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                              {trainer.absent}
+                            </span>
+                          </td>
+
+                          {/* Losses */}
+                          <td className="py-3.5 px-4 text-center min-w-[95px]">
+                            <span className={`font-bold ${trainer.losses > 0 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                              {trainer.losses}
+                            </span>
+                          </td>
+
+                          {/* Attendance Rate */}
+                          {(viewFocus === 'all' || viewFocus === 'attendance') && (
+                            <td className="py-3.5 px-4 text-center min-w-[125px]">
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`font-black text-xs ${attColor}`}>{trainer.attendanceRate}</span>
+                                <div className="w-16 bg-slate-100 dark:bg-slate-700 rounded-full h-1 mt-1">
+                                  <div
+                                    className={`h-1 rounded-full ${attNum >= 95 ? 'bg-emerald-500' : attNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                                    style={{ width: `${Math.min(attNum, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Reliability Rate */}
+                          {(viewFocus === 'all' || viewFocus === 'reliability') && (
+                            <td className="py-3.5 px-4 text-center min-w-[125px]">
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`font-black text-xs ${relColor}`}>{trainer.reliabilityRate}</span>
+                                <div className="w-16 bg-slate-100 dark:bg-slate-700 rounded-full h-1 mt-1">
+                                  <div
+                                    className={`h-1 rounded-full ${relNum >= 95 ? 'bg-emerald-500' : relNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                                    style={{ width: `${Math.min(relNum, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Status */}
+                          <td className="py-3.5 px-4 text-center min-w-[100px]">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
+                              trainer.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                            }`}>
+                              {trainer.status}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-4 text-center min-w-[80px]">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDrawer(trainer);
+                              }}
+                              title="View Attendance &amp; Reliability Details"
+                              className="inline-flex items-center justify-center p-0.5 text-[#C8A54B] dark:text-[#E0B85C] hover:text-[#A88532] dark:hover:text-[#F3CE74] hover:scale-115 active:scale-95 transition-all duration-150 cursor-pointer focus:outline-none"
+                            >
+                              <Eye className="w-4 h-4 stroke-[2]" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Pagination */}
+              {filteredAndSorted.length > pageSize && (
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-4">
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong> ({filteredAndSorted.length} trainers)
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                    </button>
+
+                    <div className="flex items-center gap-1 px-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((p, i, arr) => {
+                          const prev = arr[i - 1];
+                          const showEllipsis = prev && p - prev > 1;
+                          return (
+                            <div key={p} className="flex items-center">
+                              {showEllipsis && <span className="px-1.5 text-xs text-slate-400">...</span>}
+                              <button
+                                onClick={() => setCurrentPage(p)}
+                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                                  currentPage === p
+                                    ? 'bg-[#2F6798] text-white shadow-xs'
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+                    >
+                      Next <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* CARDS VIEW */
+            <div className="space-y-2.5">
+              {filteredAndSorted.map((trainer) => {
+                const attNum = parseFloat(trainer.attendanceRate) || 0;
+                const relNum = parseFloat(trainer.reliabilityRate) || 0;
+                const attColor = getRateColor(attNum);
+                const relColor = getRateColor(relNum);
+                const isSelected = selectedTrainer?.name === trainer.name;
+                const tPhoto = getTrainerAvatar(trainer);
+
+                const initials = trainer.name
+                  ? trainer.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                  : '?';
+
+                return (
+                  <div
+                    key={trainer.name}
+                    onClick={() => handleOpenDrawer(trainer)}
+                    className={`w-full text-left bg-white dark:bg-slate-800/90 rounded-2xl border shadow-xs px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
+                      ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
+                      : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md hover:bg-slate-50/60 dark:hover:bg-slate-700/40'
+                      }`}
+                  >
+                    {/* Left: Trainer Identity */}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] dark:text-blue-300 flex items-center justify-center text-xs font-black shrink-0 border border-[#2F6798]/20 overflow-hidden">
+                        {tPhoto ? (
+                          <img
+                            src={tPhoto}
+                            alt={trainer.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 tracking-wide truncate">
+                            {trainer.name}
+                          </h3>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[8.5px] font-bold bg-[#2F6798] text-white uppercase tracking-wider shadow-2xs">
+                            {trainer.role}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                          <span>Present <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.present}</strong></span>
+                          <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                          <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.absent}</strong></span>
+                          <span className="text-slate-300 dark:text-slate-600">&middot;</span>
+                          <span>Losses <strong className={trainer.losses > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.losses}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Dual Rate Gauges */}
+                    <div className="flex items-center gap-4 sm:gap-6 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-700/60">
+                      {/* Attendance Rate */}
+                      {(viewFocus === 'all' || viewFocus === 'attendance') && (
+                        <div className="flex items-center gap-3">
+                          <div className="text-right min-w-[90px]">
+                            <span className={`text-base sm:text-lg font-black ${attColor}`}>{trainer.attendanceRate}</span>
+                            <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Attendance</p>
+                          </div>
+                          <div className="hidden sm:block w-16">
+                            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                              <div
+                                className={`h-1.5 rounded-full transition-all duration-500 ${attNum >= 95 ? 'bg-emerald-500' : attNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                                style={{ width: `${Math.min(attNum, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reliability Rate */}
+                      {(viewFocus === 'all' || viewFocus === 'reliability') && (
+                        <div className="flex items-center gap-3">
+                          <div className="text-right min-w-[90px]">
+                            <span className={`text-base sm:text-lg font-black ${relColor}`}>{trainer.reliabilityRate}</span>
+                            <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Reliability</p>
+                          </div>
+                          <div className="hidden sm:block w-16">
+                            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                              <div
+                                className={`h-1.5 rounded-full transition-all duration-500 ${relNum >= 95 ? 'bg-emerald-500' : relNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
+                                style={{ width: `${Math.min(relNum, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {filteredAndSorted.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs p-8 text-center">
-          <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-          <p className="text-xs font-medium text-slate-400 dark:text-slate-500">No trainers match your search criteria.</p>
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {filteredAndSorted.map((trainer) => {
-            const rateNum = parseFloat(trainer.rate);
-            const status = getReliabilityStatus(rateNum);
-            const rateColor = getReliabilityRateColor(rateNum);
-            const isSelected = selectedTrainer?.name === trainer.name;
-
-            return (
-              <button
-                key={trainer.name}
-                type="button"
-                onClick={() => handleTrainerClick(trainer)}
-                className={`w-full text-left bg-white dark:bg-slate-800 rounded-2xl border shadow-xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all duration-150 cursor-pointer ${isSelected
-                  ? 'border-[#2F6798] ring-2 ring-[#2F6798]/20 shadow-md'
-                  : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 hover:shadow-md hover:bg-slate-50/30 dark:hover:bg-slate-700/30'
-                  }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-50 tracking-wide truncate">
-                      {trainer.name}
-                    </h3>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold border whitespace-nowrap ${status.color}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
-                      {status.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    <span>Present <strong className="text-slate-800 dark:text-slate-100 font-bold ml-0.5">{trainer.present}</strong></span>
-                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
-                    <span>Absent <strong className={trainer.absent > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.absent}</strong></span>
-                    <span className="text-slate-300 dark:text-slate-600">&middot;</span>
-                    <span>Losses <strong className={trainer.losses > 0 ? 'text-rose-500 font-bold ml-0.5' : 'text-slate-800 dark:text-slate-100 font-bold ml-0.5'}>{trainer.losses}</strong></span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 sm:gap-5 shrink-0">
-                  <div className="text-right">
-                    <span className={`text-xl font-black ${rateColor}`}>{trainer.rate}</span>
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reliability Rate</p>
-                  </div>
-                  <div className="hidden sm:block w-24">
-                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${rateNum >= 95 ? 'bg-emerald-500' : rateNum >= 80 ? 'bg-[#2F6798]' : 'bg-rose-500'}`}
-                        style={{ width: `${Math.min(rateNum, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2F6798] group-hover:translate-x-0.5 transition-all shrink-0" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
+      {/* Interactive Unified Drawer (Supports both Attendance and Reliability tabs) */}
+      {selectedTrainer && (
+        <>
+          {drawerTab === 'attendance' ? (
+            <TrainerAttendanceDrawer
+              trainer={{
+                name: selectedTrainer.name,
+                present: selectedTrainer.present,
+                absent: selectedTrainer.absent,
+                suspension: selectedTrainer.suspension || 0,
+                rate: selectedTrainer.attendanceRate || '100.0%',
+                attendanceRate: selectedTrainer.attendanceRate,
+                timeline: selectedTrainer.attendanceTimeline || selectedTrainer.timeline || []
+              }}
+              onClose={() => setSelectedTrainer(null)}
+            />
+          ) : (
+            <TrainerReliabilityDrawer
+              trainer={{
+                name: selectedTrainer.name,
+                present: selectedTrainer.present,
+                absent: selectedTrainer.absent,
+                losses: selectedTrainer.losses,
+                rate: selectedTrainer.reliabilityRate,
+                lossBreakdown: selectedTrainer.lossBreakdown,
+                timeline: selectedTrainer.monthlyTimeline
+              }}
+              onClose={() => setSelectedTrainer(null)}
+            />
+          )}
+        </>
       )}
-
-      <TrainerReliabilityDrawer trainer={selectedTrainer} onClose={() => setSelectedTrainer(null)} />
     </div>
   );
 }

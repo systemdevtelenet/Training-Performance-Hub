@@ -105,13 +105,33 @@ function SettingsContent() {
     deliveryEmail: false,
   });
 
-  // Load avatar from localStorage on mount
+  // Load notification preferences and profile from scoped localStorage on mount
   useEffect(() => {
-    const savedAvatar = localStorage.getItem('user_avatar_url');
-    if (savedAvatar) {
-      setAvatarUrl(savedAvatar);
+    if (userEmail) {
+      const savedAvatar = localStorage.getItem(`user_avatar_url_${userEmail.toLowerCase().trim()}`);
+      if (savedAvatar) {
+        setAvatarUrl(savedAvatar);
+      }
+      const savedNotifs = localStorage.getItem(`user_notification_prefs_${userEmail.toLowerCase().trim()}`);
+      if (savedNotifs) {
+        try {
+          const parsed = JSON.parse(savedNotifs);
+          setNotifications(prev => ({ ...prev, ...parsed }));
+        } catch (e) {
+          // ignore
+        }
+      }
+      const savedPrefs = localStorage.getItem(`user_preferences_${userEmail.toLowerCase().trim()}`);
+      if (savedPrefs) {
+        try {
+          const parsed = JSON.parse(savedPrefs);
+          setPreferences(prev => ({ ...prev, ...parsed }));
+        } catch (e) {
+          // ignore
+        }
+      }
     }
-  }, []);
+  }, [userEmail]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsHydrating(false), 800);
@@ -139,19 +159,31 @@ function SettingsContent() {
   }, []);
 
   const toggleNotification = (key: keyof typeof notifications) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
+    setNotifications(prev => {
+      const updated = { ...prev, [key]: !prev[key] };
+      if (userEmail) {
+        localStorage.setItem(`user_notification_prefs_${userEmail.toLowerCase().trim()}`, JSON.stringify(updated));
+      }
+      window.dispatchEvent(new CustomEvent('notification-prefs-updated', { detail: updated }));
+      return updated;
+    });
     markUnsaved();
   };
 
   const handleSave = () => {
     setSaving(true);
+    if (userEmail) {
+      localStorage.setItem(`user_notification_prefs_${userEmail.toLowerCase().trim()}`, JSON.stringify(notifications));
+      localStorage.setItem(`user_preferences_${userEmail.toLowerCase().trim()}`, JSON.stringify(preferences));
+    }
+    window.dispatchEvent(new CustomEvent('notification-prefs-updated', { detail: notifications }));
     setTimeout(() => {
       setSaving(false);
       setShowSaved(true);
       setHasUnsavedChanges(false);
-      showToast('Settings saved successfully.', 'success');
+      showToast('Notification & system preferences saved successfully.', 'success');
       setTimeout(() => setShowSaved(false), 3000);
-    }, 800);
+    }, 400);
   };
 
   const handleReset = () => {
@@ -159,13 +191,20 @@ function SettingsContent() {
   };
 
   const confirmReset = () => {
-    setPreferences({ theme: 'light', timezone: 'Asia/Manila', dateFormat: 'MM/DD/YYYY' });
-    setNotifications({
+    const defaultPrefs = { theme: 'light', timezone: 'Asia/Manila', dateFormat: 'MM/DD/YYYY' };
+    const defaultNotifs = {
       performanceAlerts: true,
       trainingUpdates: true,
       deliveryInApp: true,
       deliveryEmail: false,
-    });
+    };
+    setPreferences(defaultPrefs);
+    setNotifications(defaultNotifs);
+    if (userEmail) {
+      localStorage.setItem(`user_notification_prefs_${userEmail.toLowerCase().trim()}`, JSON.stringify(defaultNotifs));
+      localStorage.setItem(`user_preferences_${userEmail.toLowerCase().trim()}`, JSON.stringify(defaultPrefs));
+    }
+    window.dispatchEvent(new CustomEvent('notification-prefs-updated', { detail: defaultNotifs }));
     setHasUnsavedChanges(false);
     setShowResetDialog(false);
     setShowSaved(false);
@@ -315,8 +354,10 @@ function SettingsContent() {
 
         if (res.success && res.url) {
           setAvatarUrl(res.url);
-          localStorage.setItem('user_avatar_url', res.url);
-          window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: res.url } }));
+          if (userEmail) {
+            localStorage.setItem(`user_avatar_url_${userEmail.toLowerCase().trim()}`, res.url);
+          }
+          window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: res.url, email: userEmail } }));
           setShowCropModal(false);
           setRawImageSrc(null);
           showToast('Profile photo saved successfully!', 'success');
@@ -338,8 +379,10 @@ function SettingsContent() {
       await deleteAvatar(avatarUrl, userMeta?.employeeId || profile.employeeId, userEmail || '');
     }
     setAvatarUrl(null);
-    localStorage.removeItem('user_avatar_url');
-    window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: null } }));
+    if (userEmail) {
+      localStorage.removeItem(`user_avatar_url_${userEmail.toLowerCase().trim()}`);
+    }
+    window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { url: null, email: userEmail } }));
     showToast('Profile photo removed.', 'success');
   };
 
@@ -377,8 +420,8 @@ function SettingsContent() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">System Settings</h2>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg">Configure your personal profile details, notification preferences, and application display settings.</p>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">System Settings</h2>
+          <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5 max-w-lg">Configure your personal profile details, notification preferences, and application display settings.</p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {hasUnsavedChanges && !showSaved && (

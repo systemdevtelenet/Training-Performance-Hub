@@ -457,6 +457,28 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{upperStatus}</span>;
   };
 
+  if (currentRole === 'EMPLOYEE' || currentRole === 'GUEST') {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-12">
+        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
+          <GraduationCap className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Personal Performance Portal</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            Company-wide trainee directories and batch management are reserved for Trainers and Administrators. Your personal training progress, attendance rate, and weekly evaluations are available on your Dashboard.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+        >
+          Return to My Dashboard
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800 dark:text-slate-200">
       {/* Top Action Bar */}
@@ -967,18 +989,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="w-full overflow-x-auto custom-horizontal-scrollbar touch-pan-x overscroll-x-contain pb-1">
+            <table className="w-full text-left text-xs border-collapse min-w-[980px]">
               <thead>
-                <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Trainee Name</th>
-                  <th className="py-3 px-4">Track Type</th>
-                  <th className="py-3 px-4">Batch / Wave</th>
-                  <th className="py-3 px-4">Client Account</th>
-                  <th className="py-3 px-4">Assigned Trainer</th>
-                  <th className="py-3 px-4">Attendance (P / A)</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">
+                  <th className="py-3 px-4 min-w-[180px]">Trainee Name</th>
+                  <th className="py-3 px-4 min-w-[120px]">Track Type</th>
+                  <th className="py-3 px-4 min-w-[130px]">Batch / Wave</th>
+                  <th className="py-3 px-4 min-w-[140px]">Client Account</th>
+                  <th className="py-3 px-4 min-w-[160px]">Assigned Trainer</th>
+                  <th className="py-3 px-4 min-w-[140px]">Attendance (P / A)</th>
+                  <th className="py-3 px-4 min-w-[120px]">Status</th>
+                  <th className="py-3 px-4 text-right min-w-[90px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -995,12 +1017,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     return (
                       <tr
                         key={t.id}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors whitespace-nowrap"
                       >
-                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
+                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 min-w-[180px]">
                           {t.name}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 min-w-[120px]">
                           {/* Circular Pill Shape for Track Type */}
                           <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border ${t.trainingType === 'INHOUSE'
                               ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
@@ -1009,22 +1031,22 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             {t.trainingType || 'TRAINING'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-semibold text-[#2F6798] dark:text-[#5a9fd4]">
+                        <td className="py-3 px-4 font-semibold text-[#2F6798] dark:text-[#5a9fd4] min-w-[130px]">
                           {t.batchName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium min-w-[140px]">
                           {t.accountName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium min-w-[160px]">
                           {t.assignedTrainer || 'Unassigned'}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                        <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300 min-w-[140px]">
                           <span className="font-bold">{attRate}</span> ({t.p || 0}P / {t.a || 0}A)
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 min-w-[120px]">
                           {renderStatusBadge(t.status, t.isEndorsed, t.isLoss)}
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-right min-w-[90px]">
                           {/* Unboxed Colored Icon Actions */}
                           <div className="flex items-center justify-end gap-3">
                             <button

@@ -3,8 +3,8 @@ import PageLoading from '@/components/PageLoading';
 export default function TrainersLoading() {
   return (
     <PageLoading
-      title="Loading Trainers Directory..."
-      subtitle="Retrieving trainer rosters, attendance, and reliability records"
+      title="Loading Attendance & Reliability..."
+      subtitle="Retrieving trainer rosters, attendance tracking, and reliability records"
     />
   );
 }
