@@ -11,6 +11,7 @@ export interface Trainee {
 }
 
 export interface BatchGroup {
+  trainer?: string;
   members: Trainee[];
   totalCount?: number;
   endorsed?: number;
