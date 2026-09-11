@@ -29,7 +29,9 @@ import { createClient } from '@/utils/supabase/client';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
 export function EmployeeDashboardView({ rawData }: { rawData: any }) {
-  const { userName, email, assignedTrainer, userMeta } = useRole();
+  const { role, actualRole, userName, email, assignedTrainer, userMeta } = useRole();
+  const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
   const supabase = createClient();
   const [trafficStatus, setTrafficStatus] = useState<string>('Okay');
   const [latestDate, setLatestDate] = useState<string>('Current Period');
@@ -171,7 +173,7 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
               Personal Performance Overview
             </h2>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2F6798]/10 text-[#2F6798] dark:bg-blue-950/60 dark:text-blue-300 border border-[#2F6798]/20">
-              Employee Portal
+              {isTrainer ? 'Trainer Portal' : 'Employee Portal'}
             </span>
           </div>
         </div>
@@ -199,8 +201,11 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Traffic Light Status */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
-          <div className="flex items-start justify-between">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/50 hover:shadow-md cursor-default group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10 flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                 isGreen ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
@@ -233,8 +238,11 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
         </div>
 
         {/* Card 2: Attendance Rate */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
-          <div className="flex items-start justify-between">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/50 hover:shadow-md cursor-default group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10 flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                 <Calendar className="h-5 w-5" />
@@ -255,8 +263,11 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
         </div>
 
         {/* Card 3: Active Training Batch */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
-          <div className="flex items-start justify-between">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/50 hover:shadow-md cursor-default group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10 flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0 pr-2">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
                 <Building2 className="h-5 w-5" />
@@ -266,34 +277,37 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
                   Active Batch
                 </h3>
                 <p className="text-base font-black text-slate-800 dark:text-slate-100 mt-0.5 leading-snug break-words">
-                  {myRecord?.batchName || 'General Wave'}
+                  {myRecord?.batchName || (isTrainer ? 'Assigned Batches' : 'General Wave')}
                 </p>
               </div>
             </div>
             <div className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-400">
-              {myRecord?.accountName || 'Fleet'}
+              {myRecord?.accountName || (isTrainer ? 'Training Dept' : 'Fleet')}
             </div>
           </div>
         </div>
 
-        {/* Card 4: Assigned Trainer */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
-          <div className="flex items-start justify-between">
+        {/* Card 4: Assigned Trainer / Trainer Designation */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/50 hover:shadow-md cursor-default group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10 flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0 pr-2">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
                 <UserCheck className="h-5 w-5" />
               </div>
               <div className="flex flex-col min-w-0">
                 <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Assigned Trainer
+                  {isTrainer ? 'Role Designation' : 'Assigned Trainer'}
                 </h3>
                 <p className="text-base font-black text-slate-800 dark:text-slate-100 mt-0.5 leading-snug break-words">
-                  {myRecord?.assignedTrainer || assignedTrainer || 'Operations Trainer'}
+                  {isTrainer ? (userMeta?.primaryTask || 'Trainer') : (myRecord?.assignedTrainer || assignedTrainer || 'Operations Trainer')}
                 </p>
               </div>
             </div>
             <div className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400">
-              {myRecord?.trainingType === 'Product Specific Training (PST)' ? 'PST' : 'Inhouse'}
+              {isTrainer ? 'TRAINER' : (myRecord?.trainingType === 'Product Specific Training (PST)' ? 'PST' : 'Inhouse')}
             </div>
           </div>
         </div>

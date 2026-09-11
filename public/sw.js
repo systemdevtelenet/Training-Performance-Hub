@@ -1,7 +1,7 @@
 // Service Worker for Training Performance Hub PWA
-const CACHE_NAME = 'tph-cache-v1';
+const CACHE_NAME = 'tph-cache-v2';
 
-// Install event - caches essential static assets
+// Install event
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
@@ -11,31 +11,34 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+        cacheNames.map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch event - network-first strategy with cache fallback
+// Fetch event
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Don't intercept Supabase API requests or real-time web sockets
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase.co')) {
+
+  // Never intercept API, Supabase, Next.js internal data, or navigation requests
+  if (
+    url.pathname.startsWith('/api/') || 
+    url.hostname.includes('supabase.co') ||
+    url.pathname.startsWith('/_next/') ||
+    event.request.mode === 'navigate'
+  ) {
     return;
   }
 
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        return response;
-      })
-      .catch(() => {
-        return caches.match(event.request);
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response('Network error occurred', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       })
   );
 });

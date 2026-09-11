@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -19,6 +19,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
@@ -33,6 +34,8 @@ import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmployeeDetailDrawer } from '@/components/EmployeeDetailDrawer';
 import { EmployeeFormDrawer } from '@/components/EmployeeFormDrawer';
+import PageLoading from '@/components/PageLoading';
+import { cn } from '@/lib/utils';
 
 export type EmployeeRecord = {
   id: number;
@@ -41,6 +44,10 @@ export type EmployeeRecord = {
   employee_email: string | null;
   status_id: number;
   status_name?: string;
+  role_id?: number;
+  role_name?: string;
+  category?: string;
+  is_primary_trainer?: boolean;
   hire_date: string | null;
   vici_link: string | null;
   avatar_url?: string | null;
@@ -51,19 +58,24 @@ export type EmployeeRecord = {
 export default function EmployeesClient({
   initialEmployees = [],
   accounts = [],
-  statuses = []
+  statuses = [],
+  roles = []
 }: {
   initialEmployees?: EmployeeRecord[];
   accounts?: any[];
   statuses?: any[];
+  roles?: any[];
 }) {
   const { role, actualRole, avatarUrl, userName, email: userEmail } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
   const canManage = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
 
   const [employees, setEmployees] = useState<EmployeeRecord[]>(initialEmployees);
+  const [rolesList, setRolesList] = useState<any[]>(roles);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedAccount, setSelectedAccount] = useState('All');
 
@@ -74,6 +86,10 @@ export default function EmployeesClient({
       const s = params.get('search');
       if (s) {
         setSearchQuery(s);
+      }
+      const cat = params.get('category') || params.get('role');
+      if (cat) {
+        setSelectedCategory(cat.toUpperCase());
       }
     }
   }, []);
@@ -97,6 +113,7 @@ export default function EmployeesClient({
     employee_name: '',
     employee_email: '',
     status_id: 1,
+    role_id: 1,
     hire_date: '',
     vici_link: '',
     account_id: ''
@@ -116,6 +133,7 @@ export default function EmployeesClient({
       const resData = await res.json();
       if (resData.success && resData.data) {
         setEmployees(resData.data);
+        if (resData.roles) setRolesList(resData.roles);
         toast.success('Employees list refreshed', 'Refreshed');
       }
     } catch (e) {
@@ -131,7 +149,10 @@ export default function EmployeesClient({
     } else {
       handleRefresh();
     }
-  }, [initialEmployees]);
+    if (roles && roles.length > 0) {
+      setRolesList(roles);
+    }
+  }, [initialEmployees, roles]);
 
   // Unique list of accounts from employees
   const availableAccounts = useMemo(() => {
@@ -147,9 +168,30 @@ export default function EmployeesClient({
     return ['All', ...Array.from(set).sort()];
   }, [accounts, employees]);
 
-  // Filtered employees dataset
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  // Filtered employees dataset with primary Trainer prioritization
   const filteredEmployees = useMemo(() => {
-    return employees.filter(e => {
+    const list = employees.filter(e => {
+      // Role / Category filter
+      if (selectedCategory !== 'All') {
+        const cat = (e.category || '').toUpperCase();
+        const rName = (e.role_name || '').toUpperCase();
+        if (selectedCategory === 'TRAINER') {
+          if (cat !== 'TRAINER' && !rName.includes('TRAINER') && !rName.includes('COORDINATOR') && !rName.includes('HEAD OF TRAINING')) return false;
+        } else if (selectedCategory === 'TRAINEE') {
+          if (cat !== 'TRAINEE' && !rName.includes('TRAINEE')) return false;
+        } else if (selectedCategory === 'ADMIN') {
+          if (cat !== 'ADMIN' && !rName.includes('ADMIN') && !rName.includes('SUPERVISOR') && !rName.includes('HEAD OF TRAINING')) return false;
+        } else if (selectedCategory === 'QA') {
+          if (cat !== 'QA' && !rName.includes('QA') && !rName.includes('QUALITY')) return false;
+        } else if (selectedCategory === 'TL') {
+          if (cat !== 'TL' && !rName.includes('TL') && !rName.includes('LEADER') && !rName.includes('MANAGER')) return false;
+        } else if (selectedCategory === 'AGENT') {
+          if (cat !== 'AGENT' && !rName.includes('AGENT')) return false;
+        }
+      }
+
       // Status filter
       if (selectedStatus !== 'All') {
         const sName = (e.status_name || '').toLowerCase();
@@ -166,44 +208,44 @@ export default function EmployeesClient({
       }
 
       // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (deferredSearchQuery.trim()) {
+        const q = deferredSearchQuery.toLowerCase();
         const matchesName = (e.employee_name || '').toLowerCase().includes(q);
         const matchesCode = (e.employee_code || '').toLowerCase().includes(q);
         const matchesEmail = (e.employee_email || '').toLowerCase().includes(q);
         const matchesAcc = (e.assigned_accounts || '').toLowerCase().includes(q);
-        if (!matchesName && !matchesCode && !matchesEmail && !matchesAcc) return false;
+        const matchesRole = (e.role_name || '').toLowerCase().includes(q);
+        const matchesCat = (e.category || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesEmail && !matchesAcc && !matchesRole && !matchesCat) return false;
       }
 
       return true;
     });
-  }, [employees, selectedStatus, selectedAccount, searchQuery]);
+
+    // Always sort Trainers to the top as the PRIMARY employees
+    return list.sort((a, b) => {
+      const aIsTrainer = a.is_primary_trainer || a.category === 'TRAINER' || (a.role_name || '').toLowerCase().includes('trainer');
+      const bIsTrainer = b.is_primary_trainer || b.category === 'TRAINER' || (b.role_name || '').toLowerCase().includes('trainer');
+      if (aIsTrainer && !bIsTrainer) return -1;
+      if (!aIsTrainer && bIsTrainer) return 1;
+      return 0;
+    });
+  }, [employees, selectedCategory, selectedStatus, selectedAccount, deferredSearchQuery]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedStatus, selectedAccount]);
+  }, [deferredSearchQuery, selectedCategory, selectedStatus, selectedAccount]);
 
   // KPI Metrics
   const kpis = useMemo(() => {
-    const total = filteredEmployees.length;
-    let active = 0;
-    let inactive = 0;
-    const accountSet = new Set<string>();
+    const total = employees.length;
+    const trainersCount = employees.filter(e => e.category === 'TRAINER' || (e.role_name || '').toLowerCase().includes('trainer')).length;
+    const traineesCount = employees.filter(e => e.category === 'TRAINEE' || (e.role_name || '').toLowerCase().includes('trainee')).length;
+    const activeStaff = employees.filter(e => e.status_id === 1 || (e.status_name && e.status_name.toLowerCase() === 'active')).length;
 
-    filteredEmployees.forEach(e => {
-      if (e.status_id === 1 || (e.status_name && e.status_name.toLowerCase() === 'active')) {
-        active++;
-      } else {
-        inactive++;
-      }
-      if (e.assigned_accounts && e.assigned_accounts !== 'Unassigned') {
-        e.assigned_accounts.split(',').forEach(a => accountSet.add(a.trim()));
-      }
-    });
-
-    return { total, active, inactive, accountsCount: accountSet.size };
-  }, [filteredEmployees]);
+    return { total, trainersCount, traineesCount, activeStaff };
+  }, [employees]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredEmployees.length / pageSize) || 1;
@@ -293,6 +335,53 @@ export default function EmployeesClient({
     }
   };
 
+  // Role badge with distinctive visual styling
+  const renderRoleBadge = (roleId?: number, roleName?: string, category?: string) => {
+    const name = roleName || (category === 'TRAINER' ? 'Trainer' : category === 'TRAINEE' ? 'Trainee' : roleId === 9 ? 'QA SUPERVISOR' : roleId === 5 ? 'Admin' : roleId === 2 ? 'QA' : roleId === 6 ? 'TL' : 'Agent');
+    const upper = (name + ' ' + (category || '')).toUpperCase();
+    
+    if (upper.includes('TRAINER') || upper.includes('COORDINATOR') || upper.includes('HEAD OF TRAINING') || category === 'TRAINER') {
+      return (
+        <span className="px-3 py-1 rounded-full text-[10px] font-black border border-blue-300 text-[#1967D2] bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 shadow-2xs">
+          {name}
+        </span>
+      );
+    }
+    if (upper.includes('TRAINEE') || category === 'TRAINEE') {
+      return (
+        <span className="px-3 py-1 rounded-full text-[10px] font-black border border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs">
+          {name}
+        </span>
+      );
+    }
+    if (upper.includes('SUPERVISOR') || upper.includes('ADMIN') || category === 'ADMIN') {
+      return (
+        <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-purple-300 text-purple-700 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800 shadow-2xs">
+          {name}
+        </span>
+      );
+    }
+    if (upper.includes('QA') || upper.includes('QUALITY') || category === 'QA') {
+      return (
+        <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-teal-300 text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800 shadow-2xs">
+          {name}
+        </span>
+      );
+    }
+    if (upper.includes('TL') || upper.includes('MANAGER') || category === 'TL') {
+      return (
+        <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-sky-300 text-sky-700 bg-sky-50 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+          {name}
+        </span>
+      );
+    }
+    return (
+      <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-slate-200 text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 shadow-2xs">
+        {name}
+      </span>
+    );
+  };
+
   // Pill badge matching Trainees table design
   const renderStatusBadge = (statusId: number, statusName?: string) => {
     const s = (statusName || (statusId === 1 ? 'ACTIVE' : statusId === 2 ? 'INACTIVE' : 'ACTIVE')).toUpperCase();
@@ -324,8 +413,36 @@ export default function EmployeesClient({
     );
   };
 
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
+          <AlertTriangle className="w-7 h-7" />
+        </div>
+        <div className="max-w-md space-y-1.5">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Admin Access Only</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Employee Master Directory &amp; Headcount Management are reserved exclusively for Administrators.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-md transition-all"
+        >
+          Return to Dashboard
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 w-full max-w-full pb-10 font-sans text-slate-800 dark:text-slate-200">
+      {isRefreshing && (
+        <PageLoading 
+          title="Refreshing Employees & Trainers Directory..." 
+          subtitle="Syncing latest personnel records from database..." 
+        />
+      )}
       {/* Top Action Bar matching Trainees page */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -339,11 +456,12 @@ export default function EmployeesClient({
           <button
             onClick={() => {
               const csvContent = 'data:text/csv;charset=utf-8,' + [
-                ['Employee Name', 'Employee Code', 'Email', 'Status', 'Hire Date', 'Assigned Accounts'].join(','),
+                ['Employee Name', 'Employee Code', 'Email', 'Role / Department', 'Status', 'Hire Date', 'Assigned Accounts'].join(','),
                 ...filteredEmployees.map(e => [
                   `"${e.employee_name || ''}"`,
                   `"${e.employee_code || ''}"`,
                   `"${e.employee_email || ''}"`,
+                  `"${e.role_name || e.category || ''}"`,
                   `"${e.status_name || ''}"`,
                   `"${e.hire_date || ''}"`,
                   `"${e.assigned_accounts || ''}"`
@@ -378,13 +496,14 @@ export default function EmployeesClient({
                   employee_name: '',
                   employee_email: '',
                   status_id: 1,
+                  role_id: 1,
                   hire_date: '',
                   vici_link: '',
                   account_id: ''
                 });
                 setIsAddModalOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5"
+              className="flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Add Employee
             </button>
@@ -395,52 +514,85 @@ export default function EmployeesClient({
       {/* TOP SUMMARY KPI BOXES - MATCHING TRAINEES TABLE DESIGN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Box 1: Total Employees Headcount */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">TOTAL HEADCOUNT</p>
             <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{kpis.total.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2 relative z-10">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Box 2: Active Employees */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ACTIVE EMPLOYEES</p>
-            <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{kpis.active.toLocaleString()}</h4>
+        {/* Box 2: Primary Trainers */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2">
+          <div className="min-w-0 relative z-10">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">PRIMARY TRAINERS</p>
+            <h4 className="text-2xl font-black text-[#1967D2] dark:text-blue-400 mt-0.5">{kpis.trainersCount.toLocaleString()}</h4>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#1967D2] dark:text-blue-400 shrink-0 ml-2 relative z-10">
+            <UserCog className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Box 3: Active Trainees */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ACTIVE TRAINEES</p>
+            <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{kpis.traineesCount.toLocaleString()}</h4>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2 relative z-10">
             <UserCheck className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Box 3: Inactive / Resigned */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">INACTIVE / RESIGNED</p>
-            <h4 className="text-2xl font-black text-slate-600 dark:text-slate-300 mt-0.5">{kpis.inactive.toLocaleString()}</h4>
+        {/* Box 4: Active Operations Staff */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 shrink-0 ml-2">
-            <UserX className="w-5 h-5" />
+          <div className="min-w-0 relative z-10">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ACTIVE STAFF</p>
+            <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{kpis.activeStaff.toLocaleString()}</h4>
           </div>
-        </div>
-
-        {/* Box 4: Active Client Accounts */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
-            <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{kpis.accountsCount || availableAccounts.length - 1}</h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2 relative z-10">
             <Building2 className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* GLOBAL FILTER BAR - MATCHING DASHBOARD DESIGN */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20">
+      {/* GLOBAL FILTER BAR WITH ROLE / DEPARTMENT FILTER */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20">
+        {/* Role / Category Filter */}
+        <div>
+          <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+            <UserCog className="w-3.5 h-3.5 text-[#2F6798]" /> Role / Department Filter
+          </label>
+          <CustomSelect
+            value={selectedCategory}
+            onChange={val => setSelectedCategory(val)}
+            options={[
+              { value: 'All', label: 'All Roles / Departments' },
+              { value: 'TRAINER', label: 'Trainers' },
+              { value: 'TRAINEE', label: 'Trainees' },
+              { value: 'ADMIN', label: 'Admin' },
+              { value: 'QA', label: 'QA' },
+              { value: 'TL', label: 'Team Leaders (TL)' },
+              { value: 'AGENT', label: 'Agents' },
+            ]}
+          />
+        </div>
+
+        {/* Status Filter */}
         <div>
           <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6798]" /> Status Filter
@@ -458,6 +610,7 @@ export default function EmployeesClient({
           />
         </div>
 
+        {/* Client Account Filter */}
         <div>
           <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
             <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Client Account Filter
@@ -472,6 +625,7 @@ export default function EmployeesClient({
           />
         </div>
 
+        {/* Search */}
         <div>
           <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
             Search Employee / Code / Email
@@ -495,7 +649,7 @@ export default function EmployeesClient({
           <div className="flex items-center gap-2">
             <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
             <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase font-mono">
-              ALL EMPLOYEES DIRECTORY ({filteredEmployees.length})
+              EMPLOYEES &amp; TRAINERS DIRECTORY ({filteredEmployees.length})
             </h3>
           </div>
           <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -526,19 +680,20 @@ export default function EmployeesClient({
             <thead>
               <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap">
                 <th className="py-3 px-4 min-w-[180px]">Employee Name</th>
-                <th className="py-3 px-4 min-w-[120px]">Employee Code</th>
-                <th className="py-3 px-4 min-w-[180px]">Email</th>
+                <th className="py-3 px-4 min-w-[110px]">Employee Code</th>
+                <th className="py-3 px-4 min-w-[160px]">Email</th>
+                <th className="py-3 px-4 min-w-[120px]">Role / Department</th>
                 <th className="py-3 px-4 min-w-[100px]">Status</th>
                 <th className="py-3 px-4 min-w-[110px]">Hire Date</th>
                 <th className="py-3 px-4 min-w-[110px]">Vici Link</th>
-                <th className="py-3 px-4 min-w-[160px]">Assigned Accounts</th>
+                <th className="py-3 px-4 min-w-[150px]">Assigned Accounts</th>
                 <th className="py-3 px-4 text-right min-w-[90px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
               {paginatedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400 dark:text-slate-500 font-medium">
+                  <td colSpan={9} className="text-center py-10 text-slate-400 dark:text-slate-500 font-medium">
                     No employee records found matching your criteria.
                   </td>
                 </tr>
@@ -574,6 +729,9 @@ export default function EmployeesClient({
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
                         {emp.employee_email || 'N/A'}
+                      </td>
+                      <td className="py-3 px-4">
+                        {renderRoleBadge(emp.role_id, emp.role_name, emp.category)}
                       </td>
                       <td className="py-3 px-4">
                         {renderStatusBadge(emp.status_id, emp.status_name)}
@@ -618,6 +776,7 @@ export default function EmployeesClient({
                                     employee_name: emp.employee_name || '',
                                     employee_email: emp.employee_email || '',
                                     status_id: emp.status_id || 1,
+                                    role_id: emp.role_id || 1,
                                     hire_date: emp.hire_date || '',
                                     vici_link: emp.vici_link || '',
                                     account_id: (emp.account_ids && emp.account_ids[0]) ? String(emp.account_ids[0]) : ''
@@ -663,23 +822,19 @@ export default function EmployeesClient({
                 <ChevronLeft className="w-3.5 h-3.5" /> Previous
               </button>
 
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                  if (totalPages > 6 && Math.abs(pageNum - currentPage) > 2 && pageNum !== 1 && pageNum !== totalPages) {
+                    if (pageNum === 2 || pageNum === totalPages - 1) {
+                      return <span key={pageNum} className="text-xs text-slate-400 px-1">...</span>;
+                    }
+                    return null;
                   }
                   return (
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                      className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
                         currentPage === pageNum
                           ? 'bg-[#2F6798] text-white shadow-xs'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -709,6 +864,7 @@ export default function EmployeesClient({
           isOpen={isAddModalOpen}
           mode="add"
           initialData={formData}
+          roles={rolesList}
           accounts={accounts}
           statuses={statuses}
           existingEmployees={employees}
@@ -750,10 +906,12 @@ export default function EmployeesClient({
             employee_name: editingEmp.employee_name || '',
             employee_email: editingEmp.employee_email || '',
             status_id: editingEmp.status_id || 1,
+            role_id: editingEmp.role_id || 1,
             hire_date: editingEmp.hire_date || '',
             vici_link: editingEmp.vici_link || '',
             account_id: (editingEmp.account_ids && editingEmp.account_ids[0]) ? String(editingEmp.account_ids[0]) : ''
           }}
+          roles={rolesList}
           accounts={accounts}
           statuses={statuses}
           existingEmployees={employees}

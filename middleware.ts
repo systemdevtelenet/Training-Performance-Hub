@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublicRoute =
     pathname === '/login' ||
+    pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api') ||
     pathname.includes('.')
@@ -47,7 +48,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // If user is authenticated and visits the login page
-  if (user && pathname === '/login') {
+  if (user && (pathname === '/login' || pathname.startsWith('/login'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

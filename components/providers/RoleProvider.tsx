@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchUserProfile } from '@/lib/actions/profile';
 
-export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'TRAINER' | 'EMPLOYEE' | 'GUEST';
+export type UserRole = 'SUPER_ADMIN' | 'HOT_ADMIN' | 'QAS_ADMIN' | 'VIEW_ADMIN' | 'TRAINER' | 'TRAINEE' | 'EMPLOYEE' | 'UNAUTHORIZED' | 'GUEST';
 
 export interface UserMetaDetails {
   employeeId: string;
@@ -60,6 +60,8 @@ const RoleContext = createContext<RoleContextType>({
   setSimulatedRole: () => { },
 });
 
+const CACHE_PROFILE_KEY = 'ctnp_cached_auth_profile_v3';
+
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [actualRole, setActualRole] = useState<UserRole>('GUEST');
   const [simulatedRole, setSimulatedRole] = useState<UserRole | null>(null);
@@ -70,6 +72,29 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
+
+  // Hydrate immediately from localStorage on client mount to prevent UI flashing to GUEST on reload
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedStr = localStorage.getItem(CACHE_PROFILE_KEY);
+        if (cachedStr) {
+          const cached = JSON.parse(cachedStr);
+          if (cached && cached.role && cached.role !== 'GUEST') {
+            setActualRole(cached.role);
+            if (cached.email) setEmail(cached.email);
+            if (cached.userName) setUserName(cached.userName);
+            if (cached.assignedTrainer) setAssignedTrainer(cached.assignedTrainer);
+            if (cached.userMeta) setUserMeta(cached.userMeta);
+            if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl);
+            setIsLoading(false);
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading cached profile:', err);
+      }
+    }
+  }, []);
 
   // Scope avatar storage to user email so accounts never leak avatars on shared browsers
   const getAvatarKey = (userMail: string) => `user_avatar_url_${userMail.toLowerCase().trim()}`;
@@ -121,6 +146,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setUserName(null);
           setUserMeta(defaultUserMeta);
           setAvatarUrl(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(CACHE_PROFILE_KEY);
+          }
           setIsLoading(false);
           return;
         }
@@ -132,29 +160,54 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         const res = await fetchUserProfile(userEmail);
 
         if (res.success) {
-          setActualRole((res.role as UserRole) || 'EMPLOYEE');
-          setUserName(res.userName || null);
+          const resolvedRole = (res.role as UserRole) || 'UNAUTHORIZED';
+          setActualRole(resolvedRole);
+          const resolvedName = (res.userName && res.userName !== 'N/A') 
+            ? res.userName 
+            : (session.user.user_metadata?.name || userEmail.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' '));
+          setUserName(resolvedName);
           setAssignedTrainer(res.assignedTrainer || null);
           setUserMeta(res.userMeta || defaultUserMeta);
 
           const emailKey = getAvatarKey(userEmail);
+          let finalAvatar = res.avatarUrl;
           if (res.avatarUrl) {
             setAvatarUrl(res.avatarUrl);
             localStorage.setItem(emailKey, res.avatarUrl);
           } else {
             const localSaved = typeof window !== 'undefined' ? localStorage.getItem(emailKey) : null;
-            setAvatarUrl(localSaved || null);
+            finalAvatar = localSaved || null;
+            setAvatarUrl(finalAvatar);
+          }
+
+          // Persist to local cache so next reload has 0ms hydration delay
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(CACHE_PROFILE_KEY, JSON.stringify({
+                role: resolvedRole,
+                email: userEmail,
+                userName: resolvedName,
+                assignedTrainer: res.assignedTrainer || null,
+                userMeta: res.userMeta || defaultUserMeta,
+                avatarUrl: finalAvatar
+              }));
+            } catch (err) {
+              // ignore
+            }
           }
         } else {
           setAvatarUrl(null);
         }
       } catch (e) {
         console.error('Error fetching role:', e);
-        setActualRole('GUEST');
-        setEmail(null);
-        setUserName(null);
-        setUserMeta(defaultUserMeta);
-        setAvatarUrl(null);
+        // Only set GUEST if we have no prior session
+        if (!email) {
+          setActualRole('GUEST');
+          setEmail(null);
+          setUserName(null);
+          setUserMeta(defaultUserMeta);
+          setAvatarUrl(null);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -172,6 +225,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setAssignedTrainer(null);
         setSimulatedRole(null);
         setAvatarUrl(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(CACHE_PROFILE_KEY);
+        }
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchRole();
       }

@@ -18,6 +18,7 @@ import {
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 import { supabase } from '@/lib/supabase';
 import { matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
+import { useRole } from '@/components/providers/RoleProvider';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -170,6 +171,10 @@ function computeTrendsFromData(data: any) {
 }
 
 export default function AnalyticsPage({ initialData }: { initialData?: any }) {
+  const { role, actualRole } = useRole();
+  const currentRole = role || actualRole;
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+
   const initialComputed = useMemo(() => computeTrendsFromData(initialData), [initialData]);
 
   const [trajectoryView, setTrajectoryView] = useState<'quarterly' | 'monthly'>('quarterly');
@@ -429,6 +434,28 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     return null;
   };
 
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
+          <AlertTriangle className="w-7 h-7" />
+        </div>
+        <div className="max-w-md space-y-1.5">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Admin Access Only</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Performance Analytics & AI Insights are reserved exclusively for Administrative and Leadership personnel.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-md transition-all"
+        >
+          Return to Dashboard
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-[1600px] mx-auto pt-0 px-0 pb-6 md:px-1 lg:px-2 space-y-5">
       
@@ -476,12 +503,15 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
         ].map((kpi, idx) => {
           const IconComponent = kpi.icon;
           return (
-            <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-              <div className="min-w-0">
+            <div key={idx} className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+              <div className="absolute -right-2 -bottom-2 w-28 sm:w-36 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+                <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+              </div>
+              <div className="min-w-0 relative z-10">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{kpi.label}</p>
                 <h4 className={`text-2xl font-black mt-0.5 ${kpi.valueColor}`}>{kpi.val}</h4>
               </div>
-              <div className={`w-10 h-10 rounded-xl ${kpi.iconBg} flex items-center justify-center shrink-0 ml-2`}>
+              <div className={`w-10 h-10 rounded-xl ${kpi.iconBg} flex items-center justify-center shrink-0 ml-2 relative z-10`}>
                 <IconComponent className="w-5 h-5" />
               </div>
             </div>

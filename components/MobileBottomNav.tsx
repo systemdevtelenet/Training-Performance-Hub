@@ -17,7 +17,8 @@ function MobileBottomNavContent() {
   const isAttendanceActive = pathname.startsWith('/trainers') && (trainerTab === 'attendance' || trainerTab === 'attendance-reliability' || trainerTab === 'reliability');
   const isTrainersActive = pathname.startsWith('/trainers') && !isAttendanceActive;
 
-  const isEmployee = role === 'EMPLOYEE' || role === 'GUEST';
+  const isTrainee = role === 'TRAINEE';
+  const isEmployee = role === 'EMPLOYEE' || role === 'GUEST' || isTrainee;
 
   const tabs = isEmployee ? [
     {

@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   CheckCircle2,
   Hash,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Shield
 } from 'lucide-react';
 import { EmployeeRecord } from '@/app/employees/EmployeesClient';
 import { useRole } from '@/components/providers/RoleProvider';
@@ -73,6 +74,15 @@ export function EmployeeDetailDrawer({
     (displayedEmp.status_id === 1 ? 'ACTIVE' : displayedEmp.status_id === 2 ? 'INACTIVE' : 'ACTIVE')
   ).toUpperCase();
 
+  const roleName = displayedEmp.role_name || (
+    displayedEmp.role_id === 9 ? 'QA SUPERVISOR' :
+    displayedEmp.role_id === 5 ? 'Admin' :
+    displayedEmp.role_id === 2 ? 'QA' :
+    displayedEmp.role_id === 6 ? 'TL' :
+    displayedEmp.role_id === 3 ? 'Account Manager' :
+    displayedEmp.role_id === 4 ? 'Quality Coordinator' : 'Agent'
+  );
+
   const statusBadgeClass =
     statusName === 'ACTIVE'
       ? 'border border-emerald-300 text-emerald-700 bg-emerald-50'
@@ -85,6 +95,7 @@ export function EmployeeDetailDrawer({
   const infoItems = [
     { label: 'Full Name', value: displayedEmp.employee_name || 'N/A', icon: UserRound },
     { label: 'Employee Code', value: displayedEmp.employee_code || 'N/A', icon: Hash },
+    { label: 'Role / Access', value: roleName, icon: Shield },
     { label: 'Email Address', value: displayedEmp.employee_email || 'N/A', icon: Mail },
     { label: 'Employment Status', value: statusName, icon: CheckCircle2 },
     { label: 'Assigned Accounts', value: displayedEmp.assigned_accounts || 'Unassigned', icon: Building2 },
@@ -144,6 +155,9 @@ export function EmployeeDetailDrawer({
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-[#2F6798] text-white">
+                  {roleName}
+                </span>
+                <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                   {displayedEmp.assigned_accounts || 'General'}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${statusBadgeClass}`}>

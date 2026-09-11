@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -58,13 +58,49 @@ const isLossStatus = (status?: string) => {
   return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
 };
 
+import { isTrainerMatch } from '@/lib/analytics-utils';
+
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
-  const { role, actualRole } = useRole();
+  const { role, actualRole, userName, email } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
+  const isTrainee = currentRole === 'TRAINEE';
   const canManageTrainees = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'].includes(currentRole);
 
-  const [trainees, setTrainees] = useState<Trainee[]>(initialTrainees);
+  const scopedInitialTrainees = useMemo(() => {
+    if (!isTrainer && !isTrainee) return initialTrainees;
+    if (isTrainer) {
+      const qTrainer = userName || '';
+      const qEmail = (email || '').toLowerCase().split('@')[0];
+      return initialTrainees.filter(t => {
+        if (!t.assignedTrainer) return false;
+        return (
+          isTrainerMatch(t.assignedTrainer, qTrainer) ||
+          (qTrainer && t.assignedTrainer.toLowerCase().includes(qTrainer.toLowerCase())) ||
+          (qEmail && t.assignedTrainer.toLowerCase().includes(qEmail))
+        );
+      });
+    }
+    if (isTrainee) {
+      const qName = (userName || '').toLowerCase();
+      const qEmail = (email || '').toLowerCase().split('@')[0];
+      return initialTrainees.filter(t => {
+        const tName = (t.name || '').toLowerCase();
+        return (
+          (qName && (tName.includes(qName) || qName.includes(tName))) ||
+          (qEmail && tName.includes(qEmail))
+        );
+      });
+    }
+    return initialTrainees;
+  }, [initialTrainees, isTrainer, isTrainee, userName, email]);
+
+  const [trainees, setTrainees] = useState<Trainee[]>(scopedInitialTrainees);
+
+  useEffect(() => {
+    setTrainees(scopedInitialTrainees);
+  }, [scopedInitialTrainees]);
   const [selectedCard, setSelectedCard] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [breakdownTab, setBreakdownTab] = useState<'all' | 'inhouse' | 'pst' | 'accounts'>('all');
@@ -165,6 +201,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     return Array.from(set).sort();
   }, [trainees]);
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   // Filter trainees based on global search & selects
   const filteredTrainees = useMemo(() => {
     return trainees.filter(t => {
@@ -172,8 +210,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (selectedQuarter !== 'All' && t.quarter !== selectedQuarter) return false;
       if (selectedMonth !== 'All' && t.month !== selectedMonth) return false;
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (deferredSearchQuery.trim()) {
+        const q = deferredSearchQuery.toLowerCase();
         const matchesName = t.name.toLowerCase().includes(q);
         const matchesBatch = t.batchName.toLowerCase().includes(q);
         const matchesAccount = t.accountName.toLowerCase().includes(q);
@@ -183,12 +221,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       return true;
     });
-  }, [trainees, searchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [trainees, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Paginated trainees slice
   const totalPages = Math.ceil(filteredTrainees.length / pageSize) || 1;
@@ -218,11 +256,20 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       const acctName = t.accountName || 'Unknown Account';
       if (!accountMap[acctName]) {
-        accountMap[acctName] = { name: acctName, hc: 0, lossCount: 0, members: [] };
+        accountMap[acctName] = { 
+          name: acctName, 
+          trainer: t.assignedTrainer && t.assignedTrainer !== 'Unassigned' ? t.assignedTrainer : 'Unassigned',
+          hc: 0, 
+          lossCount: 0, 
+          members: [] 
+        };
       }
       accountMap[acctName].hc += 1;
       if (isLoss) accountMap[acctName].lossCount += 1;
       accountMap[acctName].members.push(t);
+      if (accountMap[acctName].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
+        accountMap[acctName].trainer = t.assignedTrainer;
+      }
 
       const isInhouse = t.trainingType === 'INHOUSE';
       const targetMap = isInhouse ? inhouseMap : pstMap;
@@ -241,7 +288,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (isLoss) targetMap[batchKey].lossCount += 1;
       targetMap[batchKey].members.push(t);
 
-      if (targetMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer) {
+      if (targetMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
         targetMap[batchKey].trainer = t.assignedTrainer;
       }
     });
@@ -281,13 +328,22 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [filteredTrainees]);
 
   const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string) => {
+    const trainersFromMembers = item.members && item.members.length > 0
+      ? Array.from(new Set(item.members.map((m: any) => m.assignedTrainer).filter((t: string) => t && t !== 'Unassigned'))).join(', ')
+      : '';
+    const resolvedTrainer = (trainer && trainer !== 'Unassigned') 
+      ? trainer 
+      : (item.trainer && item.trainer !== 'Unassigned') 
+      ? item.trainer 
+      : (trainersFromMembers || 'Unassigned');
+
     setSelectedCard({
       isBatch: true,
       name: item.name,
       batchName: item.name,
       accountName,
       trainingType,
-      assignedTrainer: trainer,
+      assignedTrainer: resolvedTrainer,
       headcount: item.hc,
       attritionRate: item.attr,
       contextLabel,
@@ -500,15 +556,15 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
         {/* Action Controls & View Switcher */}
         <div className="flex items-center gap-3">
-          {canManageTrainees && (
+          {canManageTrainees && !isTrainee && (
             <button
               onClick={() => {
                 setFormData({
                   name: '',
                   trainingType: 'INHOUSE',
-                  batchName: 'General -1',
-                  accountName: 'General',
-                  assignedTrainer: 'Unassigned',
+                  batchName: '',
+                  accountName: availableAccounts.length > 1 ? availableAccounts[1] : 'General',
+                  assignedTrainer: isTrainer ? (userName || 'Trainer') : 'Unassigned',
                   status: 'ACTIVE',
                   quarter: 'Q1',
                   month: 'January'
@@ -547,58 +603,73 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       {/* TOP SUMMARY KPI BOXES - PROPERLY ARRANGED & RESPONSIVE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Box 1: Total Active Headcount */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">TOTAL HEADCOUNT</p>
             <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{totalHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2 relative z-10">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 2: Inhouse Trainees */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">INHOUSE TRAINEES</p>
             <h4 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{inhouseHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 ml-2 relative z-10">
             <GraduationCap className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 3: PST Trainees */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">PST TRAINEES</p>
             <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{pstHC.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2 relative z-10">
             <Layers className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 4: Active Accounts */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
             <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{clientAccounts.length}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2 relative z-10">
             <Building2 className="w-5 h-5" />
           </div>
         </div>
 
         {/* Box 5: System Attrition */}
-        <div className="bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-          <div className="min-w-0">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">SYSTEM ATTRITION</p>
             <h4 className={`text-2xl font-black mt-0.5 ${parseFloat(systemAttr) > 5 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {systemAttr}
             </h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 ml-2">
+          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 ml-2 relative z-10">
             <TrendingDown className="w-5 h-5" />
           </div>
         </div>
@@ -1159,7 +1230,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           mode="add"
           initialData={formData}
           accounts={availableAccounts}
-          trainers={availableTrainers}
+          trainers={isTrainer ? [userName || 'Trainer'] : availableTrainers}
           existingTrainees={trainees}
           onClose={() => setIsAddModalOpen(false)}
           onSubmit={async (data) => {

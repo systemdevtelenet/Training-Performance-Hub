@@ -124,9 +124,16 @@ export const matchesQuarterFilter = (mQuarter?: string, selectedQuarter?: string
   return false;
 };
 
-export function getFilteredData(data: any, filters: { month: string; quarter: string; account: string; search: string }) {
+export function getFilteredData(
+  data: any, 
+  filters: { month: string; quarter: string; account: string; search: string },
+  userRole?: string,
+  userName?: string | null,
+  userEmail?: string | null
+) {
   if (!data) return null;
   const { month: selectedMonth, quarter: selectedQuarter, account: selectedAccount, search: searchQuery } = filters;
+  const isTrainer = userRole === 'TRAINER';
   
   const filtered = JSON.parse(JSON.stringify(data));
   const uniqueNames = new Set<string>();
@@ -149,7 +156,20 @@ export function getFilteredData(data: any, filters: { month: string; quarter: st
       for (const b in filtered[type].groups[acc]) {
         const group: BatchGroup = filtered[type].groups[acc][b];
         
+        if (isTrainer && userName) {
+          const batchTrainerMatches = isTrainerMatch(group.trainer, userName);
+          const hasAssignedTrainee = group.members?.some(m => isTrainerMatch(m.assignedTrainer, userName));
+          if (!batchTrainerMatches && !hasAssignedTrainee) {
+            delete filtered[type].groups[acc][b];
+            continue;
+          }
+        }
+
         const matchedMembers = group.members.filter(m => {
+          if (isTrainer && userName) {
+            const matchesTrainer = isTrainerMatch(group.trainer, userName) || isTrainerMatch(m.assignedTrainer, userName);
+            if (!matchesTrainer) return false;
+          }
           const mMatch = matchesMonthFilter(m.month, selectedMonth, m.status);
           const qMatch = matchesQuarterFilter(m.quarter, selectedQuarter, m.status);
           const searchMatch = !searchQuery || 

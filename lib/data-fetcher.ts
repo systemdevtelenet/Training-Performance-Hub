@@ -463,3 +463,280 @@ export const getTrainersData = unstable_cache(
     tags: ['trainers']
   }
 );
+
+export const getTraineesData = unstable_cache(
+  async () => {
+    try {
+      const { data: inhouseData, error: err1 } = await supabaseAdmin
+        .from('inhouse')
+        .select('*')
+        .order('name', { ascending: true });
+
+      const { data: pstData, error: err2 } = await supabaseAdmin
+        .from('product_spec_training')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (err1) console.error('Error fetching INHOUSE:', err1);
+      if (err2) console.error('Error fetching PST:', err2);
+
+      const isLossStatus = (st?: string) => {
+        if (!st) return false;
+        const s = st.toUpperCase().trim();
+        return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+      };
+
+      const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+
+      // Map INHOUSE rows to Trainee type
+      const mappedInhouse = (inhouseData || []).map((row: any) => {
+        let pCount = 0;
+        let aCount = 0;
+        for (const col of inhouseAttCols) {
+          const val = (row[col] || '').trim().toUpperCase();
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
+
+        const isLoss = isLossStatus(row.status);
+
+        return {
+          id: row.name || Math.random().toString(),
+          name: row.name || 'Unknown',
+          status: row.status || 'ACTIVE',
+          month: row.month || '',
+          quarter: row.quarter || '',
+          p: pCount,
+          a: aCount,
+          isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+          isLoss,
+          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+          batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
+          accountName: row.account || row.acount || 'General',
+          trainingType: 'INHOUSE' as const
+        };
+      });
+
+      // Map PST rows to Trainee type
+      const mappedPst = (pstData || []).map((row: any) => {
+        let pCount = 0;
+        let aCount = 0;
+        for (let i = 1; i <= 62; i++) {
+          const val = row[`att_status_day_${i}`];
+          if (val === 'P') pCount++;
+          if (val === 'A') aCount++;
+        }
+
+        const acct = (row.account || row.acount || 'PST Account').trim();
+        const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
+        const batchName = `${acct} -${rawWave || '1'}`;
+        const isLoss = isLossStatus(row.status);
+
+        return {
+          id: row.name || Math.random().toString(),
+          name: row.name || 'Unknown',
+          status: row.status || 'ACTIVE',
+          month: row.month || '',
+          quarter: row.quarter || '',
+          p: pCount,
+          a: aCount,
+          isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+          isLoss,
+          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+          batchName: batchName,
+          accountName: acct,
+          trainingType: 'PST' as const
+        };
+      });
+
+      return [...mappedInhouse, ...mappedPst];
+    } catch (e) {
+      console.error('getTraineesData error:', e);
+      return [];
+    }
+  },
+  ['trainees-data-v1'],
+  {
+    revalidate: 3600,
+    tags: ['trainees']
+  }
+);
+
+export const getEmployeesData = unstable_cache(
+  async () => {
+    try {
+      const { data: employees, error: empErr } = await supabaseAdmin
+        .from('employees')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (empErr) console.error('Error fetching employees:', empErr);
+
+      const { data: statuses } = await supabaseAdmin.from('statuses').select('*');
+      const { data: accounts } = await supabaseAdmin.from('accounts').select('*');
+      const { data: roles } = await supabaseAdmin.from('roles').select('*');
+      const { data: assignments } = await supabaseAdmin.from('employee_assignments').select('*');
+      const { data: trainersProfile } = await supabaseAdmin.from('trainers_profile').select('*');
+      const { data: inhouseData } = await supabaseAdmin.from('inhouse').select('*');
+      const { data: pstData } = await supabaseAdmin.from('product_spec_training').select('*');
+
+      const statusMap = new Map<number, string>();
+      (statuses || []).forEach(s => statusMap.set(s.status_id, s.status_name));
+
+      const roleMap = new Map<number, string>();
+      (roles || []).forEach(r => roleMap.set(r.role_id, r.role_name));
+
+      const accountMap = new Map<number, string>();
+      (accounts || []).forEach(a => accountMap.set(a.account_id, a.account_name || a.account_code));
+
+      const empAccountsMap = new Map<number, string[]>();
+      (assignments || []).forEach(asg => {
+        const accName = accountMap.get(asg.account_id);
+        if (accName && asg.employee_id) {
+          const existing = empAccountsMap.get(asg.employee_id) || [];
+          if (!existing.includes(accName)) {
+            existing.push(accName);
+            empAccountsMap.set(asg.employee_id, existing);
+          }
+        }
+      });
+
+      const processedCodes = new Set<string>();
+      const processedEmails = new Set<string>();
+      const processedNames = new Set<string>();
+      const resultList: any[] = [];
+
+      // 1. Prioritize Trainers from trainers_profile as PRIMARY employees at top
+      (trainersProfile || []).forEach((t, idx) => {
+        const code = String(t.employee_num || '').trim();
+        const email = (t.gmail_account && t.gmail_account !== 'mail' ? t.gmail_account : t.thunderbird_account && t.thunderbird_account !== 'mail' ? t.thunderbird_account : null);
+        const name = t.name || `Trainer ${idx + 1}`;
+        const pos = (t.position || 'Trainer').trim();
+
+        const matchingEmp = (employees || []).find(e => 
+          (code && String(e.employee_code || '').trim().toLowerCase() === code.toLowerCase()) ||
+          (email && (e.employee_email || '').trim().toLowerCase() === email.toLowerCase()) ||
+          (name && (e.employee_name || '').trim().toLowerCase() === name.toLowerCase())
+        );
+
+        if (code) processedCodes.add(code.toLowerCase());
+        if (email) processedEmails.add(email.toLowerCase());
+        processedNames.add(name.toLowerCase());
+
+        const isResigned = (t.status || '').toUpperCase() === 'RESIGNED';
+        const isInactive = (t.status || '').toUpperCase() === 'INACTIVE';
+        const statusId = isResigned ? 3 : isInactive ? 2 : 1;
+        const statusName = isResigned ? 'Resigned' : isInactive ? 'Inactive' : 'Active';
+
+        const roleTitle = pos.toUpperCase().includes('HEAD') 
+          ? 'Head of Training' 
+          : pos.toUpperCase().includes('COORDINATOR') 
+          ? 'Training Coordinator' 
+          : pos.toUpperCase().includes('CORP') 
+          ? 'Corporate Trainer' 
+          : 'Trainer';
+
+        resultList.push({
+          id: matchingEmp ? matchingEmp.id : -(1000 + idx),
+          employee_code: code || matchingEmp?.employee_code || 'N/A',
+          employee_name: name,
+          employee_email: email || matchingEmp?.employee_email || null,
+          status_id: statusId,
+          status_name: statusName,
+          role_id: matchingEmp?.role_id || 10,
+          role_name: roleTitle,
+          category: 'TRAINER',
+          hire_date: t.start_date || matchingEmp?.hire_date || null,
+          vici_link: matchingEmp?.vici_link || null,
+          avatar_url: t.profile_pic && t.profile_pic !== 'None ' ? t.profile_pic : matchingEmp?.avatar_url || null,
+          assigned_accounts: t.accounts || (matchingEmp ? (empAccountsMap.get(matchingEmp.id) || []).join(', ') : 'Unassigned') || 'Unassigned',
+          is_primary_trainer: true
+        });
+      });
+
+      // 2. Add remaining employees from employees table (Admins, QA, TLs, Agents)
+      (employees || []).forEach(emp => {
+        const code = String(emp.employee_code || '').trim().toLowerCase();
+        const email = (emp.employee_email || '').trim().toLowerCase();
+        const name = (emp.employee_name || '').trim().toLowerCase();
+
+        if ((code && processedCodes.has(code)) || (email && processedEmails.has(email)) || (name && processedNames.has(name))) {
+          return; // Already merged with trainers
+        }
+
+        const assignedAccs = empAccountsMap.get(emp.id) || [];
+        const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
+        const roleName = roleMap.get(emp.role_id) || 'Agent';
+
+        let category = 'AGENT';
+        const rUpper = roleName.toUpperCase();
+        const nUpper = (emp.employee_name || '').toUpperCase();
+
+        if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
+          category = 'ADMIN';
+        } else if (rUpper.includes('QA') || rUpper.includes('QUALITY') || nUpper.startsWith('QA ') || nUpper.startsWith('QAS ')) {
+          category = 'QA';
+        } else if (rUpper.includes('TL') || rUpper.includes('LEADER') || rUpper.includes('MANAGER') || nUpper.startsWith('TL ')) {
+          category = 'TL';
+        } else {
+          category = 'AGENT';
+        }
+
+        resultList.push({
+          ...emp,
+          status_name: statusName,
+          role_id: emp.role_id || 1,
+          role_name: roleName,
+          category,
+          assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
+          account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
+          is_primary_trainer: false
+        });
+      });
+
+      // 3. Add active Trainees from inhouse and PST
+      const traineeNames = new Set<string>();
+      let traineeIndex = 0;
+      (inhouseData || []).concat(pstData || []).forEach(t => {
+        const tName = (t.name || '').trim();
+        if (!tName || traineeNames.has(tName.toLowerCase())) return;
+        traineeNames.add(tName.toLowerCase());
+
+        const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
+        const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
+
+        resultList.push({
+          id: -(5000 + traineeIndex++),
+          employee_code: 'TRAINEE',
+          employee_name: tName,
+          employee_email: null,
+          status_id: isLoss ? 3 : 1,
+          status_name: statusName,
+          role_id: 11,
+          role_name: 'Trainee',
+          category: 'TRAINEE',
+          hire_date: null,
+          vici_link: null,
+          assigned_accounts: t.account || t.acount || 'Training Roster',
+          is_primary_trainer: false
+        });
+      });
+
+      return {
+        employees: resultList,
+        accounts: accounts || [],
+        statuses: statuses || [],
+        roles: roles || []
+      };
+    } catch (e) {
+      console.error('getEmployeesData error:', e);
+      return { employees: [], accounts: [], statuses: [], roles: [] };
+    }
+  },
+  ['employees-data-v2'],
+  {
+    revalidate: 3600,
+    tags: ['employees']
+  }
+);
+

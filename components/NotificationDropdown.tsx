@@ -158,7 +158,12 @@ const parseNotifItem = (row: any): NotificationItem => {
 };
 
 export default function NotificationDropdown() {
-  const { email } = useRole();
+  const { role, actualRole, email, userName } = useRole();
+  const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
+  const isTrainee = currentRole === 'TRAINEE';
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -195,11 +200,64 @@ export default function NotificationDropdown() {
 
   const fetchNotifications = async () => {
     try {
-      const { data: notifData } = await getActivityLogs(15);
+      const { data: notifData } = await getActivityLogs(30);
 
       let items = notifData && notifData.length > 0
         ? notifData.map(parseNotifItem)
         : [];
+
+      // Role-based notification filtering for Trainers and Trainees
+      if (!isAdmin && (email || userName)) {
+        const cleanEmail = (email || '').toLowerCase().trim();
+        const emailPrefix = cleanEmail.split('@')[0];
+        const cleanName = (userName || '').toLowerCase().trim();
+
+        items = items.filter(it => {
+          const titleLow = (it.title || '').toLowerCase();
+          const descLow = (it.description || '').toLowerCase();
+          const authorLow = (it.author || '').toLowerCase();
+
+          // Hide other users' logins - only show user's own login
+          if (titleLow.includes('login') || descLow.includes('logged into')) {
+            return descLow.includes(cleanEmail) || descLow.includes(emailPrefix) || authorLow.includes(cleanEmail);
+          }
+
+          // Hide admin access / employee management logs from trainers and trainees
+          if (
+            titleLow.includes('employee access') || 
+            titleLow.includes('role assignment') || 
+            titleLow.includes('system admin') || 
+            descLow.includes('admin access') || 
+            descLow.includes('employee management')
+          ) {
+            return false;
+          }
+
+          if (isTrainer) {
+            // Trainers see their own actions, their own logins, and training/trainee/batch alerts
+            const isOwnOrUnder = 
+              authorLow.includes(cleanEmail) || 
+              authorLow.includes(cleanName) ||
+              descLow.includes(cleanEmail) ||
+              (cleanName && descLow.includes(cleanName)) ||
+              titleLow.includes('trainee') ||
+              titleLow.includes('traffic light') ||
+              titleLow.includes('attendance');
+            return isOwnOrUnder;
+          }
+
+          if (isTrainee) {
+            // Trainees only see notifications specifically mentioning them
+            return (
+              descLow.includes(cleanEmail) || 
+              (cleanName && descLow.includes(cleanName)) ||
+              authorLow.includes(cleanEmail)
+            );
+          }
+
+          return true;
+        });
+      }
 
       // Filter by active preferences
       if (!notifPrefs.performanceAlerts) {
@@ -209,7 +267,7 @@ export default function NotificationDropdown() {
         items = items.filter(it => it.icon_type !== 'user' && it.icon_type !== 'attendance' && it.icon_type !== 'remark');
       }
 
-      setNotifications(items);
+      setNotifications(items.slice(0, 10));
       const lastReadTimestamp = localStorage.getItem('notifications_read_at');
       if (!lastReadTimestamp) {
         setUnreadCount(notifPrefs.deliveryInApp ? items.length : 0);

@@ -15,9 +15,20 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Shield
 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+
+const DEFAULT_ROLE_OPTIONS = [
+  { value: 3, label: 'Account Manager' },
+  { value: 1, label: 'Agent' },
+  { value: 2, label: 'QA' },
+  { value: 9, label: 'QA SUPERVISOR' },
+  { value: 4, label: 'Quality Coordinator' },
+  { value: 6, label: 'TL' },
+  { value: 5, label: 'Admin' },
+];
 
 interface EmployeeFormDrawerProps {
   isOpen: boolean;
@@ -28,10 +39,12 @@ interface EmployeeFormDrawerProps {
     employee_name: string;
     employee_email: string;
     status_id: number;
+    role_id?: number;
     hire_date: string;
     vici_link: string;
     account_id: string;
   };
+  roles?: any[];
   accounts: any[];
   statuses?: any[];
   existingEmployees?: any[];
@@ -44,6 +57,7 @@ export function EmployeeFormDrawer({
   isOpen,
   mode,
   initialData,
+  roles = [],
   accounts = [],
   statuses = [],
   existingEmployees = [],
@@ -53,12 +67,18 @@ export function EmployeeFormDrawer({
 }: EmployeeFormDrawerProps) {
   const [rendered, setRendered] = useState(isOpen);
   const [open, setOpen] = useState(isOpen);
-  const [formData, setFormData] = useState(initialData);
+  const [formData, setFormData] = useState({
+    ...initialData,
+    role_id: initialData.role_id ? Number(initialData.role_id) : 1
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
-      setFormData(initialData);
+      setFormData({
+        ...initialData,
+        role_id: initialData.role_id ? Number(initialData.role_id) : 1
+      });
       setErrors({});
       setRendered(true);
       const frame = requestAnimationFrame(() => setOpen(true));
@@ -84,6 +104,26 @@ export function EmployeeFormDrawer({
   const isEdit = mode === 'edit';
   const title = isEdit ? 'EDIT EMPLOYEE PROFILE' : 'ADD NEW EMPLOYEE';
 
+  // Format role options dynamically
+  const roleOptions = useMemo(() => {
+    if (roles && roles.length > 0) {
+      // Sort to match requested order: Account Manager, Agent, QA, QA SUPERVISOR, Quality Coordinator, TL, Admin
+      const order = ['Account Manager', 'Agent', 'QA', 'QA SUPERVISOR', 'Quality Coordinator', 'TL', 'Admin'];
+      return [...roles].sort((a, b) => {
+        const idxA = order.indexOf(a.role_name);
+        const idxB = order.indexOf(b.role_name);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return (a.role_name || '').localeCompare(b.role_name || '');
+      }).map(r => ({
+        value: Number(r.role_id),
+        label: r.role_name
+      }));
+    }
+    return DEFAULT_ROLE_OPTIONS;
+  }, [roles]);
+
   // Dirty check: In edit mode, check if any field has been modified
   const isDirty = useMemo(() => {
     if (mode === 'add') return true;
@@ -92,6 +132,7 @@ export function EmployeeFormDrawer({
       (formData.employee_code || '').trim() !== (initialData.employee_code || '').trim() ||
       (formData.employee_email || '').trim() !== (initialData.employee_email || '').trim() ||
       Number(formData.status_id) !== Number(initialData.status_id) ||
+      Number(formData.role_id || 1) !== Number(initialData.role_id || 1) ||
       (formData.hire_date || '') !== (initialData.hire_date || '') ||
       (formData.vici_link || '').trim() !== (initialData.vici_link || '').trim() ||
       String(formData.account_id || '') !== String(initialData.account_id || '')
@@ -360,8 +401,20 @@ export function EmployeeFormDrawer({
               </div>
             </div>
 
-            {/* Hire Date & Vici Stats Link */}
+            {/* Role & Hire Date */}
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-[#2F6798]" /> Role
+                </label>
+                <CustomSelect
+                  value={Number(formData.role_id || 1)}
+                  onChange={val => handleFieldChange('role_id', Number(val))}
+                  options={roleOptions}
+                  placeholder="Select Role"
+                />
+              </div>
+
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Hire Date
@@ -383,29 +436,30 @@ export function EmployeeFormDrawer({
                   </p>
                 )}
               </div>
+            </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-[#2F6798]" /> Vici Stats Link
-                </label>
-                <input
-                  type="url"
-                  value={formData.vici_link}
-                  onChange={e => handleFieldChange('vici_link', e.target.value)}
-                  placeholder="https://vici01.cebutele-net.ph/..."
-                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
-                    errors.vici_link
-                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
-                  }`}
-                />
-                {errors.vici_link && (
-                  <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    {errors.vici_link}
-                  </p>
-                )}
-              </div>
+            {/* Vici Stats Link */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                <LinkIcon className="w-3.5 h-3.5 text-[#2F6798]" /> Vici Stats Link
+              </label>
+              <input
+                type="url"
+                value={formData.vici_link}
+                onChange={e => handleFieldChange('vici_link', e.target.value)}
+                placeholder="https://vici01.cebutele-net.ph/..."
+                className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
+                  errors.vici_link
+                    ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
+                    : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
+                }`}
+              />
+              {errors.vici_link && (
+                <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.vici_link}
+                </p>
+              )}
             </div>
           </div>
 

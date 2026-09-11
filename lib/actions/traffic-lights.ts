@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { logActivity } from './logger';
+import { isTrainerMatch } from '@/lib/analytics-utils';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -19,6 +20,42 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
     persistSession: false,
   }
 });
+
+export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?: string) {
+  try {
+    const cleanEmail = (trainerEmail || '').toLowerCase().trim();
+    const cleanName = (trainerName || '').toLowerCase().trim();
+
+    const { data: ih } = await supabaseAdmin.from('inhouse').select('name, assigned_trainer, trainer, account, batch');
+    const { data: pst } = await supabaseAdmin.from('product_spec_training').select('name, assigned_trainer, trainer, account, wave, batch');
+
+    const matchedNames = new Set<string>();
+    const matchedAccounts = new Set<string>();
+
+    const allTrainees = [...(ih || []), ...(pst || [])];
+    allTrainees.forEach(t => {
+      const assigned = (t.assigned_trainer || t.trainer || '').trim();
+      const isMatch = (cleanName && isTrainerMatch(assigned, cleanName)) || 
+                      (cleanName && assigned.toLowerCase().includes(cleanName)) ||
+                      (cleanName && cleanName.includes(assigned.toLowerCase())) ||
+                      (cleanEmail && assigned.toLowerCase().includes(cleanEmail.split('@')[0])) ||
+                      (cleanEmail && cleanEmail.includes(assigned.toLowerCase().replace(/\s+/g, '')));
+      if (isMatch) {
+        if (t.name) matchedNames.add(t.name.trim().toLowerCase());
+        const acc = (t.account || '').toLowerCase().trim();
+        if (acc) matchedAccounts.add(acc);
+      }
+    });
+
+    return {
+      names: Array.from(matchedNames),
+      accounts: Array.from(matchedAccounts)
+    };
+  } catch (e) {
+    console.error('Error in getTrainerTraineeNames:', e);
+    return { names: [], accounts: [] };
+  }
+}
 
 export async function getAvailableTrafficLightAccounts() {
   try {

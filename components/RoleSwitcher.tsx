@@ -26,10 +26,12 @@ export default function RoleSwitcher() {
 
   const roles: { value: UserRole | null; label: string }[] = [
     { value: null, label: 'Super Admin (Original)' },
-    { value: 'HOT_ADMIN', label: 'View as HOT Admin' },
-    { value: 'QAS_ADMIN', label: 'View as QAS Admin' },
+    { value: 'HOT_ADMIN', label: 'View as Head of Training' },
+    { value: 'QAS_ADMIN', label: 'View as QA Supervisor' },
     { value: 'VIEW_ADMIN', label: 'View as Executive Admin' },
-    { value: 'EMPLOYEE', label: 'View as Employee' },
+    { value: 'TRAINER', label: 'View as Trainer' },
+    { value: 'TRAINEE', label: 'View as Trainee' },
+    { value: 'UNAUTHORIZED', label: 'View as Unauthorized Employee' },
   ];
 
   return (

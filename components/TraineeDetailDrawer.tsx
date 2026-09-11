@@ -254,7 +254,13 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
               </div>
               <div className="flex px-6 py-3.5">
                 <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Assigned Trainer</div>
-                <div className="w-1/2 font-bold text-[#2F6798] dark:text-[#5a9fd4]">{batch.assignedTrainer || 'Unassigned'}</div>
+                <div className="w-1/2 font-bold text-[#2F6798] dark:text-[#5a9fd4]">
+                  {(batch.assignedTrainer && batch.assignedTrainer !== 'Unassigned')
+                    ? batch.assignedTrainer
+                    : (members.length > 0
+                        ? Array.from(new Set(members.map((m: any) => m.assignedTrainer || m.assigned_trainer).filter((t: string) => t && t !== 'Unassigned'))).join(', ')
+                        : '') || 'Unassigned'}
+                </div>
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -48,6 +49,14 @@ export async function POST(req: Request) {
       iconType: 'user',
       author: 'Authorized Admin'
     });
+
+    try {
+      revalidateTag('trainees');
+      revalidatePath('/trainees');
+      revalidatePath('/');
+    } catch (e) {
+      // Ignore in static/non-edge context
+    }
 
     return NextResponse.json({ success: true, data: data?.[0] });
   } catch (err: any) {
@@ -99,6 +108,14 @@ export async function PUT(req: Request) {
       iconType: 'user',
       author: 'Authorized Admin'
     });
+
+    try {
+      revalidateTag('trainees');
+      revalidatePath('/trainees');
+      revalidatePath('/');
+    } catch (e) {
+      // Ignore in static/non-edge context
+    }
 
     return NextResponse.json({ success: true, data: data?.[0] });
   } catch (err: any) {

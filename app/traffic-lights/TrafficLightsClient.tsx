@@ -49,8 +49,10 @@ import {
   addTrafficLightRemark,
   updateTrafficLightRemark,
   deleteTrafficLightRemarkItem,
+  getTrainerTraineeNames,
   type TrafficLightRemarkItem
 } from '@/lib/actions/traffic-lights';
+import { isTrainerMatch } from '@/lib/analytics-utils';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -328,9 +330,34 @@ function StatusSelect({
   );
 }
 
+function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean {
+  if (!accId || !traineeAcc) return false;
+  const cleanId = accId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTrainee = traineeAcc.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (cleanId === cleanTrainee) return true;
+  if (cleanTrainee.includes(cleanId) || cleanId.includes(cleanTrainee)) return true;
+  
+  // Specific alias mappings:
+  if ((cleanId === 'dft' || cleanId === 'deferit') && (cleanTrainee.includes('deferit') || cleanTrainee.includes('dft'))) return true;
+  if (cleanId === 'flexar' && cleanTrainee.includes('flexar')) return true;
+  if (cleanId === 'xpn' && cleanTrainee.includes('xpn')) return true;
+  if (cleanId === 'fleet' && cleanTrainee.includes('fleet')) return true;
+  if (cleanId === 'mmtranspo' && cleanTrainee.includes('mmtranspo')) return true;
+  if (cleanId === 'hh' && cleanTrainee.includes('hh')) return true;
+  if (cleanId === 'js' && cleanTrainee.includes('js')) return true;
+  if (cleanId === 'ono' && cleanTrainee.includes('ono')) return true;
+  if (cleanId === 'awd' && cleanTrainee.includes('awd')) return true;
+  if (cleanId === 'rm' && cleanTrainee.includes('rm')) return true;
+
+  return false;
+}
+
 export default function TrafficLightsClient({ initialAccounts }: { initialAccounts?: { id: string; name: string }[] }) {
-  const { actualRole, role: simulatedRole, email } = useRole();
+  const { actualRole, role: simulatedRole, email, userName, userMeta } = useRole();
   const currentRole = simulatedRole || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
+  const isTrainee = currentRole === 'TRAINEE';
 
   const accounts = (initialAccounts && initialAccounts.length > 0) ? initialAccounts : [
     { id: 'rm', name: 'RM' },
@@ -348,7 +375,51 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     { id: 'other_acc', name: 'Other Acc' },
   ];
 
-  const [account, setAccount] = useState(accounts[0]?.id || 'rm');
+  const [trainerTraineeNames, setTrainerTraineeNames] = useState<string[]>([]);
+  const [trainerAccounts, setTrainerAccounts] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isTrainer) {
+      if (userMeta?.accounts && userMeta.accounts !== 'N/A') {
+        const metaAccs = userMeta.accounts.split(/[,/|]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (metaAccs.length > 0) {
+          setTrainerAccounts(prev => Array.from(new Set([...prev, ...metaAccs])));
+        }
+      }
+
+      getTrainerTraineeNames(email || undefined, userName || undefined).then(res => {
+        if (res?.names && res.names.length > 0) {
+          setTrainerTraineeNames(res.names);
+        }
+        if (res?.accounts && res.accounts.length > 0) {
+          setTrainerAccounts(prev => Array.from(new Set([...prev, ...res.accounts])));
+        }
+      });
+    }
+  }, [isTrainer, email, userName, userMeta]);
+
+  const visibleAccounts = useMemo(() => {
+    if (isTrainer) {
+      const filtered = accounts.filter(acc => {
+        const accId = acc.id.toLowerCase();
+        if (accId === 'trainers') return true;
+        return trainerAccounts.some(ta => matchesTrafficLightAccount(acc.id, ta));
+      });
+      return filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers');
+    }
+    return accounts;
+  }, [accounts, isTrainer, trainerAccounts]);
+
+  const [account, setAccount] = useState<string>(() => {
+    if (isTrainer) return 'trainers';
+    return accounts[0]?.id || 'rm';
+  });
+
+  useEffect(() => {
+    if (visibleAccounts.length > 0 && !visibleAccounts.some(a => a.id === account)) {
+      setAccount(visibleAccounts[0].id);
+    }
+  }, [visibleAccounts]);
   const [quarter, setQuarter] = useState('q2');
   const [selectedTeam, setSelectedTeam] = useState<string>('ALL');
   const [data, setData] = useState<any[]>([]);
@@ -810,34 +881,6 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }, 500);
   };
 
-  // Calculate live summary KPI metrics
-  const kpis = useMemo(() => {
-    let employeeCount = 0;
-    let greenCount = 0;
-    let amberCount = 0;
-    let redCount = 0;
-
-    data.forEach(row => {
-      const nameVal = String(row[nameColumnKey] || '').trim();
-      if (!nameVal.toUpperCase().startsWith('TEAM')) {
-        employeeCount++;
-        allDateColumns.forEach(c => {
-          const val = String(row[c] || '').toUpperCase().trim();
-          if (val === 'OKAY' || val === 'GREEN') greenCount++;
-          else if (val === 'SHAKY' || val === 'AMBER' || val === 'YELLOW') amberCount++;
-          else if (['TERMINATED', 'RESIGNED', 'ACCOUNT REMOVED', 'RED'].includes(val)) redCount++;
-        });
-      }
-    });
-
-    return { employeeCount, greenCount, amberCount, redCount };
-  }, [data, allDateColumns, nameColumnKey]);
-
-  // Total remarks count across all trainees & cells
-  const totalRemarksCount = useMemo(() => {
-    return Object.values(remarksMap).reduce((sum, list) => sum + (list?.length || 0), 0);
-  }, [remarksMap]);
-
   // Filter Data by search, selected team, and optional remarks filter
   const filteredData = useMemo(() => {
     if (!data) return [];
@@ -845,6 +888,37 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
     return data.filter((row) => {
       const nameVal = String(row[nameColumnKey] || '').trim();
+
+      if (isTrainee && (userName || email)) {
+        const qName = (userName || '').toLowerCase();
+        const qEmail = (email || '').toLowerCase().split('@')[0];
+        const lowerName = nameVal.toLowerCase();
+        if (nameVal.toUpperCase().startsWith('TEAM')) return false;
+        const isOwnTrainee = (qName && (lowerName.includes(qName) || qName.includes(lowerName))) || (qEmail && lowerName.includes(qEmail));
+        if (!isOwnTrainee) return false;
+      }
+
+      if (isTrainer && (userName || email)) {
+        const qName = (userName || '').toLowerCase();
+        const qEmail = (email || '').toLowerCase().split('@')[0];
+        const lowerName = nameVal.toLowerCase();
+
+        if (nameVal.toUpperCase().startsWith('TEAM')) return false;
+
+        const isOwnTrainerRow = (
+          (userName && isTrainerMatch(nameVal, userName)) ||
+          (qName && (lowerName.includes(qName) || qName.includes(lowerName))) ||
+          (qEmail && (lowerName.includes(qEmail) || qEmail.includes(lowerName)))
+        );
+
+        const isAssignedTrainee = trainerTraineeNames.some(tName => 
+          lowerName === tName || lowerName.includes(tName) || tName.includes(lowerName)
+        );
+
+        if (!isOwnTrainerRow && !isAssignedTrainee) {
+          return false;
+        }
+      }
 
       if (nameVal.toUpperCase().startsWith('TEAM')) {
         currentTeamName = nameVal;
@@ -876,7 +950,37 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       return true;
     });
-  }, [data, nameColumnKey, selectedTeam, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap]);
+  }, [data, nameColumnKey, isTrainee, isTrainer, userName, email, trainerTraineeNames, selectedTeam, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap]);
+
+  // Calculate live summary KPI metrics
+  const kpis = useMemo(() => {
+    let employeeCount = 0;
+    let greenCount = 0;
+    let amberCount = 0;
+    let redCount = 0;
+
+    const targetList = (isTrainer || isTrainee) ? filteredData : data;
+
+    targetList.forEach(row => {
+      const nameVal = String(row[nameColumnKey] || '').trim();
+      if (!nameVal.toUpperCase().startsWith('TEAM')) {
+        employeeCount++;
+        allDateColumns.forEach(c => {
+          const val = String(row[c] || '').toUpperCase().trim();
+          if (val === 'OKAY' || val === 'GREEN') greenCount++;
+          else if (val === 'SHAKY' || val === 'AMBER' || val === 'YELLOW') amberCount++;
+          else if (['TERMINATED', 'RESIGNED', 'ACCOUNT REMOVED', 'RED'].includes(val)) redCount++;
+        });
+      }
+    });
+
+    return { employeeCount, greenCount, amberCount, redCount };
+  }, [data, filteredData, isTrainer, isTrainee, allDateColumns, nameColumnKey]);
+
+  // Total remarks count across all trainees & cells
+  const totalRemarksCount = useMemo(() => {
+    return Object.values(remarksMap).reduce((sum, list) => sum + (list?.length || 0), 0);
+  }, [remarksMap]);
 
   const pendingCount = Object.keys(pendingEdits).length;
 
@@ -994,42 +1098,58 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between">
-          <div>
+        {/* Box 1: Monitored Staff */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-28 sm:w-36 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Monitored Staff</p>
             <p className="text-2xl font-black text-slate-900 dark:text-slate-50 mt-0.5">{kpis.employeeCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center relative z-10">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between">
-          <div>
+        {/* Box 2: Okay Flags */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-28 sm:w-36 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Okay Flags (Green)</p>
             <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{kpis.greenCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center relative z-10">
             <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between">
-          <div>
+        {/* Box 3: Shaky Flags */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-28 sm:w-36 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Shaky Flags (Amber)</p>
             <p className="text-2xl font-black text-amber-500 dark:text-amber-400 mt-0.5">{kpis.amberCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 dark:text-amber-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 dark:text-amber-400 flex items-center justify-center relative z-10">
             <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between">
-          <div>
+        {/* Box 4: Critical / Loss Flags */}
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-40 pointer-events-none select-none opacity-[0.45] dark:opacity-[0.25] group-hover:opacity-[0.65] dark:group-hover:opacity-[0.45] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="relative z-10">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Critical / Loss Flags</p>
             <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">{kpis.redCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center relative z-10">
             <XCircle className="w-5 h-5" />
           </div>
         </div>
@@ -1051,7 +1171,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
               className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
             >
-              <span className="truncate">{accounts.find(a => a.id === account)?.name || account.toUpperCase()}</span>
+              <span className="truncate">{visibleAccounts.find(a => a.id === account)?.name || account.toUpperCase()}</span>
               {openDropdown === 'account' ? (
                 <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
               ) : (
@@ -1061,7 +1181,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
             {openDropdown === 'account' && (
               <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-                {accounts.map((acc) => {
+                {visibleAccounts.map((acc) => {
                   const isSelected = account === acc.id;
                   return (
                     <button

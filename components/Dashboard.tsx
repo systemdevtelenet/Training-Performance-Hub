@@ -12,7 +12,8 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import PageLoading from '@/components/PageLoading';
 
 export default function Dashboard({ initialData }: { initialData: any }) {
-  const { role, isLoading } = useRole();
+  const { role, actualRole, userName, email, isLoading } = useRole();
+  const currentRole = role || actualRole;
   const [filters, setFilters] = useState({ month: 'ALL', quarter: 'ALL', account: 'ALL', search: '' });
 
   const processedData = useMemo(() => {
@@ -21,14 +22,14 @@ export default function Dashboard({ initialData }: { initialData: any }) {
         console.warn('initialData is not available');
         return { trendData: { inhouse: { months: [], quarters: [] }, pst: { months: [], quarters: [] }, overall: { months: [], quarters: [] } } };
       }
-      const filtered = getFilteredData(initialData, filters);
+      const filtered = getFilteredData(initialData, filters, currentRole, userName, email);
       const trendData = generateTrendAnalytics(initialData, filters);
       return { ...filtered, trendData };
     } catch (error) {
       console.error('Error processing data:', error);
       return { trendData: { inhouse: { months: [], quarters: [] }, pst: { months: [], quarters: [] }, overall: { months: [], quarters: [] } } };
     }
-  }, [initialData, filters]);
+  }, [initialData, filters, currentRole, userName, email]);
 
   // Compute dynamic KPI metrics based on active filters
   const filteredMetrics = useMemo(() => {
@@ -67,9 +68,9 @@ export default function Dashboard({ initialData }: { initialData: any }) {
     );
   }
 
-  // For regular employees or non-admin users, render their personalized performance view with matching executive UI design
-  const isAdminOrTrainer = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'].includes(role);
-  if (!isAdminOrTrainer) {
+  // For non-admin users (including Trainers and Trainees), render their personalized performance view without executive trend graphs
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+  if (!isAdmin) {
     return (
       <div className="space-y-5 text-[#363435] dark:text-slate-200">
         <EmployeeDashboardView rawData={initialData} />

@@ -31,7 +31,6 @@ import {
   Eye
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { TrainersDirectorySkeleton } from '@/components/TrainersDirectorySkeleton';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
@@ -39,10 +38,14 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 
 import PageLoading from '@/components/PageLoading';
 
+import { isTrainerMatch } from '@/lib/analytics-utils';
+
 type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
-  const { role, email, avatarUrl, userName } = useRole();
+  const { role, actualRole, email, avatarUrl, userName } = useRole();
+  const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
@@ -73,19 +76,37 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
     }
   }, [searchParams]);
 
+  const scopedInitialTrainers = useMemo(() => {
+    if (!isTrainer) return initialTrainers;
+    if (userName || email) {
+      const qName = (userName || '').toLowerCase();
+      const qEmail = (email || '').toLowerCase().split('@')[0];
+      return initialTrainers.filter((t: any) => {
+        const tName = (t.name || '').toLowerCase();
+        const tEmail = (t.email || '').toLowerCase();
+        return (
+          (userName && isTrainerMatch(t.name, userName)) ||
+          (qName && (tName.includes(qName) || qName.includes(tName))) ||
+          (qEmail && (tEmail.includes(qEmail) || tName.includes(qEmail)))
+        );
+      });
+    }
+    return initialTrainers;
+  }, [initialTrainers, isTrainer, userName, email]);
+
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
-    initialTrainers.forEach((t: any) => {
+    scopedInitialTrainers.forEach((t: any) => {
       if (t.accounts) {
         t.accounts.split(',').forEach((a: string) => set.add(a.trim()));
       }
     });
     return ['All', ...Array.from(set).sort()];
-  }, [initialTrainers]);
+  }, [scopedInitialTrainers]);
 
   // Filter trainers based on search & selects for Directory
   const filteredInitialTrainers = useMemo(() => {
-    return initialTrainers.filter((t: any) => {
+    return scopedInitialTrainers.filter((t: any) => {
       if (role === 'EMPLOYEE' && email && t.email !== email) return false;
       if (selectedAccount !== 'All') {
         const accs = (t.accounts || '').toLowerCase();
@@ -100,7 +121,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
       }
       return true;
     });
-  }, [initialTrainers, role, email, selectedAccount, searchQuery]);
+  }, [scopedInitialTrainers, role, email, selectedAccount, searchQuery]);
 
   // Simulate initial data fetching delay
   useEffect(() => {
@@ -113,26 +134,11 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  if (isLoading) {
-    if (activeTab === 'directory') {
-      return (
-        <div className="space-y-6 w-full max-w-full pb-12">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">Trainers Management</h1>
-              <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
-                Real-time directory, automated attendance tracking, and reliability analytics
-              </p>
-            </div>
-          </div>
-          <TrainersDirectorySkeleton />
-        </div>
-      );
-    }
+  if (isLoading || isRefreshing) {
     return (
       <PageLoading
-        title="Loading Attendance & Reliability..."
-        subtitle="Retrieving attendance tracking, leave breakdown, and reliability records"
+        title={activeTab === 'directory' ? "Loading Trainers Directory..." : "Loading Attendance & Reliability..."}
+        subtitle={activeTab === 'directory' ? "Retrieving trainer profiles, qualifications, and operational metrics" : "Retrieving attendance tracking, leave breakdown, and reliability records"}
       />
     );
   }
@@ -164,7 +170,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
     return (
       <div className="space-y-6 w-full max-w-full pb-12">
         <AttendanceReliabilityView
-          initialTrainers={initialTrainers}
+          initialTrainers={scopedInitialTrainers}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
@@ -1191,8 +1197,11 @@ function AttendanceReliabilityView({
       {/* 2. 4 Summary Boxes Above Filter */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Box 1: Avg Attendance */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="space-y-1 relative z-10">
             <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
               Avg Attendance
             </span>
@@ -1200,14 +1209,17 @@ function AttendanceReliabilityView({
               {kpis.avgAtt}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] flex items-center justify-center shrink-0 relative z-10">
             <TrendingUp className="w-6 h-6" />
           </div>
         </div>
 
         {/* Box 2: Avg Reliability */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="space-y-1 relative z-10">
             <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
               Avg Reliability
             </span>
@@ -1215,14 +1227,17 @@ function AttendanceReliabilityView({
               {kpis.avgRel}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center shrink-0 relative z-10">
             <ShieldCheck className="w-6 h-6" />
           </div>
         </div>
 
         {/* Box 3: Total Present */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="space-y-1 relative z-10">
             <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
               Total Present
             </span>
@@ -1230,14 +1245,17 @@ function AttendanceReliabilityView({
               {kpis.totalPresent.toLocaleString()}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] dark:text-[#5a9fd4] flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2F6798] dark:text-[#5a9fd4] flex items-center justify-center shrink-0 relative z-10">
             <BarChart3 className="w-6 h-6" />
           </div>
         </div>
 
         {/* Box 4: Absences & Losses */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5 shadow-xs flex items-center justify-between hover:shadow-md transition-all group">
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+          </div>
+          <div className="space-y-1 relative z-10">
             <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
               Absences &amp; Losses
             </span>
@@ -1250,7 +1268,7 @@ function AttendanceReliabilityView({
               </span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center shrink-0 relative z-10">
             <AlertTriangle className="w-6 h-6" />
           </div>
         </div>

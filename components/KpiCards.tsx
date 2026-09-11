@@ -47,8 +47,20 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       {kpiData.map((kpi) => (
-        <div key={kpi.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/40 cursor-default">
-          <div className="flex items-start justify-between">
+        <div 
+          key={kpi.id} 
+          className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-xs transition-all hover:border-[#2F6798]/50 hover:shadow-md cursor-default group"
+        >
+          {/* Refined Call Center Artwork Background Watermark */}
+          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+            <img
+              src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png"
+              alt="Operations Watermark"
+              className="w-full h-auto object-cover object-bottom"
+            />
+          </div>
+
+          <div className="relative z-10 flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${kpi.color}`}>
                 <kpi.icon className="h-5 w-5" />

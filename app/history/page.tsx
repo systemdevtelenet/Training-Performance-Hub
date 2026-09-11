@@ -157,7 +157,15 @@ const parseLogItem = (row: any): ActivityLog => {
   };
 };
 
+import { useRole } from '@/components/providers/RoleProvider';
+
 export default function HistoryPage() {
+  const { role, actualRole, email, userName } = useRole();
+  const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
+  const isTrainee = currentRole === 'TRAINEE';
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,10 +178,60 @@ export default function HistoryPage() {
 
   const fetchLogs = async () => {
     try {
-      const { data: notifData } = await getActivityLogs(100);
+      const { data: notifData } = await getActivityLogs(30);
 
       if (notifData && notifData.length > 0) {
-        setActivities(notifData.map(parseLogItem));
+        let items = notifData.map(parseLogItem);
+
+        if (!isAdmin && (email || userName)) {
+          const cleanEmail = (email || '').toLowerCase().trim();
+          const emailPrefix = cleanEmail.split('@')[0];
+          const cleanName = (userName || '').toLowerCase().trim();
+
+          items = items.filter(it => {
+            const titleLow = (it.title || '').toLowerCase();
+            const descLow = (it.description || '').toLowerCase();
+            const authorLow = (it.author || '').toLowerCase();
+
+            if (titleLow.includes('login') || descLow.includes('logged into')) {
+              return descLow.includes(cleanEmail) || descLow.includes(emailPrefix) || authorLow.includes(cleanEmail);
+            }
+
+            if (
+              titleLow.includes('employee access') || 
+              titleLow.includes('role assignment') || 
+              titleLow.includes('system admin') || 
+              descLow.includes('admin access') || 
+              descLow.includes('employee management')
+            ) {
+              return false;
+            }
+
+            if (isTrainer) {
+              return (
+                authorLow.includes(cleanEmail) || 
+                authorLow.includes(cleanName) ||
+                descLow.includes(cleanEmail) ||
+                (cleanName && descLow.includes(cleanName)) ||
+                titleLow.includes('trainee') ||
+                titleLow.includes('traffic light') ||
+                titleLow.includes('attendance')
+              );
+            }
+
+            if (isTrainee) {
+              return (
+                descLow.includes(cleanEmail) || 
+                (cleanName && descLow.includes(cleanName)) ||
+                authorLow.includes(cleanEmail)
+              );
+            }
+
+            return true;
+          });
+        }
+
+        setActivities(items);
       } else {
         setActivities([]);
       }
@@ -191,9 +249,6 @@ export default function HistoryPage() {
     const channel = supabase
       .channel('history_realtime_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        fetchLogs();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
         fetchLogs();
       })
       .subscribe();
@@ -229,7 +284,7 @@ export default function HistoryPage() {
     if (selectedCategory === 'traffic' && act.icon_type !== 'traffic' && act.icon_type !== 'remark') return false;
     if (selectedCategory === 'attendance' && act.icon_type !== 'attendance') return false;
     if (selectedCategory === 'trainee' && !act.title.toLowerCase().includes('trainee') && !act.description.toLowerCase().includes('trainee')) return false;
-    if (selectedCategory === 'employee' && !act.title.toLowerCase().includes('employee') && !act.description.toLowerCase().includes('employee')) return false;
+    if (selectedCategory === 'trainer' && !act.title.toLowerCase().includes('trainer') && !act.description.toLowerCase().includes('trainer')) return false;
     if (selectedCategory === 'auth' && act.icon_type !== 'login') return false;
     if (selectedCategory === 'alert' && act.icon_type !== 'alert') return false;
 
@@ -246,12 +301,12 @@ export default function HistoryPage() {
 
   const categories = [
     { id: 'ALL', label: 'All Activities' },
-    { id: 'traffic', label: 'Traffic Lights & Remarks' },
-    { id: 'attendance', label: 'Trainer Attendance' },
-    { id: 'auth', label: 'User Logins' },
     { id: 'trainee', label: 'Trainees' },
-    { id: 'employee', label: 'Employees' },
-    { id: 'alert', label: 'Alerts & Critical' },
+    { id: 'trainer', label: 'Trainers' },
+    { id: 'attendance', label: 'Trainer Attendance' },
+    { id: 'traffic', label: 'Traffic Lights & Remarks' },
+    { id: 'auth', label: 'User Logins' },
+    { id: 'alert', label: 'Alerts & Actions' },
   ];
 
   // Full screen loading on initial load, matching other pages

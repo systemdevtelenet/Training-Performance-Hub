@@ -34,7 +34,7 @@ export default function Topbar() {
     const effRole = role || actualRole;
     if (effRole === 'SUPER_ADMIN') return 'Super Admin';
     if (effRole === 'HOT_ADMIN') return 'Head of Training';
-    if (effRole === 'QAS_ADMIN') return 'QAS Head';
+    if (effRole === 'QAS_ADMIN') return 'QA Supervisor';
     if (effRole === 'VIEW_ADMIN') return 'Executive Admin (View Only)';
     if (effRole === 'TRAINER') return 'Trainer';
     if (effRole === 'EMPLOYEE') return 'Employee';
@@ -42,18 +42,10 @@ export default function Topbar() {
   }, [role, actualRole, userMeta]);
 
   const userInitials = useMemo(() => {
-    if (userName) {
-      const parts = userName.trim().split(/\s+/);
-      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-      return userName.slice(0, 2).toUpperCase();
-    }
-    if (email) {
-      const handle = email.split('@')[0];
-      const parts = handle.split(/[\._]/);
-      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-      return handle.slice(0, 2).toUpperCase();
-    }
-    return 'U';
+    const validName = (userName && userName !== 'N/A') ? userName : (email ? email.split('@')[0] : 'User');
+    const parts = validName.trim().split(/[\s\._]+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return validName.slice(0, 2).toUpperCase() || 'U';
   }, [userName, email]);
 
   // Check session flag for login toast with unified custom toast
@@ -325,7 +317,7 @@ export default function Topbar() {
 
         <div className="flex items-center gap-2 min-w-0">
           <div className="lg:hidden w-7 h-7 rounded-lg overflow-hidden shrink-0 bg-primary flex items-center justify-center shadow-xs">
-            <Image src="/images/ctnp-logo.png" alt="CTNP" width={22} height={22} className="object-contain p-0.5" />
+            <Image src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-logo.png" alt="CTNP" width={22} height={22} className="object-contain p-0.5" />
           </div>
           <h1 className="text-sm sm:text-lg font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 truncate">
             Training Performance Hub

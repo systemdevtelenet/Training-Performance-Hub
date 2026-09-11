@@ -120,8 +120,8 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
               <LayoutDashboard className="h-4 w-4 text-[#2F6798]" /> Executive Performance Overview
             </h3>
 
-            <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-              <div className="flex flex-col items-center bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+            <div className="grid grid-cols-3 gap-3 mb-4 text-center relative z-10">
+              <div className="flex flex-col items-center bg-slate-50/90 dark:bg-slate-900/70 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Headcount</span>
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="h-7 w-7 rounded-lg bg-[#2F6798]/10 dark:bg-[#2F6798]/20 flex items-center justify-center">
@@ -131,7 +131,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                 </div>
               </div>
 
-              <div className="flex flex-col items-center bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+              <div className="flex flex-col items-center bg-slate-50/90 dark:bg-slate-900/70 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Losses</span>
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="h-7 w-7 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center">
@@ -141,7 +141,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                 </div>
               </div>
 
-              <div className="flex flex-col items-center bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+              <div className="flex flex-col items-center bg-slate-50/90 dark:bg-slate-900/70 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Global Attrition</span>
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="h-7 w-7 rounded-lg bg-[#2F6798]/10 dark:bg-[#2F6798]/20 flex items-center justify-center">
@@ -197,11 +197,12 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
               </div>
 
               <div className="overflow-x-auto custom-horizontal-scrollbar touch-pan-x rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800">
-                <table className="w-full text-xs text-left min-w-[650px]">
+                <table className="w-full text-xs text-left min-w-[750px]">
                   <thead className="bg-slate-50/90 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="py-3 px-4">Account</th>
                       <th className="py-3 px-4">Batch</th>
+                      <th className="py-3 px-4">Assigned Trainer</th>
                       <th className="py-3 px-3 text-center">HC</th>
                       <th className="py-3 px-3 text-center">Ongoing</th>
                       <th className="py-3 px-3 text-center">Losses</th>
@@ -243,6 +244,16 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                               {cleanBatchNumber}
                               <ArrowRight className="w-3 h-3 text-slate-400 opacity-60 ml-0.5" />
                             </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/60 text-[#2F6798] dark:text-blue-300 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-blue-200/80 dark:border-blue-800/60 shadow-2xs">
+                                {(b.trainer || 'T').charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[140px]">
+                                {b.trainer || 'Unassigned'}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
                             {b.headcount}

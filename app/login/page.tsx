@@ -47,6 +47,11 @@ function LoginFormContent() {
         ...prev,
         general: 'Access denied: Please sign in using your official company Google account (*.telenet@gmail.com or @cebutelenet.com).'
       }));
+    } else if (searchParams.get('error') === 'not_authorized') {
+      setErrors(prev => ({
+        ...prev,
+        general: 'Access denied: Your account has not been added by an administrator or granted system access. Please contact your administrator.'
+      }));
     }
   }, [searchParams]);
 
@@ -181,6 +186,10 @@ function LoginFormContent() {
             data = retry.data;
             error = null;
           }
+        } else if (provisionResult.message) {
+          setErrors(prev => ({ ...prev, general: provisionResult.message || 'Access denied' }));
+          setIsSubmitLoading(false);
+          return;
         }
       }
 
@@ -232,7 +241,7 @@ function LoginFormContent() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative">
-      <div className="absolute inset-0 bg-[url('/images/ctnp-bg-image-1.png')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-[url('https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-bg-image-1.png')] bg-cover bg-center" />
       <div className="absolute inset-0 bg-black/50" />
 
       {/* Top-Right Logout Success Toast */}
@@ -283,7 +292,7 @@ function LoginFormContent() {
         {/* Left Hero Panel */}
         <div className="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm p-8 flex flex-col items-center justify-center text-center space-y-8 relative border-r border-slate-200/50 dark:border-slate-700/50">
           <div className="relative flex items-center justify-center w-full max-w-[280px]">
-            <Image src="/images/ctnp-logo-full.png" alt="CTNP Logo Full" width={320} height={140} className="object-contain pointer-events-none select-none w-full h-auto drop-shadow-sm" priority />
+            <Image src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-logo-full.png" alt="CTNP Logo Full" width={320} height={140} className="object-contain pointer-events-none select-none w-full h-auto drop-shadow-sm" priority />
           </div>
 
           <div className="space-y-1.5 pointer-events-none select-none">
