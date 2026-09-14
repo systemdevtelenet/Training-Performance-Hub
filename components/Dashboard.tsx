@@ -6,6 +6,7 @@ import { Search, ChevronDown, CalendarDays, Calendar, Building2 } from 'lucide-r
 import { getFilteredData, generateTrendAnalytics, MONTH_ORDER } from '@/lib/analytics-utils';
 import { ExecutiveSummaryView } from '@/components/ExecutiveSummaryView';
 import { EmployeeDashboardView } from '@/components/EmployeeDashboardView';
+import { TrainerDashboardView } from '@/components/TrainerDashboardView';
 import { useRole } from '@/components/providers/RoleProvider';
 import KpiCards from '@/components/KpiCards';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -68,7 +69,16 @@ export default function Dashboard({ initialData }: { initialData: any }) {
     );
   }
 
-  // For non-admin users (including Trainers and Trainees), render their personalized performance view without executive trend graphs
+  // 1. For Trainers: Render dedicated Classroom Operations Dashboard (scoped to their cohort, no admin access)
+  if (currentRole === 'TRAINER') {
+    return (
+      <div className="space-y-5 text-[#363435] dark:text-slate-200">
+        <TrainerDashboardView initialData={initialData} />
+      </div>
+    );
+  }
+
+  // 2. For individual Learners / Employees: Render personal progress & attendance scorecard
   const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
   if (!isAdmin) {
     return (

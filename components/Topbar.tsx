@@ -25,6 +25,12 @@ export default function Topbar() {
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [avatarUrl]);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -557,8 +563,13 @@ export default function Topbar() {
             className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer hover:opacity-90 hover:scale-105 transition-all ring-2 ring-white dark:ring-slate-800 overflow-hidden"
             title={userName || email || "User"}
           >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
+            {avatarUrl && !imgError ? (
+              <img 
+                src={avatarUrl} 
+                alt={userName || email || "User"} 
+                className="w-full h-full object-cover" 
+                onError={() => setImgError(true)}
+              />
             ) : (
               <span>{userInitials}</span>
             )}
@@ -569,8 +580,13 @@ export default function Topbar() {
               <div className="border-b border-slate-100 p-4 dark:border-slate-800">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-[#1f4a6e] text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt={userName || email || "User"} className="w-full h-full object-cover" />
+                    {avatarUrl && !imgError ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt={userName || email || "User"} 
+                        className="w-full h-full object-cover" 
+                        onError={() => setImgError(true)}
+                      />
                     ) : (
                       <span>{userInitials}</span>
                     )}

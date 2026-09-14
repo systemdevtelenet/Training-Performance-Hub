@@ -144,6 +144,12 @@ export default function Sidebar() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [avatarUrl]);
+
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '/trainers': true
   });
@@ -523,8 +529,13 @@ export default function Sidebar() {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-white/20 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-xs overflow-hidden">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  {avatarUrl && !imgError ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover" 
+                      onError={() => setImgError(true)}
+                    />
                   ) : (
                     profile.initials
                   )}
@@ -557,8 +568,13 @@ export default function Sidebar() {
                 <div className="bg-primary/95 dark:bg-[#1A1C1E]/95 text-white border border-white/20 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-in fade-in slide-in-from-left-2 space-y-2">
                   <div className="flex items-center gap-3 pb-2 border-b border-white/15">
                     <div className="w-9 h-9 rounded-full bg-white/25 text-white font-black text-xs flex items-center justify-center shrink-0 border border-white/30 shadow-sm overflow-hidden">
-                      {avatarUrl ? (
-                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                      {avatarUrl && !imgError ? (
+                        <img 
+                          src={avatarUrl} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover" 
+                          onError={() => setImgError(true)}
+                        />
                       ) : (
                         profile.initials
                       )}
@@ -736,8 +752,13 @@ export default function Sidebar() {
               <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/10 border border-white/10">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-white/20 text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                    {avatarUrl && !imgError ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover" 
+                        onError={() => setImgError(true)}
+                      />
                     ) : (
                       profile.initials
                     )}
