@@ -1,27 +1,152 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, Metric, Text } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   UsersRound, TrendingDown, Percent, LayoutDashboard, 
   LineChart as LineChartIcon, ListTree, ChevronDown, ChevronUp, 
   X, Search, User, ArrowRight, Layers, CheckCircle2, AlertCircle,
-  Users, Info, ClipboardList
+  Users, Info, ClipboardList, UserCheck, Edit3, Loader2, Check,
+  ClipboardCheck, Trash2
 } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from './TraineeDetailDrawer';
+import { useToast } from '@/components/CustomToast';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; rawData: any; filters: any }) {
+  const router = useRouter();
+  const { role, actualRole, userName } = useRole();
+  const currentRole = role || actualRole;
+  const canManageTrainers = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'].includes(currentRole);
+  const toast = useToast();
+
   const [selectedTrainee, setSelectedTrainee] = useState<DrawerTrainee | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<any | null>(null);
   const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [overallView, setOverallView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [showTableBreakdown, setShowTableBreakdown] = useState<boolean>(false);
 
+  // Trainer Assignment State
+  const [trainerModalBatch, setTrainerModalBatch] = useState<any | null>(null);
+  const [selectedNewTrainer, setSelectedNewTrainer] = useState<string>('');
+  const [trainerSearchQuery, setTrainerSearchQuery] = useState<string>('');
+  const [isAssigningTrainer, setIsAssigningTrainer] = useState<boolean>(false);
+  const [batchTrainerOverrides, setBatchTrainerOverrides] = useState<Record<string, string>>({});
+
+  // Trainee Deletion State
+  const [traineeToDelete, setTraineeToDelete] = useState<{
+    name: string;
+    accountName: string;
+    batchName: string;
+    trainingType: string;
+  } | null>(null);
+  const [isDeletingTrainee, setIsDeletingTrainee] = useState<boolean>(false);
+
+  const handleDeleteTraineeConfirm = async () => {
+    if (!traineeToDelete) return;
+    setIsDeletingTrainee(true);
+    try {
+      const { name, accountName, batchName, trainingType } = traineeToDelete;
+      const params = new URLSearchParams({
+        name,
+        account: accountName,
+        batch: batchName,
+        type: trainingType
+      });
+      const res = await fetch(`/api/trainees?${params.toString()}`, {
+        method: 'DELETE'
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        if (selectedBatch) {
+          const updatedMembers = (selectedBatch.members || []).filter(
+            (m: any) => m.name !== name
+          );
+          setSelectedBatch({
+            ...selectedBatch,
+            members: updatedMembers,
+            headcount: updatedMembers.length
+          });
+        }
+        if (selectedTrainee?.name === name) {
+          setSelectedTrainee(null);
+        }
+        toast.success(`Removed ${name} from training records.`, 'Trainee Deleted');
+        setTraineeToDelete(null);
+        router.refresh();
+      } else {
+        toast.error(resData.error || 'Failed to delete trainee record.', 'Delete Error');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error deleting trainee.', 'Delete Error');
+    } finally {
+      setIsDeletingTrainee(false);
+    }
+  };
+
+  // Dynamic Available Trainers List
+  const availableTrainers = useMemo(() => {
+    const set = new Set<string>();
+    const defaultTrainers = [
+      'Mitch', 'TR Niña', 'TR JL', 'HOT NISSI', 'TR Carlo', 'TR Ian', 
+      'TR Joshua', 'TR Kevin', 'TR Princess', 'TR Sarah', 'TR Mark', 'TR Bryan'
+    ];
+    defaultTrainers.forEach(t => set.add(t));
+    
+    (rawData?.trainers || []).forEach((t: any) => {
+      if (t?.name) set.add(t.name.trim());
+    });
+    (rawData?.allTrainers || []).forEach((t: string) => {
+      if (t) set.add(t.trim());
+    });
+    (rawData?.employees || []).forEach((e: any) => {
+      if (e.category === 'TRAINER' && e.employee_name) set.add(e.employee_name.trim());
+    });
+    return Array.from(set).sort();
+  }, [rawData]);
+
   if (!data?.summary) return null;
 
   const ts = data.summary.trainersSummary || { headcount: 16, attendanceRate: '100.0%', reliabilityRate: '100.0%', attritionRate: '0.0%', totalLosses: 0 };
   const trendData = data.trendData || { overall: { months: [], quarters: [] } };
+
+  const handleAssignTrainer = async (batch: any, newTrainer: string) => {
+    if (!newTrainer || !batch) return;
+    setIsAssigningTrainer(true);
+    try {
+      const res = await fetch('/api/batches/assign-trainer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchName: batch.batchName,
+          accountName: batch.accountName,
+          trainingType: batch.trainingType,
+          newTrainer,
+          authorName: userName || 'Training Admin'
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        const key = `${batch.accountName}-${batch.batchName}`;
+        setBatchTrainerOverrides(prev => ({ ...prev, [key]: newTrainer }));
+        
+        if (selectedBatch && selectedBatch.accountName === batch.accountName && selectedBatch.batchName === batch.batchName) {
+          setSelectedBatch((prev: any) => prev ? { ...prev, trainer: newTrainer } : null);
+        }
+        
+        toast.success(`Assigned ${newTrainer} to ${batch.accountName} (Batch ${batch.batchName})`, 'Trainer Assigned');
+        setTrainerModalBatch(null);
+      } else {
+        toast.error(result.error || 'Failed to assign trainer', 'Assignment Error');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign trainer', 'Assignment Error');
+    } finally {
+      setIsAssigningTrainer(false);
+    }
+  };
 
   const activeBatches: any[] = [];
   ['inhouse', 'pst'].forEach(type => {
@@ -46,9 +171,14 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
           const totalAtt = totalP + totalA;
           const attendanceRate = totalAtt > 0 ? ((totalP / totalAtt) * 100).toFixed(1) + '%' : '100.0%';
 
-          const assignedTrainer = group.members.find((m: any) => m.assignedTrainer || m.assigned_trainer)?.assignedTrainer ||
+          const key = `${displayAcc}-${bName}`;
+          const overriddenTrainer = batchTrainerOverrides[key];
+
+          const defaultTrainer = group.members.find((m: any) => m.assignedTrainer || m.assigned_trainer)?.assignedTrainer ||
             group.members.find((m: any) => m.assigned_trainer)?.assigned_trainer ||
             group.trainer || 'Mitch';
+
+          const assignedTrainer = overriddenTrainer || defaultTrainer;
 
           activeBatches.push({
             accountName: displayAcc,
@@ -246,13 +376,30 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                             </span>
                           </td>
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/60 text-[#2F6798] dark:text-blue-300 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-blue-200/80 dark:border-blue-800/60 shadow-2xs">
-                                {(b.trainer || 'T').charAt(0).toUpperCase()}
+                            <div className="flex items-center justify-between gap-2 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/60 text-[#2F6798] dark:text-blue-300 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-blue-200/80 dark:border-blue-800/60 shadow-2xs">
+                                  {(b.trainer || 'T').charAt(0).toUpperCase()}
+                                </div>
+                                <span className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[120px]" title={b.trainer}>
+                                  {b.trainer || 'Unassigned'}
+                                </span>
                               </div>
-                              <span className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[140px]">
-                                {b.trainer || 'Unassigned'}
-                              </span>
+                              {canManageTrainers && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedNewTrainer(b.trainer || availableTrainers[0] || 'Mitch');
+                                    setTrainerSearchQuery('');
+                                    setTrainerModalBatch(b);
+                                  }}
+                                  title="Change assigned trainer for this batch"
+                                  className="p-1 text-[#2F6798] dark:text-[#5a9fd4] hover:text-[#1d4263] dark:hover:text-blue-300 transition-colors"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
@@ -524,8 +671,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                       <span>DETAILS</span>
                     </div>
                   </div>
-
-                  <div className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
                     <div className="px-4 py-3 flex items-center justify-between">
                       <span className="text-slate-500 dark:text-slate-400 font-medium">Account</span>
                       <span className="font-bold text-slate-900 dark:text-slate-100">{selectedBatch.accountName}</span>
@@ -534,9 +680,24 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                       <span className="text-slate-500 dark:text-slate-400 font-medium">Training Type</span>
                       <span className="font-bold text-slate-900 dark:text-slate-100">{selectedBatch.trainingType.toUpperCase()}</span>
                     </div>
-                    <div className="px-4 py-3 flex items-center justify-between">
+                    <div className="px-4 py-3 flex items-center justify-between gap-2">
                       <span className="text-slate-500 dark:text-slate-400 font-medium">Assigned Trainer</span>
-                      <span className="font-bold text-[#2F6798] dark:text-blue-400">{selectedBatch.trainer || 'Unassigned'}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#2F6798] dark:text-blue-400">{selectedBatch.trainer || 'Unassigned'}</span>
+                        {canManageTrainers && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedNewTrainer(selectedBatch.trainer || availableTrainers[0] || 'Mitch');
+                              setTrainerSearchQuery('');
+                              setTrainerModalBatch(selectedBatch);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-[#2F6798] dark:text-blue-300 font-bold text-[11px] border border-blue-200 dark:border-blue-800/80 transition-all shadow-2xs cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3" /> Change
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -565,25 +726,59 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                       return (
                         <div
                           key={mIdx}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setSelectedTrainee(trainee)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setSelectedTrainee(trainee);
-                            }
-                          }}
-                          className="flex items-center gap-3.5 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:border-[#2F6798] dark:hover:border-blue-500 hover:shadow-xs transition-all cursor-pointer group"
+                          className="flex items-center justify-between p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:border-[#2F6798] dark:hover:border-blue-500 hover:shadow-xs transition-all group"
                         >
-                          <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">
-                            {initials}
+                          <div 
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedTrainee(trainee)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setSelectedTrainee(trainee);
+                              }
+                            }}
+                            className="flex items-center gap-3.5 min-w-0 flex-1 cursor-pointer"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-blue-400 transition-colors truncate">
+                                {m.name}
+                              </h5>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  (m.status || '').toUpperCase() === 'ACTIVE' 
+                                    ? 'bg-blue-50 text-[#2F6798] dark:bg-blue-950/40 dark:text-blue-300' 
+                                    : (m.status || '').toUpperCase() === 'ENDORSED'
+                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                    : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
+                                }`}>
+                                  {m.status || 'ACTIVE'}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-blue-400 transition-colors truncate">
-                              {m.name}
-                            </h5>
-                          </div>
+
+                          {canManageTrainers && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTraineeToDelete({
+                                  name: m.name,
+                                  accountName: selectedBatch.accountName,
+                                  batchName: selectedBatch.batchName,
+                                  trainingType: selectedBatch.trainingType
+                                });
+                              }}
+                              title={`Delete ${m.name}`}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all shrink-0 ml-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -596,7 +791,237 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
         </div>
       )}
 
-      <TraineeDetailDrawer trainee={selectedTrainee} onClose={() => setSelectedTrainee(null)} />
+      {/* 6. Change Trainer Right-Panel Drawer */}
+      {trainerModalBatch && (
+        <div className="fixed inset-0 z-[9999] overflow-hidden">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+            onClick={() => !isAssigningTrainer && setTrainerModalBatch(null)}
+          />
+
+          {/* Slide-over Right Panel */}
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div className="w-screen max-w-[480px] bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-300">
+              {/* Solid Deep Blue Header */}
+              <div className="bg-[#2F6798] px-6 h-14 flex items-center justify-between text-white shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <UserCheck className="w-5 h-5 text-blue-100" />
+                  <h2 className="text-sm font-bold tracking-wider uppercase text-white">
+                    ASSIGN BATCH TRAINER
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isAssigningTrainer && setTrainerModalBatch(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Drawer Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 font-sans">
+                {/* Title Section */}
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    {trainerModalBatch.accountName} - {trainerModalBatch.batchName}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
+                    Reassign dedicated trainer for this training cohort
+                  </p>
+                </div>
+
+                {/* Current Parameter Status Table */}
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+                  <div className="bg-[#2F6798] px-6 py-3 flex text-xs font-bold text-white tracking-wide uppercase">
+                    <div className="w-1/2 flex items-center gap-2">ⓘ PARAMETER</div>
+                    <div className="w-1/2 flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4 opacity-80" /> CURRENT STATUS
+                    </div>
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                    <div className="flex px-6 py-3.5 items-center">
+                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Account</div>
+                      <div className="w-1/2 font-bold text-slate-800 dark:text-slate-100">{trainerModalBatch.accountName}</div>
+                    </div>
+                    <div className="flex px-6 py-3.5 items-center">
+                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Cohort / Batch</div>
+                      <div className="w-1/2 font-bold text-slate-800 dark:text-slate-100">{trainerModalBatch.batchName}</div>
+                    </div>
+                    <div className="flex px-6 py-3.5 items-center">
+                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Current Trainer</div>
+                      <div className="w-1/2 font-bold text-[#2F6798] dark:text-[#5a9fd4]">{trainerModalBatch.trainer || 'Unassigned'}</div>
+                    </div>
+                    <div className="flex px-6 py-3.5 items-center">
+                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Active Headcount</div>
+                      <div className="w-1/2 font-bold text-slate-800 dark:text-slate-100">{trainerModalBatch.headcount} Trainees</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search & Trainer Selection List */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                    <h4 className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] uppercase tracking-wider">
+                      SELECT NEW ASSIGNED TRAINER
+                    </h4>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {availableTrainers.length} Available
+                    </span>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={trainerSearchQuery}
+                      onChange={(e) => setTrainerSearchQuery(e.target.value)}
+                      placeholder="Search trainer name..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2F6798] focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Trainers Scrollable Grid */}
+                  <div className="max-h-[260px] overflow-y-auto space-y-1.5 p-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 custom-scrollbar">
+                    {availableTrainers
+                      .filter(t => !trainerSearchQuery.trim() || t.toLowerCase().includes(trainerSearchQuery.toLowerCase()))
+                      .map((trainerName, tIdx) => {
+                        const isSelected = selectedNewTrainer === trainerName;
+                        const initial = trainerName.charAt(0).toUpperCase();
+
+                        return (
+                          <button
+                            key={tIdx}
+                            type="button"
+                            onClick={() => setSelectedNewTrainer(trainerName)}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#2F6798] text-white shadow-sm'
+                                : 'bg-slate-50/70 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                                isSelected
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-blue-100 dark:bg-blue-950 text-[#2F6798] dark:text-blue-300'
+                              }`}>
+                                {initial}
+                              </div>
+                              <span className="truncate">{trainerName}</span>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-white shrink-0" />}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Footer */}
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 flex items-center justify-between gap-3 shrink-0">
+                <span className="text-xs text-slate-500 truncate max-w-[160px]">
+                  Selected: <strong className="text-slate-800 dark:text-slate-200">{selectedNewTrainer || 'None'}</strong>
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isAssigningTrainer}
+                    onClick={() => setTrainerModalBatch(null)}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isAssigningTrainer || !selectedNewTrainer}
+                    onClick={() => handleAssignTrainer(trainerModalBatch, selectedNewTrainer)}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold shadow-sm hover:shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isAssigningTrainer ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-3.5 h-3.5" /> Confirm Assignment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Delete Trainee Confirmation Modal */}
+      {traineeToDelete && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => !isDeletingTrainee && setTraineeToDelete(null)}
+          />
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 z-10 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/60 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Trainee Record</h3>
+                <p className="text-xs text-slate-500">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+              Are you sure you want to permanently remove <strong className="text-slate-900 dark:text-white font-bold">{traineeToDelete.name}</strong> from <strong className="text-slate-900 dark:text-white font-bold">{traineeToDelete.batchName} ({traineeToDelete.accountName})</strong>?
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTraineeToDelete(null)}
+                disabled={isDeletingTrainee}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTraineeConfirm}
+                disabled={isDeletingTrainee}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+              >
+                {isDeletingTrainee ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Trainee
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TraineeDetailDrawer 
+        trainee={selectedTrainee} 
+        onClose={() => setSelectedTrainee(null)}
+        canDelete={canManageTrainers}
+        onDelete={async (t) => {
+          setTraineeToDelete({
+            name: t.name,
+            accountName: t.accountName,
+            batchName: t.batchName,
+            trainingType: t.trainingType
+          });
+        }}
+      />
     </div>
   );
 }

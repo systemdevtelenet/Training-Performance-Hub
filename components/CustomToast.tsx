@@ -87,8 +87,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={contextValue}>
       {children}
-      {/* Toast Floating Container */}
-      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none max-w-sm w-full">
+      {/* Toast Floating Container - Elevated z-index to float above all drawers and popups */}
+      <div className="fixed top-6 right-6 z-[99999] flex flex-col gap-3 pointer-events-none max-w-sm w-full">
         {toasts.map(toast => (
           <ToastCard key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
         ))}

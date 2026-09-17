@@ -37,7 +37,7 @@ export function CustomSelect({ id, value, options, onChange, className = '', pla
   }, []);
 
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className={`relative w-full ${isOpen ? 'z-[100]' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         id={id}
@@ -47,7 +47,7 @@ export function CustomSelect({ id, value, options, onChange, className = '', pla
             ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
             : isOpen
             ? 'border-2 border-[#2F6798] bg-white text-slate-800 ring-4 ring-[#2F6798]/10'
-            : 'border border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200'
+            : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
         } ${className}`}
       >
         <span className="truncate pr-4 text-left">{displayValue}</span>
@@ -55,7 +55,7 @@ export function CustomSelect({ id, value, options, onChange, className = '', pla
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 z-[70] mt-1.5 max-h-60 w-full overflow-y-auto rounded-xl bg-white p-1.5 shadow-2xl border border-slate-100 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 no-scrollbar dark:bg-slate-800 dark:border-slate-700 dark:ring-white/10">
+        <div className="absolute top-full left-0 z-[110] mt-1.5 max-h-60 w-full overflow-y-auto rounded-xl bg-white p-1.5 shadow-2xl border border-slate-200 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 no-scrollbar dark:bg-slate-800 dark:border-slate-700 dark:ring-white/10">
           {options.map((option) => {
             const isSelected = String(value) === String(option.value);
             return (

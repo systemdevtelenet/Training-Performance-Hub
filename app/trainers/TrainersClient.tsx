@@ -40,7 +40,9 @@ import PageLoading from '@/components/PageLoading';
 
 import { isTrainerMatch } from '@/lib/analytics-utils';
 
-type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability';
+import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
+
+type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability' | 'calendar';
 
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
   const { role, actualRole, email, avatarUrl, userName } = useRole();
@@ -137,8 +139,8 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   if (isLoading || isRefreshing) {
     return (
       <PageLoading
-        title={activeTab === 'directory' ? "Loading Trainers Directory..." : "Loading Attendance & Reliability..."}
-        subtitle={activeTab === 'directory' ? "Retrieving trainer profiles, qualifications, and operational metrics" : "Retrieving attendance tracking, leave breakdown, and reliability records"}
+        title={activeTab === 'directory' ? "Loading Trainers Directory..." : activeTab === 'calendar' ? "Loading Trainee Calendar Attendance..." : "Loading Attendance & Reliability..."}
+        subtitle={activeTab === 'directory' ? "Retrieving trainer profiles, qualifications, and operational metrics" : activeTab === 'calendar' ? "Retrieving daily trainee rosters, attendance tags, and reason notes" : "Retrieving attendance tracking, leave breakdown, and reliability records"}
       />
     );
   }
@@ -162,6 +164,18 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
           Return to My Dashboard
         </a>
       </div>
+    );
+  }
+
+  // Trainee Attendance Calendar View (Interactive Tagging, Status & Reason Notes)
+  if (activeTab === 'calendar') {
+    return (
+      <AttendanceCalendarView
+        initialTrainers={scopedInitialTrainers}
+        allTrainers={initialTrainers}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
     );
   }
 
@@ -978,7 +992,7 @@ function AttendanceReliabilityView({
   const [viewFocus, setViewFocus] = useState<'all' | 'attendance' | 'reliability'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Drawer states
   const [selectedTrainer, setSelectedTrainer] = useState<any | null>(null);
@@ -1462,7 +1476,37 @@ function AttendanceReliabilityView({
             </div>
           ) : viewMode === 'table' ? (
             /* TABLE VIEW */
-            <div className="w-full overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900/40 shadow-xs">
+            <div className="w-full overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900/40 shadow-xs flex flex-col">
+              <div className="p-3 sm:p-4 border-b border-slate-200/80 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
+                  <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase font-mono">
+                    TRAINERS DIRECTORY ({filteredAndSorted.length})
+                  </h3>
+                </div>
+                <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <span>Rows per page:</span>
+                    <select
+                      value={pageSize >= 10000 ? 'all' : pageSize}
+                      onChange={e => {
+                        setPageSize(e.target.value === 'all' ? 100000 : Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+                    >
+                      <option value={10}>10</option>
+                      <option value={15}>15</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value="all">All</option>
+                    </select>
+                  </div>
+                  <span>
+                    Showing {filteredAndSorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredAndSorted.length)} of {filteredAndSorted.length} records
+                  </span>
+                </div>
+              </div>
               <div className="w-full overflow-x-auto custom-horizontal-scrollbar touch-pan-x overscroll-x-contain pb-1">
                 <table className="w-full text-left border-collapse text-xs min-w-[980px]">
                   <thead>
@@ -1617,7 +1661,7 @@ function AttendanceReliabilityView({
               </div>
 
               {/* Table Pagination */}
-              {filteredAndSorted.length > pageSize && (
+              {filteredAndSorted.length > 0 && (
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-4">
                   <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong> ({filteredAndSorted.length} trainers)

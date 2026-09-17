@@ -28,7 +28,8 @@ import {
   User,
   Briefcase,
   UserCheck,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
 import { TraineeFormDrawer } from '@/components/TraineeFormDrawer';
@@ -50,6 +51,9 @@ export type Trainee = {
   batchName: string;
   accountName: string;
   trainingType?: 'INHOUSE' | 'PST';
+  startDate?: string;
+  endorsedDate?: string;
+  nhoCompleted?: boolean;
 };
 
 const isLossStatus = (status?: string) => {
@@ -109,13 +113,21 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
 
-  // Sync search param from URL if navigated from Topbar
+  // Sync search and tab params from URL if navigated from Topbar / Sidebar
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const s = params.get('search');
+      const t = params.get('tab');
       if (s) {
         setSearchQuery(s);
+      }
+      if (t === 'inhouse') {
+        setBreakdownTab('inhouse');
+      } else if (t === 'pst') {
+        setBreakdownTab('pst');
+      } else if (t === 'accounts') {
+        setBreakdownTab('accounts');
       }
     }
   }, []);
@@ -192,10 +204,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [trainees]);
 
   const availableTrainers = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>([
+      'Mitch', 'TR Niña', 'TR JL', 'HOT NISSI', 'TR Carlo', 'TR Ian', 
+      'TR Joshua', 'TR Kevin', 'TR Princess', 'TR Sarah', 'TR Mark', 'TR Bryan'
+    ]);
     trainees.forEach(t => {
       if (t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
-        set.add(t.assignedTrainer);
+        set.add(t.assignedTrainer.trim());
       }
     });
     return Array.from(set).sort();
@@ -248,8 +263,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
     filteredTrainees.forEach((t) => {
       hcCount++;
-      if (t.trainingType === 'INHOUSE') ihCount++;
-      else pstCount++;
+      if (t.trainingType === 'INHOUSE') {
+        ihCount++;
+      } else {
+        pstCount++;
+      }
 
       const isLoss = Boolean(t.isLoss || isLossStatus(t.status));
       if (isLoss) lossCount++;
@@ -354,17 +372,65 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const openTraineeCard = (t: Trainee) => {
     setSelectedCard({
       isBatch: false,
+      id: t.id,
       name: t.name,
       batchName: t.batchName,
       accountName: t.accountName,
-      trainingType: t.trainingType || 'TRAINING',
+      trainingType: t.trainingType || 'INHOUSE',
       assignedTrainer: t.assignedTrainer,
       status: t.status,
       p: t.p,
       a: t.a,
       isEndorsed: t.isEndorsed,
-      isLoss: t.isLoss
+      isLoss: t.isLoss,
+      startDate: t.startDate,
+      endorsedDate: t.endorsedDate,
+      nhoCompleted: t.nhoCompleted
     });
+  };
+
+  // Quick Endorse Trainee Action (for Trainers and Admins)
+  const handleEndorseTrainee = async (t: any) => {
+    if (!canManageTrainees) {
+      showToast('You do not have permission to endorse trainees.', 'Permission Denied', 'warning');
+      return;
+    }
+    try {
+      const res = await fetch('/api/trainees', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: t.id,
+          name: t.name,
+          trainingType: t.trainingType || 'INHOUSE',
+          batchName: t.batchName,
+          accountName: t.accountName,
+          assignedTrainer: t.assignedTrainer,
+          status: 'ENDORSED',
+          isEndorsed: true
+        })
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        setTrainees(prev => prev.map(item => {
+          if (item.name === t.name || (item.id && item.id === t.id)) {
+            return {
+              ...item,
+              status: 'ENDORSED',
+              isEndorsed: true,
+              isLoss: false,
+              endorsedDate: new Date().toISOString().split('T')[0]
+            };
+          }
+          return item;
+        }));
+        showToast(`Trainee ${t.name} has been successfully endorsed!`, 'Trainee Endorsed', 'success');
+      } else {
+        showToast(resData.error || 'Failed to endorse trainee.', 'Endorsement Failed', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error endorsing trainee.', 'Endorsement Error', 'error');
+    }
   };
 
   // Handle Add Trainee Submit
@@ -644,16 +710,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           </div>
         </div>
 
-        {/* Box 4: Active Accounts */}
+        {/* Box 4: Client Accounts */}
         <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
           <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
             <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
           <div className="min-w-0 relative z-10">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
-            <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{clientAccounts.length}</h4>
+            <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-0.5">{clientAccounts.length.toLocaleString()}</h4>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 ml-2 relative z-10">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0 ml-2 relative z-10">
             <Building2 className="w-5 h-5" />
           </div>
         </div>
@@ -765,7 +831,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
-                <LayoutGrid className="w-3.5 h-3.5" /> All Overview (3 Columns)
+                <LayoutGrid className="w-3.5 h-3.5" /> All Overview
               </button>
               <button
                 type="button"
@@ -794,11 +860,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 onClick={() => setBreakdownTab('accounts')}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   breakdownTab === 'accounts'
-                    ? 'bg-amber-600 text-white shadow-sm'
+                    ? 'bg-slate-700 text-white shadow-sm'
                     : 'bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span> Client Accounts ({clientAccounts.length})
+                <span className="w-2 h-2 rounded-full bg-slate-400"></span> Client Accounts ({clientAccounts.length})
               </button>
             </div>
             <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 pr-2 hidden sm:block">
@@ -817,109 +883,109 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               {/* TAB 1: ALL OVERVIEW (3-COLUMN SIDE BY SIDE) */}
               {breakdownTab === 'all' && (
                 <div className="bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden w-full">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-200/90 dark:divide-slate-700/80">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200/90 dark:divide-slate-700/80">
 
-                {/* Column 1: INHOUSE TRAINING */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING
-                    </h3>
-                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                      DEPT 1
-                    </span>
-                  </div>
-                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                    {inhouseBatches.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching Inhouse batches</div>
-                    ) : (
-                      inhouseBatches.map((item, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
-                        >
-                          <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
-                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
-                          </span>
-                        </button>
-                      ))
-                    )}
+                    {/* Column 1: INHOUSE TRAINING */}
+                    <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                        <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> INHOUSE TRAINING
+                        </h3>
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                          DEPT 1
+                        </span>
+                      </div>
+                      <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                        {inhouseBatches.length === 0 ? (
+                          <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching Inhouse batches</div>
+                        ) : (
+                          inhouseBatches.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
+                              className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                            >
+                              <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Column 2: PST TRAINING */}
+                    <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                        <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING
+                        </h3>
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                          DEPT 2
+                        </span>
+                      </div>
+                      <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                        {pstBatches.length === 0 ? (
+                          <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
+                        ) : (
+                          pstBatches.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
+                              className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
+                                  {item.trainer}
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Column 3: CLIENT ACCOUNTS */}
+                    <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                        <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span> CLIENT ACCOUNTS
+                        </h3>
+                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                          SUMMARY
+                        </span>
+                      </div>
+                      <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                        {clientAccounts.length === 0 ? (
+                          <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching client accounts</div>
+                        ) : (
+                          clientAccounts.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
+                              className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-purple-300 dark:hover:border-purple-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
+                            >
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
                   </div>
                 </div>
-
-                {/* Column 2: PST TRAINING */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING
-                    </h3>
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                      DEPT 2
-                    </span>
-                  </div>
-                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                    {pstBatches.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
-                    ) : (
-                      pstBatches.map((item, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
-                              {item.trainer}
-                            </span>
-                          </div>
-                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Column 3: CLIENT ACCOUNTS */}
-                <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-800/90 flex flex-col">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
-                    <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> CLIENT ACCOUNTS
-                    </h3>
-                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                      SUMMARY
-                    </span>
-                  </div>
-                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                    {clientAccounts.length === 0 ? (
-                      <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching client accounts</div>
-                    ) : (
-                      clientAccounts.map((item, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 dark:hover:border-amber-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
-                        >
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
-                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                            HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
+              )}
 
           {/* TAB 2: INHOUSE FULL EXPANDED GRID VIEW */}
           {breakdownTab === 'inhouse' && (
@@ -1041,9 +1107,9 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               <div className="flex items-center gap-1.5">
                 <span>Rows per page:</span>
                 <select
-                  value={pageSize}
+                  value={pageSize >= 10000 ? 'all' : pageSize}
                   onChange={e => {
-                    setPageSize(Number(e.target.value));
+                    setPageSize(e.target.value === 'all' ? 100000 : Number(e.target.value));
                     setCurrentPage(1);
                   }}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
@@ -1052,6 +1118,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                   <option value={15}>15</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
+                  <option value="all">All</option>
                 </select>
               </div>
               <span>
@@ -1095,11 +1162,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                         </td>
                         <td className="py-3 px-4 min-w-[120px]">
                           {/* Circular Pill Shape for Track Type */}
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border ${t.trainingType === 'INHOUSE'
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border ${
+                            t.trainingType === 'INHOUSE'
                               ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
                               : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                             }`}>
-                            {t.trainingType || 'TRAINING'}
+                            {t.trainingType === 'INHOUSE' ? 'INHOUSE' : 'PST'}
                           </span>
                         </td>
                         <td className="py-3 px-4 font-semibold text-[#2F6798] dark:text-[#5a9fd4] min-w-[130px]">
@@ -1117,9 +1185,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                         <td className="py-3 px-4 min-w-[120px]">
                           {renderStatusBadge(t.status, t.isEndorsed, t.isLoss)}
                         </td>
-                        <td className="py-3 px-4 text-right min-w-[90px]">
+                        <td className="py-3 px-4 text-right min-w-[100px]">
                           {/* Unboxed Colored Icon Actions */}
-                          <div className="flex items-center justify-end gap-3">
+                          <div className="flex items-center justify-end gap-2.5">
+                            {canManageTrainees && !t.isEndorsed && (
+                              <button
+                                onClick={() => handleEndorseTrainee(t)}
+                                title="Endorse Trainee"
+                                className="text-emerald-600 dark:text-emerald-400 hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => openTraineeCard(t)}
                               title="View Details"
@@ -1243,23 +1320,46 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               });
               const resData = await res.json();
               if (resData.success) {
-                const newTrainee: Trainee = {
-                  id: resData.data?.id || Math.random().toString(),
-                  name: data.name,
-                  status: data.status,
-                  month: data.month || 'January',
-                  quarter: data.quarter || 'Q1',
-                  p: 0,
-                  a: 0,
-                  isEndorsed: data.status === 'ENDORSED',
-                  isLoss: data.status === 'LOSS' || data.status === 'ATTRITION',
-                  assignedTrainer: data.assignedTrainer,
-                  batchName: data.batchName,
-                  accountName: data.accountName,
-                  trainingType: data.trainingType
-                };
-                setTrainees(prev => [newTrainee, ...prev]);
-                showToast('Trainee added successfully!', 'Trainee Added', 'success');
+                if (data.isBulk && Array.isArray(data.trainees)) {
+                  const newTrainees: Trainee[] = data.trainees.map((t: any, idx: number) => {
+                    const matchedRecord = Array.isArray(resData.data) ? resData.data[idx] : null;
+                    return {
+                      id: matchedRecord?.id || matchedRecord?.name || `bulk-${Date.now()}-${idx}`,
+                      name: t.name,
+                      status: t.status || 'ACTIVE',
+                      month: t.month || 'September',
+                      quarter: t.quarter || 'Q3',
+                      p: 0,
+                      a: 0,
+                      isEndorsed: t.status === 'ENDORSED',
+                      isLoss: t.status === 'LOSS' || t.status === 'ATTRITION',
+                      assignedTrainer: t.assignedTrainer || 'Unassigned',
+                      batchName: t.batchName,
+                      accountName: t.accountName,
+                      trainingType: t.trainingType
+                    };
+                  });
+                  setTrainees(prev => [...newTrainees, ...prev]);
+                  showToast(`Successfully enrolled ${newTrainees.length} trainees into cohorts!`, 'Bulk Enrollment Complete', 'success');
+                } else {
+                  const newTrainee: Trainee = {
+                    id: resData.data?.id || Math.random().toString(),
+                    name: data.name,
+                    status: data.status,
+                    month: data.month || 'September',
+                    quarter: data.quarter || 'Q3',
+                    p: 0,
+                    a: 0,
+                    isEndorsed: data.status === 'ENDORSED',
+                    isLoss: data.status === 'LOSS' || data.status === 'ATTRITION',
+                    assignedTrainer: data.assignedTrainer,
+                    batchName: data.batchName,
+                    accountName: data.accountName,
+                    trainingType: data.trainingType
+                  };
+                  setTrainees(prev => [newTrainee, ...prev]);
+                  showToast('Trainee added successfully!', 'Trainee Added', 'success');
+                }
                 setIsAddModalOpen(false);
               } else {
                 showToast(resData.error || 'Failed to add trainee.', 'Addition Failed', 'error');
@@ -1281,72 +1381,37 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           mode="edit"
           initialData={{
             id: editingTrainee.id,
-            name: editingTrainee.name,
-            trainingType: editingTrainee.trainingType || 'INHOUSE',
-            batchName: editingTrainee.batchName,
-            accountName: editingTrainee.accountName,
-            assignedTrainer: editingTrainee.assignedTrainer || 'Unassigned',
-            status: editingTrainee.status || 'ACTIVE',
-            quarter: editingTrainee.quarter || 'Q1',
-            month: editingTrainee.month || 'January'
+            name: formData.name,
+            trainingType: formData.trainingType,
+            batchName: formData.batchName,
+            accountName: formData.accountName,
+            assignedTrainer: formData.assignedTrainer,
+            status: formData.status,
+            quarter: formData.quarter,
+            month: formData.month
           }}
           accounts={availableAccounts}
-          trainers={availableTrainers}
+          trainers={isTrainer ? [userName || 'Trainer'] : availableTrainers}
           existingTrainees={trainees}
           onClose={() => setEditingTrainee(null)}
-          onSubmit={async (data) => {
-            setIsSubmitting(true);
-            try {
-              const res = await fetch('/api/trainees', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  originalName: editingTrainee.name,
-                  id: editingTrainee.id || editingTrainee.name,
-                  name: data.name,
-                  trainingType: data.trainingType,
-                  batchName: data.batchName,
-                  accountName: data.accountName,
-                  assignedTrainer: data.assignedTrainer,
-                  status: data.status
-                })
-              });
-              const resData = await res.json();
-              if (resData.success) {
-                setTrainees(prev => prev.map(t => (t.id === editingTrainee.id || t.name === editingTrainee.name) ? {
-                  ...t,
-                  id: data.name,
-                  name: data.name,
-                  trainingType: data.trainingType,
-                  batchName: data.batchName,
-                  accountName: data.accountName,
-                  assignedTrainer: data.assignedTrainer,
-                  status: data.status,
-                  isLoss: data.status === 'LOSS' || data.status === 'ATTRITION',
-                  isEndorsed: data.status === 'ENDORSED'
-                } : t));
-                showToast('Trainee updated successfully!', 'Trainee Updated', 'success');
-                setEditingTrainee(null);
-              } else {
-                showToast(resData.error || 'Failed to update trainee.', 'Update Failed', 'error');
-              }
-            } catch (err: any) {
-              showToast(err.message || 'Error updating trainee.', 'Update Error', 'error');
-            } finally {
-              setIsSubmitting(false);
-            }
-          }}
+          onSubmit={handleEditTrainee}
           isSubmitting={isSubmitting}
         />
       )}
 
-      {/* DELETE CONFIRMATION MODAL - RENDERED VIA PORTAL */}
-      {canManageTrainees && deletingTrainee && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in-95 duration-150 text-center space-y-6 relative">
+      {/* DELETE TRAINEE MODAL (CENTER POPUP) */}
+      {deletingTrainee && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200 font-sans"
+          onClick={e => {
+            if (e.target === e.currentTarget && !isSubmitting) setDeletingTrainee(null);
+          }}
+        >
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95 duration-200 relative">
             <button
               onClick={() => setDeletingTrainee(null)}
-              className="absolute top-5 right-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              disabled={isSubmitting}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"
             >
               <X className="h-5 w-5" />
             </button>
@@ -1371,6 +1436,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               <button
                 type="button"
                 onClick={() => setDeletingTrainee(null)}
+                disabled={isSubmitting}
                 className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-sm transition-colors"
               >
                 Cancel
@@ -1390,7 +1456,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       )}
 
       {/* Trainee Detail Drawer */}
-      <TraineeDetailDrawer trainee={selectedCard} onClose={() => setSelectedCard(null)} />
+      <TraineeDetailDrawer 
+        trainee={selectedCard} 
+        onClose={() => setSelectedCard(null)} 
+        onEndorse={handleEndorseTrainee}
+        canEndorse={canManageTrainees}
+        canDelete={canManageTrainees}
+        onDelete={async (t) => {
+          setDeletingTrainee(t as any);
+        }}
+      />
 
     </div>
   );

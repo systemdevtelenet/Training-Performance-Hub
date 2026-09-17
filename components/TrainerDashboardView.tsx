@@ -23,6 +23,7 @@ import {
   Layers,
   Clock,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   MessageSquare
 } from 'lucide-react';
@@ -39,6 +40,8 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
   const [selectedQuarter, setSelectedQuarter] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [rosterPage, setRosterPage] = useState<number>(1);
+  const [rosterPageSize, setRosterPageSize] = useState<number>(10);
   
   // Trainer's own reliability data
   const [trainerReliability, setTrainerReliability] = useState<{
@@ -218,6 +221,17 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       return qMatch && mMatch && sMatch;
     });
   }, [trainerData.trainees, selectedQuarter, selectedMonth, searchQuery]);
+
+  // Pagination for Assigned Trainee Roster (10 items per page)
+  useEffect(() => {
+    setRosterPage(1);
+  }, [selectedQuarter, selectedMonth, searchQuery]);
+
+  const totalRosterPages = Math.ceil(filteredTrainees.length / rosterPageSize) || 1;
+  const paginatedRosterTrainees = useMemo(() => {
+    const start = (rosterPage - 1) * rosterPageSize;
+    return filteredTrainees.slice(start, start + rosterPageSize);
+  }, [filteredTrainees, rosterPage, rosterPageSize]);
 
   // Aggregate Metrics for Trainer's Classroom
   const metrics = useMemo(() => {
@@ -601,13 +615,32 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
               </p>
             </div>
           </div>
-          <Link
-            href="/trainees"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2F6798] hover:underline"
-          >
-            <span>Full Trainee Directory</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <span>Rows:</span>
+              <select
+                value={rosterPageSize >= 10000 ? 'all' : rosterPageSize}
+                onChange={e => {
+                  setRosterPageSize(e.target.value === 'all' ? 100000 : Number(e.target.value));
+                  setRosterPage(1);
+                }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              >
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <Link
+              href="/trainees"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2F6798] hover:underline"
+            >
+              <span>Full Trainee Directory</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
 
         {filteredTrainees.length > 0 ? (
@@ -624,7 +657,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredTrainees.map((t, idx) => {
+                {paginatedRosterTrainees.map((t, idx) => {
                   const cleanTName = (t.name || '').toLowerCase().trim();
                   const tl = trafficLightsMap[cleanTName];
                   const status = tl?.status || (t.isLoss ? 'Terminated' : 'Okay');
@@ -680,6 +713,79 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {filteredTrainees.length > 0 && (
+              <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="text-slate-500 dark:text-slate-400 font-medium">
+                  Showing <span className="font-bold text-slate-800 dark:text-slate-100">{(rosterPage - 1) * rosterPageSize + 1}</span> to <span className="font-bold text-slate-800 dark:text-slate-100">{Math.min(rosterPage * rosterPageSize, filteredTrainees.length)}</span> of <span className="font-bold text-slate-800 dark:text-slate-100">{filteredTrainees.length}</span> trainees
+                </div>
+
+                <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.max(p - 1, 1))}
+                    disabled={rosterPage === 1}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                    <span>Prev</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalRosterPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        if (totalRosterPages <= 5) return true;
+                        if (page === 1 || page === totalRosterPages) return true;
+                        if (Math.abs(page - rosterPage) <= 1) return true;
+                        return false;
+                      })
+                      .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                        if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                          acc.push('...');
+                        }
+                        acc.push(page);
+                        return acc;
+                      }, [])
+                      .map((item, idx) => {
+                        if (item === '...') {
+                          return (
+                            <span key={`dots-${idx}`} className="px-1.5 py-0.5 text-slate-400 font-bold">
+                              ...
+                            </span>
+                          );
+                        }
+                        const pageNum = item as number;
+                        const isActive = pageNum === rosterPage;
+                        return (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => setRosterPage(pageNum)}
+                            className={`w-7 h-7 rounded-lg font-black text-xs transition-all ${
+                              isActive
+                                ? 'bg-[#2F6798] text-white shadow-sm'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.min(p + 1, totalRosterPages))}
+                    disabled={rosterPage === totalRosterPages}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-10 text-center space-y-2">

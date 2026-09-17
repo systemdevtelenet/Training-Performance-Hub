@@ -79,10 +79,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
       roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'],
       subItems: [
         { name: 'Trainers Directory', href: '/trainers', icon: FileText, desc: 'Profiles & qualifications' },
+        { name: 'Trainee Attendance (Calendar)', href: '/trainers?tab=calendar', icon: Calendar, desc: 'Daily tagging, statuses & reasons' },
         { name: 'Attendance & Reliability', href: '/trainers?tab=attendance', icon: ShieldCheck, desc: 'Attendance & Reliability records' },
       ],
       flyoutItems: [
         { name: 'Trainers Directory', href: '/trainers', icon: FileText, desc: 'Profiles, qualifications & accounts' },
+        { name: 'Trainee Attendance (Calendar)', href: '/trainers?tab=calendar', icon: Calendar, desc: 'Calendar-style attendance tagging, status & notes' },
         { name: 'Attendance & Reliability', href: '/trainers?tab=attendance', icon: ShieldCheck, desc: 'Reliability records & attendance scorecards' },
       ]
     },

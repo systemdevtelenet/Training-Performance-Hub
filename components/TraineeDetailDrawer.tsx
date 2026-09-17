@@ -14,12 +14,14 @@ import {
   XCircle,
   ArrowLeft,
   TrendingDown,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 
 export type DrawerTrainee = {
   isBatch?: boolean;
   members?: any[];
+  id?: string;
   name: string;
   status?: string;
   p?: number;
@@ -35,13 +37,31 @@ export type DrawerTrainee = {
   headcount?: number;
   attritionRate?: string;
   contextLabel?: string;
+  startDate?: string;
+  endorsedDate?: string;
+  nhoCompleted?: boolean;
 };
 
-export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrainee | null; onClose: () => void }) {
+export function TraineeDetailDrawer({ 
+  trainee, 
+  onClose,
+  onEndorse,
+  canEndorse = false,
+  onDelete,
+  canDelete = false
+}: { 
+  trainee: DrawerTrainee | null; 
+  onClose: () => void;
+  onEndorse?: (trainee: DrawerTrainee) => Promise<void>;
+  canEndorse?: boolean;
+  onDelete?: (trainee: DrawerTrainee) => Promise<void>;
+  canDelete?: boolean;
+}) {
   const [rendered, setRendered] = useState(Boolean(trainee));
   const [open, setOpen] = useState(Boolean(trainee));
   const [displayedTrainee, setDisplayedTrainee] = useState<DrawerTrainee | null>(trainee);
   const [selectedMember, setSelectedMember] = useState<DrawerTrainee | null>(null);
+  const [isEndorsing, setIsEndorsing] = useState(false);
 
   useEffect(() => {
     if (trainee) {
@@ -87,18 +107,25 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
     const upperStatus = status.toUpperCase();
 
     const statusBadgeClass = upperStatus === 'ENDORSED'
-      ? 'border border-emerald-300 text-emerald-700 bg-emerald-50'
+      ? 'border border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300'
       : upperStatus === 'LOSS' || upperStatus === 'ATTRITION' || upperStatus === 'EOC'
-      ? 'border border-red-300 text-red-700 bg-red-50'
-      : 'border border-blue-300 text-blue-700 bg-blue-50';
+      ? 'border border-red-300 text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300'
+      : 'border border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300';
 
-    const infoItems = [
+    const infoItems: { label: string; value: string; icon: any }[] = [
       { label: 'Full Name', value: t.name, icon: UserRound },
-      { label: 'Batch', value: t.batchName, icon: BriefcaseBusiness },
+      { label: 'Batch / Wave', value: t.batchName, icon: BriefcaseBusiness },
       { label: 'Account / Client', value: t.accountName, icon: BriefcaseBusiness },
-      { label: 'Training Type', value: t.trainingType, icon: GraduationCap },
+      { label: 'Training Track', value: t.trainingType === 'INHOUSE' ? 'Inhouse Training' : (t.trainingType === 'PST' ? 'PST Training' : t.trainingType || 'Inhouse Training'), icon: GraduationCap },
       { label: 'Assigned Trainer', value: t.assignedTrainer || 'Unassigned', icon: UserCheck },
     ];
+
+    if (t.startDate) {
+      infoItems.push({ label: 'Start Date', value: t.startDate, icon: CalendarDays });
+    }
+    if (t.endorsedDate) {
+      infoItems.push({ label: 'Endorsement Date', value: t.endorsedDate, icon: CheckCircle2 });
+    }
 
     const formatDayUnit = (count: number) => `${count} ${count === 1 ? 'Day' : 'Days'}`;
 
@@ -107,6 +134,20 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
       { label: 'Present Days', value: formatDayUnit(t.p || 0), icon: CheckCircle2 },
       { label: 'Absent Days', value: formatDayUnit(t.a || 0), icon: XCircle },
     ];
+
+    const handleEndorseClick = async () => {
+      if (!onEndorse || isEndorsing) return;
+      setIsEndorsing(true);
+      try {
+        await onEndorse(t);
+        setDisplayedTrainee(prev => prev ? { ...prev, status: 'ENDORSED', isEndorsed: true, endorsedDate: new Date().toISOString().split('T')[0] } : null);
+        if (selectedMember) {
+          setSelectedMember(prev => prev ? { ...prev, status: 'ENDORSED', isEndorsed: true, endorsedDate: new Date().toISOString().split('T')[0] } : null);
+        }
+      } finally {
+        setIsEndorsing(false);
+      }
+    };
 
     return (
       <div className="flex-1 overflow-y-auto font-sans bg-white dark:bg-slate-900">
@@ -199,6 +240,42 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
             </div>
 
           </div>
+
+          {/* Endorsement Action Banner for Trainers & Admins */}
+          {canEndorse && onEndorse && upperStatus !== 'ENDORSED' && (
+            <div className="mt-5 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/30 flex items-center justify-between gap-4">
+              <div>
+                <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Ready for Endorsement?
+                </h4>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400/90 mt-0.5">
+                  Graduate trainee and endorse to Live Operations / Nesting.
+                </p>
+              </div>
+              <button
+                onClick={handleEndorseClick}
+                disabled={isEndorsing}
+                className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {isEndorsing ? 'Endorsing...' : 'Endorse Trainee'}
+              </button>
+            </div>
+          )}
+
+          {/* Delete Record Option */}
+          {canDelete && onDelete && (
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => onDelete(t)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer border border-red-200/60 dark:border-red-900/40"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Trainee Record
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -285,28 +362,50 @@ export function TraineeDetailDrawer({ trainee, onClose }: { trainee: DrawerTrain
                     : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40';
 
                   return (
-                    <button 
-                      key={idx} 
-                      type="button"
-                      onClick={() => setSelectedMember({
-                        ...member,
-                        accountName: batch.accountName,
-                        batchName: batch.batchName,
-                        trainingType: batch.trainingType
-                      })}
-                      className="flex w-full items-center justify-between p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:border-[#2F6798] dark:hover:border-blue-400 hover:shadow-sm transition-all group text-left"
+                    <div
+                      key={idx}
+                      className="flex w-full items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:border-[#2F6798] dark:hover:border-blue-400 hover:shadow-xs transition-all group"
                     >
-                      <div className="flex items-center gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedMember({
+                          ...member,
+                          accountName: batch.accountName,
+                          batchName: batch.batchName,
+                          trainingType: batch.trainingType
+                        })}
+                        className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
+                      >
                         <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-xs text-[#2F6798] dark:text-[#5a9fd4] shrink-0">
                           {getInitials(member.name)}
                         </div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-[#5a9fd4] transition-colors">{member.name}</span>
-                      </div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-[#5a9fd4] transition-colors truncate">{member.name}</span>
+                      </button>
 
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
-                        {statusStr}
-                      </span>
-                    </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
+                          {statusStr}
+                        </span>
+                        {canDelete && onDelete && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete({
+                                ...member,
+                                accountName: batch.accountName,
+                                batchName: batch.batchName,
+                                trainingType: batch.trainingType
+                              });
+                            }}
+                            title={`Delete ${member.name}`}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   );
                 })
               )}

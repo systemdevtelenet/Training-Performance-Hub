@@ -41,3 +41,26 @@ create table if not exists activity_logs (
   author text not null,
   created_at timestamptz default now()
 );
+
+create table if not exists onboarding_trainees (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  status text default 'ONBOARDING',
+  month text,
+  quarter text,
+  p integer default 0,
+  a integer default 0,
+  isEndorsed boolean default false,
+  isLoss boolean default false,
+  assignedTrainer text,
+  batchName text,
+  accountName text,
+  nhoCompleted boolean default true,
+  startDate text,
+  endorsedDate text,
+  created_at timestamptz default now()
+);
+
+create index if not exists onboarding_trainees_name_idx on onboarding_trainees (name);
+create index if not exists onboarding_trainees_trainer_idx on onboarding_trainees (assignedTrainer);
+

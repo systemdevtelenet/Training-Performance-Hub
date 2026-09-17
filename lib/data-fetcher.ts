@@ -29,9 +29,18 @@ export const getDashboardData = unstable_cache(
         .from('trainers')
         .select('*');
 
+      const { data: trainersProfile } = await supabaseAdmin
+        .from('trainers_profile')
+        .select('*');
+
       const inhouseList = inhouseData || [];
       const pstList = pstData || [];
       const trainersList = trainersData || [];
+      const profileList = trainersProfile || [];
+
+      const trainerNamesSet = new Set<string>();
+      trainersList.forEach(t => { if (t.name) trainerNamesSet.add(t.name.trim()); });
+      profileList.forEach(p => { if (p.name) trainerNamesSet.add(p.name.trim()); });
 
       const totalTrainees = inhouseList.length + pstList.length;
       const activeTrainers = trainersList.filter(t => (t.status || '').toUpperCase() === 'ACTIVE' || !t.status).length || trainersList.length;
@@ -66,6 +75,7 @@ export const getDashboardData = unstable_cache(
         inhouseGroups[accountName][batchName].members.push({
           id: item.id || item.name,
           name: item.name,
+          assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
           status: item.status || 'ACTIVE',
           accountName,
           batchName,
@@ -102,6 +112,7 @@ export const getDashboardData = unstable_cache(
         pstGroups[accountName][batchName].members.push({
           id: item.id || item.name,
           name: item.name,
+          assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
           status: item.status || 'ACTIVE',
           accountName,
           batchName,
@@ -127,6 +138,7 @@ export const getDashboardData = unstable_cache(
         classesInSession: batchSet.size
       };
       transformed.allAccounts = Array.from(accountsSet).sort();
+      transformed.allTrainers = Array.from(trainerNamesSet).sort();
       transformed.inhouse.groups = inhouseGroups;
       transformed.pst.groups = pstGroups;
       transformed.summary.trainersSummary = {

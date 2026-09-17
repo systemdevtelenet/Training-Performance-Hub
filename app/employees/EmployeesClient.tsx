@@ -656,9 +656,9 @@ export default function EmployeesClient({
             <div className="flex items-center gap-1.5">
               <span>Rows per page:</span>
               <select
-                value={pageSize}
+                value={pageSize >= 10000 ? 'all' : pageSize}
                 onChange={e => {
-                  setPageSize(Number(e.target.value));
+                  setPageSize(e.target.value === 'all' ? 100000 : Number(e.target.value));
                   setCurrentPage(1);
                 }}
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
@@ -667,6 +667,7 @@ export default function EmployeesClient({
                 <option value={15}>15</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
+                <option value="all">All</option>
               </select>
             </div>
             <span>
