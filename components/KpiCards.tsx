@@ -60,34 +60,31 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
             />
           </div>
 
-          <div className="relative z-10 flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${kpi.color}`}>
-                <kpi.icon className="h-5 w-5" />
-              </div>
-              
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{kpi.label}</h3>
-                {isLoading ? (
-                  <div className="mt-1 h-7 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700"></div>
-                ) : (
-                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{kpi.value}</p>
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">{kpi.label}</h3>
+                {/* Trend Badge */}
+                {!isLoading && (
+                  <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[9px] font-bold ${
+                    kpi.isPositive === true ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' :
+                    kpi.isPositive === false ? 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800' :
+                    'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
+                  }`}>
+                    {kpi.trend}
+                  </span>
                 )}
               </div>
+              {isLoading ? (
+                <div className="mt-1 h-7 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700"></div>
+              ) : (
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{kpi.value}</p>
+              )}
             </div>
-            
-            {/* Trend Badge */}
-            {isLoading ? (
-              <div className="h-5 w-12 shrink-0 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700"></div>
-            ) : (
-              <div className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                kpi.isPositive === true ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' :
-                kpi.isPositive === false ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800' :
-                'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
-              }`}>
-                {kpi.trend}
-              </div>
-            )}
+
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ml-2 ${kpi.color}`}>
+              <kpi.icon className="h-5 w-5" />
+            </div>
           </div>
         </div>
       ))}
