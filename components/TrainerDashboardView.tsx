@@ -316,9 +316,6 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
             <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
               TRAINER DASHBOARD
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2F6798]/10 text-[#2F6798] dark:bg-blue-950/60 dark:text-blue-300 border border-[#2F6798]/20">
-              Operations Classroom Hub
-            </span>
           </div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight mt-0.5">
             Welcome back, {userName || 'Trainer'}

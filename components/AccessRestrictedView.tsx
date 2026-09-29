@@ -76,21 +76,21 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
           </p>
         </div>
 
-        {/* Account Info Box - Solid Blue with White Text & White Pill for ID */}
-        <div className="bg-[#2F6798] border border-[#24527a] rounded-2xl p-4 text-left space-y-2.5 text-xs text-white shadow-md shadow-[#2F6798]/20 relative overflow-hidden">
-          <div className="flex items-center justify-between text-white/85 font-medium">
+        {/* Account Info Box - Solid Blue in light mode / Sleek dark panel in dark mode */}
+        <div className="bg-[#2F6798] dark:bg-slate-900/90 border border-[#24527a] dark:border-slate-700/80 rounded-2xl p-4 text-left space-y-2.5 text-xs text-white dark:text-slate-100 shadow-md shadow-[#2F6798]/20 dark:shadow-black/40 relative overflow-hidden">
+          <div className="flex items-center justify-between text-white/85 dark:text-slate-300 font-medium">
             <span className="text-[11px] font-semibold tracking-wide">Signed In Account</span>
-            <span className="text-[11px] font-bold font-mono bg-white text-[#2F6798] px-3 py-0.5 rounded-full shadow-xs">
+            <span className="text-[11px] font-bold font-mono bg-white dark:bg-slate-800 text-[#2F6798] dark:text-sky-400 px-3 py-0.5 rounded-full shadow-xs border border-transparent dark:border-slate-700">
               {userMeta?.employeeId && userMeta.employeeId !== 'N/A' ? `ID: ${userMeta.employeeId}` : 'Employee'}
             </span>
           </div>
           <div className="space-y-0.5">
-            <p className="font-extrabold text-white text-base tracking-tight truncate">{userName || 'Employee User'}</p>
-            <p className="text-white/80 font-mono text-xs truncate">{email || 'No email associated'}</p>
+            <p className="font-extrabold text-white dark:text-slate-100 text-base tracking-tight truncate">{userName || 'Employee User'}</p>
+            <p className="text-white/80 dark:text-slate-400 font-mono text-xs truncate">{email || 'No email associated'}</p>
           </div>
           {userMeta?.primaryTask && userMeta.primaryTask !== 'N/A' && (
-            <p className="text-[11px] text-white/70 pt-2 border-t border-white/20">
-              Position: <span className="text-white font-semibold">{userMeta.primaryTask}</span>
+            <p className="text-[11px] text-white/70 dark:text-slate-400 pt-2 border-t border-white/20 dark:border-slate-700/80">
+              Position: <span className="text-white dark:text-slate-200 font-semibold">{userMeta.primaryTask}</span>
             </p>
           )}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Calendar as CalendarIcon,
@@ -18,7 +18,6 @@ import {
   Building2,
   Users,
   ShieldCheck,
-  ShieldAlert,
   Loader2,
   RefreshCw,
   Download,
@@ -139,6 +138,172 @@ export function AttendanceCalendarView({
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
+
+  // Date Picker Modal state for Daily Roster
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(() => new Date());
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState<boolean>(false);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState<boolean>(false);
+  const calendarPickerRef = useRef<HTMLDivElement>(null);
+  const monthDropdownRef = useRef<HTMLDivElement>(null);
+  const yearDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (calendarPickerRef.current && !calendarPickerRef.current.contains(event.target as Node)) {
+        setIsDatePickerOpen(false);
+        setIsMonthDropdownOpen(false);
+        setIsYearDropdownOpen(false);
+      }
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target as Node)) {
+        setIsMonthDropdownOpen(false);
+      }
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(event.target as Node)) {
+        setIsYearDropdownOpen(false);
+      }
+    }
+    if (isDatePickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDatePickerOpen]);
+
+  // Sync calendarViewDate when opening
+  const handleOpenDatePicker = () => {
+    if (selectedDate) {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      setCalendarViewDate(new Date(y, m - 1, d));
+    } else {
+      setCalendarViewDate(new Date());
+    }
+    setIsDatePickerOpen(prev => !prev);
+    setIsMonthDropdownOpen(false);
+    setIsYearDropdownOpen(false);
+  };
+
+  const shiftDate = (days: number) => {
+    const [y, m, d] = (selectedDate || new Date().toISOString().split('T')[0]).split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    const yStr = date.getFullYear();
+    const mStr = String(date.getMonth() + 1).padStart(2, '0');
+    const dStr = String(date.getDate()).padStart(2, '0');
+    const newDateStr = `${yStr}-${mStr}-${dStr}`;
+    setSelectedDate(newDateStr);
+    setCalendarViewDate(date);
+  };
+
+  const setDateToday = () => {
+    const today = new Date();
+    const yStr = today.getFullYear();
+    const mStr = String(today.getMonth() + 1).padStart(2, '0');
+    const dStr = String(today.getDate()).padStart(2, '0');
+    const todayIso = `${yStr}-${mStr}-${dStr}`;
+    setSelectedDate(todayIso);
+    setCalendarViewDate(today);
+  };
+
+  // Formatted date e.g. "September 30, 2026"
+  const formattedSelectedDateDisplay = useMemo(() => {
+    if (!selectedDate) return '';
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }, [selectedDate]);
+
+  // Short formatted date e.g. "Sep 30, 2026"
+  const formattedSelectedDateShort = useMemo(() => {
+    if (!selectedDate) return '';
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [selectedDate]);
+
+  // Calendar title for header inside popup e.g. "September 30"
+  const calendarPopupHeaderTitle = useMemo(() => {
+    if (!selectedDate) return '';
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  }, [selectedDate]);
+
+  const monthsList = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const yearsList = useMemo(() => {
+    const current = new Date().getFullYear();
+    const list: number[] = [];
+    for (let y = current - 5; y <= current + 5; y++) {
+      list.push(y);
+    }
+    return list;
+  }, []);
+
+  const calendarDaysData = useMemo(() => {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 = Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    
+    const days: Array<{
+      dayNumber: number;
+      monthOffset: -1 | 0 | 1;
+      isoDate: string;
+      isToday: boolean;
+      isSelected: boolean;
+    }> = [];
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    // Leading days from previous month
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const d = prevMonthDays - i;
+      const prevDate = new Date(year, month - 1, d);
+      const iso = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        dayNumber: d,
+        monthOffset: -1,
+        isoDate: iso,
+        isToday: iso === todayStr,
+        isSelected: iso === selectedDate
+      });
+    }
+
+    // Current month days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        dayNumber: d,
+        monthOffset: 0,
+        isoDate: iso,
+        isToday: iso === todayStr,
+        isSelected: iso === selectedDate
+      });
+    }
+
+    // Trailing days from next month to fill 35 or 42 grid
+    const totalCells = days.length <= 35 ? 35 : 42;
+    const remaining = totalCells - days.length;
+    for (let d = 1; d <= remaining; d++) {
+      const nextDate = new Date(year, month + 1, d);
+      const iso = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        dayNumber: d,
+        monthOffset: 1,
+        isoDate: iso,
+        isToday: iso === todayStr,
+        isSelected: iso === selectedDate
+      });
+    }
+
+    return days;
+  }, [calendarViewDate, selectedDate]);
 
   // View mode switcher: 'table' (Daily Roster) vs 'matrix' (Monthly Calendar Grid)
   const [viewMode, setViewMode] = useState<'table' | 'matrix'>('table');
@@ -923,16 +1088,6 @@ export function AttendanceCalendarView({
     showToast('Attendance report exported successfully.', 'success');
   };
 
-  // Date Navigation Helpers
-  const shiftDate = (days: number) => {
-    const current = new Date(selectedDate);
-    current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split('T')[0]);
-  };
-
-  const setDateToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
-  };
 
 
 
@@ -1013,29 +1168,6 @@ export function AttendanceCalendarView({
         </div>
       </div>
 
-      {/* Admin Reflection Banner if user is Admin */}
-      {isAdmin && !isTrainer && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/60 dark:border-amber-700/60 rounded-2xl p-3.5 sm:px-4 sm:py-3 flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                Admin Audit &amp; Reflection View
-              </h4>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-                You are viewing real-time attendance and notes recorded by trainers. Editing is restricted to assigned trainers.
-              </p>
-            </div>
-          </div>
-          <div className="hidden md:flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-white dark:bg-slate-800 dark:text-amber-300 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800 shadow-2xs">
-              Live Feed Synced
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Daily Attendance Breakdown KPI Cards (Artwork Watermark & Badge Design) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1297,40 +1429,206 @@ export function AttendanceCalendarView({
                   </h3>
                 </div>
 
-                {/* Date Stepper & Picker Integrated */}
-                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                {/* Date Stepper & Popup Calendar Integrated */}
+                <div className="flex items-center gap-1 relative" ref={calendarPickerRef}>
+                  {/* Left Arrow Button */}
                   <button
                     type="button"
                     onClick={() => shiftDate(-1)}
-                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition-all cursor-pointer"
                     title="Previous Day"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
+
+                  {/* Center Pill Button displaying e.g. "September 30, 2026" */}
                   <button
                     type="button"
-                    onClick={setDateToday}
-                    className="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    onClick={handleOpenDatePicker}
+                    className="h-7 px-3 flex items-center gap-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-[#1e3a5f] dark:text-blue-300 font-bold text-[11px] shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                    title="Choose Date"
                   >
-                    Today
+                    <CalendarDays className="w-3 h-3 text-[#2F6798] dark:text-blue-400 shrink-0" />
+                    <span className="font-extrabold text-[11px] tracking-tight">{formattedSelectedDateDisplay}</span>
+                    <ChevronDown className={`w-3 h-3 text-slate-400 dark:text-slate-500 transition-transform duration-200 ${isDatePickerOpen ? 'rotate-180' : ''}`} />
                   </button>
+
+                  {/* Right Arrow Button */}
                   <button
                     type="button"
                     onClick={() => shiftDate(1)}
-                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition-all cursor-pointer"
                     title="Next Day"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
 
-                  <div className="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+                  {/* Interactive Calendar Dropdown Modal (Matching Image 3, compact scale) */}
+                  {isDatePickerOpen && (
+                    <div className="absolute top-full left-0 sm:left-auto mt-2 w-[295px] sm:w-[305px] rounded-2xl bg-white dark:bg-slate-900 shadow-2xl ring-1 ring-slate-200/80 dark:ring-slate-700 p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      {/* Header section: Title, Selectors, and Binder Graphic */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex flex-col gap-1">
+                          <h2 className="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none">
+                            {calendarPopupHeaderTitle}
+                          </h2>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {/* Month Dropdown */}
+                            <div className="relative" ref={monthDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsMonthDropdownOpen(!isMonthDropdownOpen);
+                                  setIsYearDropdownOpen(false);
+                                }}
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                              >
+                                <span>{monthsList[calendarViewDate.getMonth()]}</span>
+                                <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                              </button>
+                              {isMonthDropdownOpen && (
+                                <div className="absolute top-full left-0 mt-1 max-h-44 overflow-y-auto w-28 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 py-1 z-60">
+                                  {monthsList.map((m, idx) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => {
+                                        const newDate = new Date(calendarViewDate);
+                                        newDate.setMonth(idx);
+                                        setCalendarViewDate(newDate);
+                                        setIsMonthDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                                        calendarViewDate.getMonth() === idx
+                                          ? 'bg-blue-50 text-[#2F6798] dark:bg-slate-700 dark:text-blue-400'
+                                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                                      }`}
+                                    >
+                                      {m}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={e => e.target.value && setSelectedDate(e.target.value)}
-                    className="text-xs font-bold text-[#2F6798] dark:text-blue-400 bg-transparent px-1.5 py-0.5 outline-none cursor-pointer"
-                  />
+                            {/* Year Dropdown */}
+                            <div className="relative" ref={yearDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsYearDropdownOpen(!isYearDropdownOpen);
+                                  setIsMonthDropdownOpen(false);
+                                }}
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                              >
+                                <span>{calendarViewDate.getFullYear()}</span>
+                                <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                              </button>
+                              {isYearDropdownOpen && (
+                                <div className="absolute top-full left-0 mt-1 max-h-44 overflow-y-auto w-20 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 py-1 z-60">
+                                  {yearsList.map(y => (
+                                    <button
+                                      key={y}
+                                      type="button"
+                                      onClick={() => {
+                                        const newDate = new Date(calendarViewDate);
+                                        newDate.setFullYear(y);
+                                        setCalendarViewDate(newDate);
+                                        setIsYearDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                                        calendarViewDate.getFullYear() === y
+                                          ? 'bg-blue-50 text-[#2F6798] dark:bg-slate-700 dark:text-blue-400'
+                                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                                      }`}
+                                    >
+                                      {y}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Binder Ring Badge */}
+                        <div className="relative flex h-9 w-10 flex-col items-center justify-center rounded-xl bg-[#2F6798] shadow-sm shadow-[#2F6798]/30">
+                          <div className="absolute -top-0.5 left-1.5 h-1.5 w-1 rounded-full bg-slate-300 dark:bg-slate-400"></div>
+                          <div className="absolute -top-0.5 right-1.5 h-1.5 w-1 rounded-full bg-slate-300 dark:bg-slate-400"></div>
+                          <span className="text-[10px] leading-none font-black text-white mt-0.5">
+                            {calendarViewDate.getFullYear()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Weekday Grid Header */}
+                      <div className="grid grid-cols-7 gap-0.5 text-center mb-1.5">
+                        {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
+                          <div
+                            key={day}
+                            className={`text-[8.5px] font-black tracking-wider ${
+                              i === 0 ? 'text-[#2F6798] dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+                            }`}
+                          >
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Days Grid */}
+                      <div className="grid grid-cols-7 gap-0.5 text-center">
+                        {calendarDaysData.map((d, idx) => {
+                          const isCurrentMonth = d.monthOffset === 0;
+                          return (
+                            <button
+                              key={`${d.isoDate}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDate(d.isoDate);
+                                const [y, m, dayNum] = d.isoDate.split('-').map(Number);
+                                setCalendarViewDate(new Date(y, m - 1, dayNum));
+                              }}
+                              className="flex h-7 w-7 mx-auto items-center justify-center rounded-full transition-all group cursor-pointer"
+                            >
+                              <div
+                                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
+                                  d.isToday
+                                    ? 'bg-[#2F6798] text-white shadow-xs'
+                                    : d.isSelected
+                                    ? 'border-2 border-[#2F6798] text-[#2F6798] dark:border-blue-400 dark:text-blue-400 font-black'
+                                    : isCurrentMonth
+                                    ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    : 'text-slate-300 dark:text-slate-600'
+                                }`}
+                              >
+                                {d.dayNumber.toString().padStart(2, '0')}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Selected Date Preview Bar */}
+                      <div className="mt-3 flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[11px]">
+                        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold text-[10px]">
+                          <Clock className="w-3 h-3 text-[#2F6798] dark:text-blue-400" />
+                          <span>Selected Date</span>
+                        </div>
+                        <span className="font-extrabold text-[#2F6798] dark:text-blue-300 text-[11px]">
+                          {formattedSelectedDateShort}
+                        </span>
+                      </div>
+
+                      {/* Confirm Selection Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsDatePickerOpen(false)}
+                        className="mt-2.5 w-full py-2 rounded-lg bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-[11px] shadow-sm shadow-[#2F6798]/25 transition-all cursor-pointer active:scale-98"
+                      >
+                        Confirm Selection
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Mark All Present */}
