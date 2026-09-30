@@ -55,6 +55,13 @@ function LoginFormContent() {
     }
   }, [searchParams]);
 
+  // If login component is rendered while URL is on a protected route (e.g. after AFK session expiration), sync URL
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/auth')) {
+      window.location.replace('/login');
+    }
+  }, []);
+
   // Validation and Loading States
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);

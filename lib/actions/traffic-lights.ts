@@ -47,6 +47,31 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
       }
     });
 
+    // Also check trainers_profile directory table dynamically for assigned accounts
+    const { data: trainerProfiles } = await supabaseAdmin
+      .from('trainers_profile')
+      .select('name, gmail_account, thunderbird_account, accounts');
+
+    (trainerProfiles || []).forEach(tr => {
+      const trName = (tr.name || '').toLowerCase().trim();
+      const trGmail = (tr.gmail_account || '').toLowerCase().trim();
+      const trTbird = (tr.thunderbird_account || '').toLowerCase().trim();
+
+      const isEmailMatch = Boolean(cleanEmail && (
+        (trGmail && trGmail.includes('@') && (trGmail === cleanEmail || trGmail.split('@')[0] === cleanEmail.split('@')[0])) ||
+        (trTbird && trTbird.includes('@') && (trTbird === cleanEmail || trTbird.split('@')[0] === cleanEmail.split('@')[0]))
+      ));
+
+      const isNameMatch = Boolean(cleanName && isTrainerMatch(trName, cleanName));
+
+      if ((isEmailMatch || isNameMatch) && tr.accounts) {
+        tr.accounts.split(/[,/|&;\n]/).forEach((accStr: string) => {
+          const a = accStr.trim().toLowerCase();
+          if (a && a !== 'n/a') matchedAccounts.add(a);
+        });
+      }
+    });
+
     return {
       names: Array.from(matchedNames),
       accounts: Array.from(matchedAccounts)
@@ -122,82 +147,211 @@ export async function getAvailableTrafficLightAccounts() {
   }
 }
 
-export async function getTrafficLightData(account: string, quarter: string) {
+function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean {
+  if (!accId || !traineeAcc) return false;
+  const cleanId = accId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTrainee = traineeAcc.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (cleanId === cleanTrainee) return true;
+  if (cleanTrainee.includes(cleanId) || cleanId.includes(cleanTrainee)) return true;
+  
+  // Specific alias mappings:
+  if ((cleanId === 'dft' || cleanId === 'deferit') && (cleanTrainee.includes('deferit') || cleanTrainee.includes('dft'))) return true;
+  if (cleanId === 'flexar' && cleanTrainee.includes('flexar')) return true;
+  if (cleanId === 'xpn' && cleanTrainee.includes('xpn')) return true;
+  if (cleanId === 'fleet' && cleanTrainee.includes('fleet')) return true;
+  if ((cleanId === 'mmtranspo' || cleanId === 'mm') && (cleanTrainee.includes('mmtranspo') || cleanTrainee === 'mm')) return true;
+  if ((cleanId === 'hh' || cleanId === 'hammerhead') && (cleanTrainee.includes('hh') || cleanTrainee.includes('hammerhead'))) return true;
+  if (cleanId === 'js' && cleanTrainee.includes('js')) return true;
+  if (cleanId === 'ono' && cleanTrainee.includes('ono')) return true;
+  if (cleanId === 'awd' && cleanTrainee.includes('awd')) return true;
+  if (cleanId === 'rm' && cleanTrainee.includes('rm')) return true;
+  if ((cleanId === 'otheracc' || cleanId === 'other') && ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr'].some(s => cleanTrainee.includes(s))) return true;
+
+  return false;
+}
+
+function getQuarterDateColumns(quarter: string) {
+  const q = (quarter || 'q2').toLowerCase();
+  if (q === 'q1') return ['1/2/2026', '1/9/2026', '1/16/2026', '1/23/2026', '1/30/2026', '2/6/2026', '2/13/2026', '2/20/2026', '2/27/2026', '3/6/2026', '3/13/2026', '3/20/2026', '3/27/2026'];
+  if (q === 'q3') return ['7/3/2026', '7/10/2026', '7/17/2026', '7/24/2026', '7/31/2026', '8/7/2026', '8/14/2026', '8/21/2026', '8/28/2026', '9/4/2026', '9/11/2026', '9/18/2026', '9/25/2026'];
+  if (q === 'q4') return ['10/2/2026', '10/9/2026', '10/16/2026', '10/23/2026', '10/30/2026', '11/6/2026', '11/13/2026', '11/20/2026', '11/27/2026', '12/4/2026', '12/11/2026', '12/18/2026', '12/25/2026'];
+  return ['4/3/2026', '4/10/2026', '4/17/2026', '4/24/2026', '5/1/2026', '5/8/2026', '5/15/2026', '5/22/2026', '5/29/2026', '6/5/2026', '6/12/2026', '6/19/2026', '6/26/2026'];
+}
+
+function standardizeTrafficLightRow(row: any, fallbackAccount?: string) {
+  if (!row) return row;
+  const keys = Object.keys(row);
+  const candidateKeys = ['teams', 'name', 'trainers', 'trainer', 'employee', 'staff', 'rm-teamleads', 'js', 'ono', 'flexar', 'dft', 'awd', 'hh', 'fleet', 'rm', 'xpn'];
+  const metaKeys = ['id', 'created_at', 'account', 'position', '_account', 'isaccountheader', 'isAccountHeader', 'remarks', 'status', 'total', 'average'];
+  
+  let nameCol = keys.find(k => candidateKeys.includes(k.toLowerCase()));
+  if (!nameCol) {
+    nameCol = keys.find(k => !metaKeys.includes(k.toLowerCase()) && isNaN(new Date(k).getTime()) && !/^\d{1,2}\/\d{1,2}/.test(k));
+  }
+  if (!nameCol) nameCol = keys[0];
+
+  const primaryName = row[nameCol] ?? row.teams ?? row.name ?? '';
+  return {
+    ...row,
+    teams: primaryName,
+    _nameCol: nameCol,
+    _account: row._account || fallbackAccount
+  };
+}
+
+export async function getTrafficLightData(account: string, quarter: string, accountList?: string[]) {
   try {
-    const tableName1 = `traffic_light_mon_${account}_${quarter}`;
-    const tableName2 = `traffic_light_mon_ ${account}_${quarter}`;
+    if (account === 'all') {
+      const targetAccounts = accountList && accountList.length > 0
+        ? accountList.filter(a => a !== 'all')
+        : ['trainers', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
 
-    // Try primary clean table name first
-    const { data: res1, error: err1 } = await supabaseAdmin.from(tableName1).select('*');
-    if (!err1 && res1 && res1.length > 0) {
-      return { data: res1, error: null };
-    }
+      const combined: any[] = [];
+      const labelFormatting: Record<string, string> = {
+        'rm': 'RM',
+        'xpn': 'XPN',
+        'fleet': 'Fleet',
+        'leaders': 'Leaders',
+        'trainers': 'Trainers',
+        'dft': 'DFT',
+        'js': 'JS',
+        'ono': 'ONO',
+        'awd': 'AWD',
+        'flexar': 'FLEXAR',
+        'hh': 'HH',
+        'mm_transpo': 'MM Transpo',
+        'other_acc': 'Other Acc'
+      };
 
-    // Try fallback table name with space
-    const { data: res2, error: err2 } = await supabaseAdmin.from(tableName2).select('*');
-    if (!err2 && res2 && res2.length > 0) {
-      return { data: res2, error: null };
-    }
+      for (const acc of targetAccounts) {
+        const res = await getSingleTrafficLightData(acc, quarter);
+        if (res.data && res.data.length > 0) {
+          const accLabel = labelFormatting[acc.toLowerCase()] || acc.toUpperCase().replace(/_/g, ' ');
 
-    // If direct table was empty/missing, check other_acc table
-    const otherTable1 = `traffic_light_mon_other_acc_${quarter}`;
-    const otherTable2 = `traffic_light_mon_ other_acc_${quarter}`;
+          combined.push({
+            id: `acc_header_${acc}`,
+            teams: `ACCOUNT: ${accLabel}`,
+            isAccountHeader: true,
+            _account: acc
+          });
 
-    let { data: otherData, error: errOther } = await supabaseAdmin.from(otherTable1).select('*');
-    if (!otherData || otherData.length === 0) {
-      const { data: o2, error: errO2 } = await supabaseAdmin.from(otherTable2).select('*');
-      if (o2 && o2.length > 0) otherData = o2;
-      else if (errO2) errOther = errO2;
-    }
-
-    if (otherData && otherData.length > 0) {
-      if (account === 'other_acc') {
-        return { data: otherData, error: null };
-      }
-
-      // Filter sub-section from other_acc table
-      const cleanTarget = account.toLowerCase().replace(/[^a-z0-9]/g, '');
-      let capturing = false;
-      const extracted: any[] = [];
-
-      for (const row of otherData) {
-        const keys = Object.keys(row);
-        const candidateKeys = ['teams', 'name', 'trainers', 'trainer', 'employee', 'staff'];
-        const nameCol = keys.find(k => candidateKeys.includes(k.toLowerCase())) || keys[0];
-        const rawVal = row[nameCol];
-
-        if (rawVal === null || rawVal === undefined) continue;
-        const strVal = String(rawVal).trim();
-        if (!strVal || strVal.toLowerCase() === 'null') continue;
-
-        const cleanVal = strVal.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        if (!capturing && (cleanVal === cleanTarget || cleanVal.includes(cleanTarget) || cleanTarget.includes(cleanVal))) {
-          capturing = true;
-          continue;
-        }
-
-        if (capturing) {
-          const knownHeaders = ['cova', 'soas', 'flexar', 'hh', 'js', 'ono', 'mmtranspo', 'bilingualcsr', 'corpqa', 'cts'];
-          const isHeader = (knownHeaders.includes(cleanVal) && cleanVal !== cleanTarget) || strVal.toUpperCase().startsWith('TEAM');
-          if (isHeader) {
-            break;
-          }
-          extracted.push(row);
+          res.data.forEach((r: any) => {
+            combined.push(standardizeTrafficLightRow(r, acc));
+          });
         }
       }
-
-      if (extracted.length > 0) {
-        return { data: extracted, error: null };
-      }
+      return { data: combined, error: null };
     }
 
-    if (res1) return { data: res1, error: null };
-    if (res2) return { data: res2, error: null };
-
-    return { data: [], error: err1?.message || err2?.message || errOther?.message || 'No data found' };
+    const res = await getSingleTrafficLightData(account, quarter);
+    const standardized = (res.data || []).map((r: any) => standardizeTrafficLightRow(r, account));
+    return { data: standardized, error: res.error };
   } catch (e: any) {
     console.error('Error fetching traffic light data:', e);
+    return { data: [], error: e.message || 'Server error' };
+  }
+}
+
+async function getSingleTrafficLightData(account: string, quarter: string) {
+  try {
+    const dates = getQuarterDateColumns(quarter);
+    const result: any[] = [];
+
+    // 1. For 'trainers' account: Retrieve trainer profiles
+    if (account === 'trainers') {
+      const { data: tp } = await supabaseAdmin.from('trainers_profile').select('*');
+      (tp || []).forEach(tr => {
+        const row: any = {
+          id: tr.name,
+          teams: tr.name,
+          _account: 'trainers',
+          assigned_trainer: tr.name,
+          position: tr.position || 'CORP-TR'
+        };
+        dates.forEach(d => { row[d] = null; });
+        result.push(row);
+      });
+    } else {
+      // 2. For client accounts: Retrieve live trainees from inhouse and product_spec_training (matching Trainees page)
+      const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
+      const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
+      const allTrainees = [...(ih || []), ...(pst || [])];
+
+      const matched = allTrainees.filter(t => matchesTrafficLightAccount(account, t.account));
+
+      if (matched.length > 0) {
+        // Group by wave / batch
+        const groups: Record<string, any[]> = {};
+        matched.forEach(t => {
+          const gKey = t.wave ? `TEAM WAVE ${t.wave}` : t.batch ? `TEAM BATCH ${t.batch}` : 'TEAM 1';
+          if (!groups[gKey]) groups[gKey] = [];
+          groups[gKey].push(t);
+        });
+
+        Object.entries(groups).forEach(([gName, list]) => {
+          result.push({
+            id: `team_hdr_${account}_${gName}`,
+            teams: gName,
+            isTeamHeader: true,
+            _account: account
+          });
+          list.forEach(t => {
+            const row: any = {
+              id: t.name,
+              teams: t.name,
+              _account: account,
+              assigned_trainer: t.assigned_trainer || t.trainer || '',
+              accountName: t.account
+            };
+            dates.forEach(d => { row[d] = null; });
+            result.push(row);
+          });
+        });
+      }
+    }
+
+    // 3. Overlay any saved status values from traffic_light_metrics and legacy tables
+    const { data: metrics } = await supabaseAdmin
+      .from('traffic_light_metrics')
+      .select('person_id, metric_date, traffic_status, source_table')
+      .eq('metric_group', account);
+
+    if (metrics && metrics.length > 0) {
+      metrics.forEach(m => {
+        const pName = m.person_id || '';
+        const targetRow = result.find(r => !r.isAccountHeader && !r.isTeamHeader && r.teams.toLowerCase() === pName.toLowerCase());
+        if (targetRow && m.metric_date && m.traffic_status) {
+          // Convert date to match format e.g. 4/3/2026
+          const dObj = new Date(m.metric_date);
+          const colKey = `${dObj.getMonth() + 1}/${dObj.getDate()}/${dObj.getFullYear()}`;
+          if (targetRow[colKey] !== undefined) {
+            targetRow[colKey] = m.traffic_status;
+          }
+        }
+      });
+    }
+
+    // Fallback: If no trainees in live tables, try legacy traffic_light_mon_<account>_<quarter>
+    if (result.length === 0) {
+      const candidateTableNames = [
+        `traffic_light_mon_${account}_${quarter}`,
+        `traffic_light_mon_ ${account}_${quarter}`,
+        `traffic_light_mon_${account}`,
+        `traffic_light_mon_ ${account}`
+      ];
+
+      for (const tbl of candidateTableNames) {
+        const { data: res, error: err } = await supabaseAdmin.from(tbl).select('*');
+        if (!err && res && res.length > 0) {
+          return { data: res, error: null };
+        }
+      }
+    }
+
+    return { data: result, error: null };
+  } catch (e: any) {
+    console.error('Error fetching single traffic light data:', e);
     return { data: [], error: e.message || 'Server error' };
   }
 }
@@ -234,41 +388,37 @@ export async function updateTrafficLightCell(
       newValue = newValueArg || '';
     }
 
-    const tableName1 = `traffic_light_mon_${account}_${quarter}`;
-    const tableName2 = `traffic_light_mon_ ${account}_${quarter}`;
-    const otherTable1 = `traffic_light_mon_other_acc_${quarter}`;
-    const otherTable2 = `traffic_light_mon_ other_acc_${quarter}`;
+    const isoDate = parseDateToISO(colKey);
 
-    // Try primary clean table first
-    let { error: err } = await supabaseAdmin
-      .from(tableName1)
-      .update({ [colKey]: newValue })
-      .eq(matchKey, matchValue);
+    // 1. Upsert into traffic_light_metrics
+    await supabaseAdmin
+      .from('traffic_light_metrics')
+      .upsert({
+        metric_group: account,
+        person_id: matchValue,
+        metric_date: isoDate,
+        traffic_status: newValue,
+        source_table: `${account}::${quarter}::${matchValue}::${colKey}`
+      }, { onConflict: 'source_table' });
 
-    if (err) {
-      // Try space fallback table
-      const { error: err2 } = await supabaseAdmin
-        .from(tableName2)
-        .update({ [colKey]: newValue })
-        .eq(matchKey, matchValue);
+    // 2. Also try updating legacy table if exists
+    const candidateTables = [
+      `traffic_light_mon_${account}_${quarter}`,
+      `traffic_light_mon_ ${account}_${quarter}`,
+      `traffic_light_mon_${account}`,
+      `traffic_light_mon_ ${account}`,
+      `traffic_light_mon_other_acc_${quarter}`,
+      `traffic_light_mon_ other_acc_${quarter}`
+    ];
 
-      if (err2) {
-        // Try other_acc table
-        const { error: err3 } = await supabaseAdmin
-          .from(otherTable1)
+    const candidateMatchKeys = [matchKey, 'teams', 'TRAINERS', 'trainers', 'name', 'js', 'RM-TEAMLEADS'];
+
+    for (const tbl of candidateTables) {
+      for (const mKey of candidateMatchKeys) {
+        await supabaseAdmin
+          .from(tbl)
           .update({ [colKey]: newValue })
-          .eq(matchKey, matchValue);
-
-        if (err3) {
-          const { error: err4 } = await supabaseAdmin
-            .from(otherTable2)
-            .update({ [colKey]: newValue })
-            .eq(matchKey, matchValue);
-
-          if (err4) {
-            return { success: false, error: err4.message };
-          }
-        }
+          .eq(mKey, matchValue);
       }
     }
 
@@ -303,7 +453,31 @@ export interface TrafficLightRemarkItem {
   source_table: string;
 }
 
-export async function getTrafficLightRemarks(account: string, quarter: string) {
+export async function getTrafficLightRemarks(account: string, quarter: string, accountList?: string[]) {
+  try {
+    if (account === 'all') {
+      const targetAccounts = accountList && accountList.length > 0
+        ? accountList.filter(a => a !== 'all')
+        : ['trainers', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
+
+      const combinedMap: Record<string, TrafficLightRemarkItem[]> = {};
+      for (const acc of targetAccounts) {
+        const res = await getSingleTrafficLightRemarks(acc, quarter);
+        if (res.data) {
+          Object.assign(combinedMap, res.data);
+        }
+      }
+      return { data: combinedMap, error: null };
+    }
+
+    return await getSingleTrafficLightRemarks(account, quarter);
+  } catch (e: any) {
+    console.error('Error in getTrafficLightRemarks:', e);
+    return { data: {}, error: e.message };
+  }
+}
+
+async function getSingleTrafficLightRemarks(account: string, quarter: string) {
   try {
     const prefix = `${account.toLowerCase()}::${quarter.toLowerCase()}::`;
     const { data, error } = await supabaseAdmin
@@ -341,7 +515,7 @@ export async function getTrafficLightRemarks(account: string, quarter: string) {
 
     return { data: remarksMap, error: null };
   } catch (e: any) {
-    console.error('Error in getTrafficLightRemarks:', e);
+    console.error('Error in getSingleTrafficLightRemarks:', e);
     return { data: {}, error: e.message };
   }
 }

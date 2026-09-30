@@ -227,6 +227,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setAvatarUrl(null);
         if (typeof window !== 'undefined') {
           localStorage.removeItem(CACHE_PROFILE_KEY);
+          if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/auth')) {
+            window.location.replace('/login');
+          }
         }
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchRole();

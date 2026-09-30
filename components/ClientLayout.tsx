@@ -29,28 +29,21 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     )
   );
 
-  // Client-side auth guard: if unauthenticated GUEST navigates to any protected page, redirect to /login
+  // Client-side auth guard: if unauthenticated GUEST navigates to any protected page, hard redirect to /login
   useEffect(() => {
     if (!isLoading && role === 'GUEST' && !isLoginPage) {
-      router.replace('/login');
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      } else {
+        router.replace('/login');
+      }
     }
   }, [isLoading, role, isLoginPage, router]);
 
-  if (isLoginPage) {
+  if (isLoginPage || role === 'GUEST') {
     return (
       <main className="w-full min-h-screen overflow-hidden">
         {children}
-      </main>
-    );
-  }
-
-  if (role === 'GUEST') {
-    return (
-      <main className="w-full min-h-screen overflow-hidden">
-        <PageLoading
-          title="Redirecting..."
-          subtitle="Taking you to the login screen"
-        />
       </main>
     );
   }

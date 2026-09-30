@@ -609,22 +609,45 @@ export function AttendanceCalendarView({
     return list;
   }, [trainersList]);
 
-  // Compute available batch & account filters
+  // Compute available batch & account filters (strictly scoped to trainer's trainees)
   const availableBatches = useMemo(() => {
     const set = new Set<string>();
     allTraineesList.forEach(t => {
+      if (isTrainer && userName) {
+        if (!isTrainerMatch(t.assignedTrainer, userName)) return;
+      } else if (selectedTrainer !== 'All') {
+        if (!isTrainerMatch(t.assignedTrainer, selectedTrainer)) return;
+      }
       if (t.batch) set.add(t.batch);
     });
     return ['All', ...Array.from(set).sort()];
-  }, [allTraineesList]);
+  }, [allTraineesList, isTrainer, userName, selectedTrainer]);
 
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
     allTraineesList.forEach(t => {
+      if (isTrainer && userName) {
+        if (!isTrainerMatch(t.assignedTrainer, userName)) return;
+      } else if (selectedTrainer !== 'All') {
+        if (!isTrainerMatch(t.assignedTrainer, selectedTrainer)) return;
+      }
       if (t.account) set.add(t.account);
     });
     return ['All', ...Array.from(set).sort()];
-  }, [allTraineesList]);
+  }, [allTraineesList, isTrainer, userName, selectedTrainer]);
+
+  // Auto-reset batch or account filter if selected value is no longer present in scoped options
+  useEffect(() => {
+    if (selectedBatch !== 'All' && !availableBatches.includes(selectedBatch)) {
+      setSelectedBatch('All');
+    }
+  }, [availableBatches, selectedBatch]);
+
+  useEffect(() => {
+    if (selectedAccount !== 'All' && !availableAccounts.includes(selectedAccount)) {
+      setSelectedAccount('All');
+    }
+  }, [availableAccounts, selectedAccount]);
 
   const availableTrainerNames = useMemo(() => {
     const set = new Set<string>();

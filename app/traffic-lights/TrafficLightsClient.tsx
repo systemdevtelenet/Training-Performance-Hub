@@ -17,6 +17,8 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Building2,
   Calendar,
   Clock,
@@ -42,6 +44,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
+import PageLoading from '@/components/PageLoading';
 import {
   getTrafficLightData,
   updateTrafficLightCell,
@@ -111,20 +114,64 @@ function StatusSelect({
   onOpenRemarks?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  
   const ref = useRef<HTMLDivElement>(null);
+  const statusBtnRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const noteBtnRef = useRef<HTMLButtonElement>(null);
+
+  const updateDropdownPos = () => {
+    if (!statusBtnRef.current) return;
+    const rect = statusBtnRef.current.getBoundingClientRect();
+    const dropdownHeight = 280;
+    const dropdownWidth = 210;
+    
+    let left = rect.left;
+    if (left + dropdownWidth > window.innerWidth - 16) {
+      left = window.innerWidth - dropdownWidth - 16;
+    }
+    if (left < 16) left = 16;
+
+    // Always position directly below the trigger button
+    setDropdownPos({
+      top: rect.bottom + 6,
+      left,
+    });
+
+    // If bottom of dropdown extends past viewport bottom, gently scroll down so it's fully visible
+    const overflowBottom = (rect.bottom + 6 + dropdownHeight) - window.innerHeight;
+    if (overflowBottom > 0) {
+      window.scrollBy({ top: overflowBottom + 32, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        ref.current && 
+        !ref.current.contains(target) &&
+        dropdownRef.current && 
+        !dropdownRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('resize', updateDropdownPos);
+      window.addEventListener('scroll', updateDropdownPos, true);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', updateDropdownPos);
+      window.removeEventListener('scroll', updateDropdownPos, true);
+    };
+  }, [isOpen]);
 
   const noteCount = remarksList?.length || (remark ? 1 : 0);
   const latestRemark = remarksList && remarksList.length > 0 
@@ -167,9 +214,15 @@ function StatusSelect({
   return (
     <div className="relative w-full flex items-center gap-1 group/cell" ref={ref}>
       <button
+        ref={statusBtnRef}
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            updateDropdownPos();
+          }
+          setIsOpen(!isOpen);
+        }}
         className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-1.5 pl-2.5 pr-6 rounded-xl text-left relative transition-all outline-none flex items-center gap-1.5 ${currentConfig.badgeStyle} ${isPending ? 'ring-2 ring-[#2F6798]' : ''} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.01]'
         }`}
@@ -284,8 +337,18 @@ function StatusSelect({
         </div>
       )}
 
-      {isOpen && (
-        <div className="absolute top-full left-0 z-50 mt-1.5 w-52 rounded-2xl bg-white dark:bg-slate-800 p-1.5 shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-150">
+      {/* Floating Status Dropdown Menu rendered in Portal to prevent clipping */}
+      {isOpen && dropdownPos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            bottom: dropdownPos.bottom,
+            left: dropdownPos.left,
+          }}
+          className="z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-800 p-1.5 shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-100 custom-scrollbar"
+        >
           <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 px-2 py-1">Set Status</div>
           {STATUS_OPTIONS.map((opt) => {
             const OptIcon = opt.icon;
@@ -298,11 +361,11 @@ function StatusSelect({
                   onChange(opt.value);
                   setIsOpen(false);
                 }}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all text-left ${
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-semibold rounded-xl transition-all text-left cursor-pointer ${
                   opt.color
                 } ${isSelected ? 'bg-slate-100 dark:bg-slate-700/80 font-bold' : ''}`}
               >
-                <OptIcon className={cn("w-3.5 h-3.5 shrink-0", opt.iconColor)} />
+                <OptIcon className={cn("w-3 h-3 shrink-0", opt.iconColor)} />
                 <span>{opt.label}</span>
               </button>
             );
@@ -317,14 +380,15 @@ function StatusSelect({
                   setIsOpen(false);
                   onOpenRemarks();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl text-[#2F6798] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-bold rounded-xl text-[#2F6798] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all text-left cursor-pointer"
               >
-                {noteCount > 0 ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquarePlus className="w-3.5 h-3.5" />}
+                {noteCount > 0 ? <MessageSquare className="w-3 h-3" /> : <MessageSquarePlus className="w-3 h-3" />}
                 <span>{noteCount > 0 ? `View Remarks (${noteCount})` : 'Add Remarks'}</span>
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -343,12 +407,13 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
   if (cleanId === 'flexar' && cleanTrainee.includes('flexar')) return true;
   if (cleanId === 'xpn' && cleanTrainee.includes('xpn')) return true;
   if (cleanId === 'fleet' && cleanTrainee.includes('fleet')) return true;
-  if (cleanId === 'mmtranspo' && cleanTrainee.includes('mmtranspo')) return true;
-  if (cleanId === 'hh' && cleanTrainee.includes('hh')) return true;
+  if ((cleanId === 'mmtranspo' || cleanId === 'mm') && (cleanTrainee.includes('mmtranspo') || cleanTrainee === 'mm')) return true;
+  if ((cleanId === 'hh' || cleanId === 'hammerhead') && (cleanTrainee.includes('hh') || cleanTrainee.includes('hammerhead'))) return true;
   if (cleanId === 'js' && cleanTrainee.includes('js')) return true;
   if (cleanId === 'ono' && cleanTrainee.includes('ono')) return true;
   if (cleanId === 'awd' && cleanTrainee.includes('awd')) return true;
   if (cleanId === 'rm' && cleanTrainee.includes('rm')) return true;
+  if ((cleanId === 'otheracc' || cleanId === 'other') && ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr'].some(s => cleanTrainee.includes(s))) return true;
 
   return false;
 }
@@ -399,15 +464,21 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   }, [isTrainer, email, userName, userMeta]);
 
   const visibleAccounts = useMemo(() => {
+    let list: { id: string; name: string }[] = [];
     if (isTrainer) {
       const filtered = accounts.filter(acc => {
         const accId = acc.id.toLowerCase();
         if (accId === 'trainers') return true;
         return trainerAccounts.some(ta => matchesTrafficLightAccount(acc.id, ta));
       });
-      return filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers');
+      list = filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers');
+    } else {
+      list = accounts;
     }
-    return accounts;
+    return [
+      { id: 'all', name: 'All Accounts' },
+      ...list.filter(a => a.id !== 'all')
+    ];
   }, [accounts, isTrainer, trainerAccounts]);
 
   const [account, setAccount] = useState<string>(() => {
@@ -426,6 +497,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [allDateColumns, setAllDateColumns] = useState<string[]>([]);
   const [nameColumnKey, setNameColumnKey] = useState<string>('Teams');
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | null>(null);
@@ -439,6 +511,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     columnKey: string;
     currentStatus: string;
     rowIndex: number;
+    account?: string;
   } | null>(null);
 
   const [newRemarkDraft, setNewRemarkDraft] = useState('');
@@ -499,24 +572,31 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     setPendingEdits({});
     setSelectedTeam('ALL');
     
-    // Fetch data and remarks concurrently
-    const [resultData, resultRemarks] = await Promise.all([
-      getTrafficLightData(account, quarter),
-      getTrafficLightRemarks(account, quarter)
-    ]);
+    // Scoped accounts list when account === 'all'
+    const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
 
-    if (resultRemarks.data) {
-      setRemarksMap(resultRemarks.data);
-    }
+    try {
+      // Fetch data and remarks concurrently
+      const [resultData, resultRemarks] = await Promise.all([
+        getTrafficLightData(account, quarter, accountsScope),
+        getTrafficLightRemarks(account, quarter, accountsScope)
+      ]);
 
-    if (resultData.error || !resultData.data || resultData.data.length === 0) {
-      if (resultData.error) console.error('Error fetching traffic light data:', resultData.error);
-      setData([]);
-      setAllDateColumns([]);
-    } else {
-      processData(resultData.data);
+      if (resultRemarks.data) {
+        setRemarksMap(resultRemarks.data);
+      }
+
+      if (resultData.error || !resultData.data || resultData.data.length === 0) {
+        if (resultData.error) console.error('Error fetching traffic light data:', resultData.error);
+        setData([]);
+        setAllDateColumns([]);
+      } else {
+        processData(resultData.data);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoading(false);
     }
-    setIsLoading(false);
   };
 
   const processData = (rawData: any[]) => {
@@ -526,27 +606,52 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       return;
     }
 
-    const firstRow = rawData[0];
-    const allKeys = Object.keys(firstRow);
-    const candidateNameKeys = ['teams', 'name', 'trainers', 'trainer', 'employee', 'staff'];
-    const nameCol = allKeys.find(k => candidateNameKeys.includes(k.toLowerCase())) 
-      || allKeys.find(k => !['id', 'created_at', 'account', 'position'].includes(k.toLowerCase())) 
-      || allKeys[0];
+    const nameCol = 'teams';
 
-    const excludeCols = ['id', 'created_at', 'account', 'position', nameCol.toLowerCase()];
-    const dateCols = allKeys.filter(k => !excludeCols.includes(k.toLowerCase()));
+    const isValidDateKey = (k: string): boolean => {
+      if (!k) return false;
+      const clean = k.trim();
+      const lower = clean.toLowerCase();
+      if ([
+        'id', 'created_at', 'account', 'position', '_account', 
+        '_namecol', 'isaccountheader', 'isAccountHeader', 'isteamheader',
+        'isTeamHeader', 'remarks', 'status', 'total', 'average', 'teams',
+        'name', 'assigned_trainer', 'accountname', 'account_name', 'batch', 'wave'
+      ].includes(lower)) {
+        return false;
+      }
+      // Must match standard date pattern like M/D/YYYY, M/D, YYYY-MM-DD, M-D-YYYY
+      if (/^\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?$/.test(clean) || /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(clean)) {
+        return true;
+      }
+      const parsed = Date.parse(clean);
+      return !isNaN(parsed) && /^\d/.test(clean);
+    };
+
+    // Discover all unique date columns across all rows (ignoring account header objects and metadata)
+    const dateColsSet = new Set<string>();
+    rawData.forEach(row => {
+      if (row.isAccountHeader) return;
+      Object.keys(row).forEach(k => {
+        if (isValidDateKey(k)) {
+          dateColsSet.add(k);
+        }
+      });
+    });
+
+    const dateCols = Array.from(dateColsSet);
 
     // Chronological date sort (earliest to latest)
     dateCols.sort((a, b) => {
       const dateA = new Date(a).getTime();
       const dateB = new Date(b).getTime();
       if (!isNaN(dateA) && !isNaN(dateB)) return dateA - dateB;
-      return 0;
+      return a.localeCompare(b);
     });
 
     // Filter out blank spacer rows where employee/team name is null or empty
     const cleanData = rawData.filter(row => {
-      const val = row[nameCol];
+      const val = row[nameCol] ?? row.teams ?? row.name;
       if (val === null || val === undefined) return false;
       const str = String(val).trim();
       return str !== '' && str.toLowerCase() !== 'null' && str.toLowerCase() !== 'undefined';
@@ -567,7 +672,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         'postgres_changes',
         { event: '*', schema: 'public', table: 'traffic_light_metrics' },
         () => {
-          getTrafficLightRemarks(account, quarter).then(res => {
+          const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
+          getTrafficLightRemarks(account, quarter, accountsScope).then(res => {
             if (res.data) setRemarksMap(res.data);
           });
         }
@@ -577,7 +683,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [account, quarter]);
+  }, [account, quarter, visibleAccounts]);
 
   // Dynamically compute active displayed columns based on weekWindow & sortOrder
   const displayedDateColumns = useMemo(() => {
@@ -616,7 +722,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         if (!teams.find(t => t.name === currentTeamName)) {
           teams.push({ name: currentTeamName, count: 0 });
         }
-      } else if (currentTeamName) {
+      } else if (currentTeamName && !row.isAccountHeader && !val.toUpperCase().startsWith('ACCOUNT:')) {
         const teamObj = teams.find(t => t.name === currentTeamName);
         if (teamObj) teamObj.count++;
       }
@@ -625,15 +731,58 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     return teams;
   }, [data, nameColumnKey]);
 
+  // Check if current user is authorized to edit a specific row
+  const checkCanEditRow = (rowStaffName: string, rowAccount?: string) => {
+    const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
+    if (canEditAll) return true;
+
+    const targetAccount = rowAccount || account;
+
+    if (isTrainer) {
+      // If viewing assigned client accounts (e.g. DFT, AWD, etc.), trainer can edit their trainees!
+      if (targetAccount !== 'trainers') {
+        const isAssignedAccount = (
+          trainerAccounts.some(ta => matchesTrafficLightAccount(targetAccount, ta)) ||
+          visibleAccounts.some(va => va.id === targetAccount || va.id === 'all')
+        );
+        if (isAssignedAccount) return true;
+      }
+
+      // On 'trainers' account, trainer can ONLY edit their own record
+      const cleanStaff = rowStaffName.toLowerCase().trim();
+      const userEmailStr = (email || '').toLowerCase().trim();
+      const userEmailHandle = userEmailStr.split('@')[0];
+      const userNameStr = (userName || '').toLowerCase().trim();
+
+      const isOwnRow = Boolean(
+        (userEmailStr && (userEmailStr.includes(cleanStaff.replace(/\s+/g, '')) || userEmailHandle.includes(cleanStaff) || cleanStaff.includes(userEmailHandle))) ||
+        (userNameStr && (isTrainerMatch(cleanStaff, userNameStr) || userNameStr.includes(cleanStaff) || cleanStaff.includes(userNameStr)))
+      );
+      return isOwnRow;
+    }
+
+    const cleanStaff = rowStaffName.toLowerCase().trim();
+    const userEmailStr = (email || '').toLowerCase().trim();
+    const userEmailHandle = userEmailStr.split('@')[0];
+    const userNameStr = (userName || '').toLowerCase().trim();
+
+    const isOwnRow = Boolean(
+      (userEmailStr && (userEmailStr.includes(cleanStaff.replace(/\s+/g, '')) || userEmailHandle.includes(cleanStaff) || cleanStaff.includes(userEmailHandle))) ||
+      (userNameStr && (userNameStr.includes(cleanStaff) || cleanStaff.includes(userNameStr)))
+    );
+
+    return isOwnRow;
+  };
+
   // Handle local cell edit change
   const handleCellChange = (rowIndex: number, colKey: string, newValue: string) => {
-    const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
-    const rowName = String(data[rowIndex][nameColumnKey] || '').toLowerCase();
-    const userEmailStr = (email || '').toLowerCase();
-    const isOwnRow = userEmailStr && (userEmailStr.includes(rowName.replace(/\s+/g, '')) || userEmailStr.includes(rowName.split(' ')[0]));
+    const row = data[rowIndex];
+    const staffName = String(row?.[nameColumnKey] || '');
+    const rowAccount = row?._account || account;
+    const canEdit = checkCanEditRow(staffName, rowAccount);
 
-    if (!canEditAll && !isOwnRow) {
-      alert('You can only edit your own traffic light status.');
+    if (!canEdit) {
+      alert('You can only edit traffic light statuses for your own profile or assigned trainees/accounts.');
       return;
     }
 
@@ -654,7 +803,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     teamName: string,
     columnKey: string,
     currentStatus: string,
-    rowIndex: number
+    rowIndex: number,
+    rowAccount?: string
   ) => {
     setNewRemarkDraft('');
     setEditingRemarkId(null);
@@ -669,7 +819,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       teamName,
       columnKey,
       currentStatus,
-      rowIndex
+      rowIndex,
+      account: rowAccount || (account === 'all' ? 'trainers' : account)
     });
   };
 
@@ -680,9 +831,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
     const { staffName, columnKey, currentStatus } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
+    const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
 
     const res = await addTrafficLightRemark({
-      account,
+      account: targetAccount,
       quarter,
       staffName,
       columnKey,
@@ -735,13 +887,14 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
     const { staffName, columnKey } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
+    const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
 
     const res = await updateTrafficLightRemark({
       metric_id,
       remarks: editingDraft.trim(),
       staffName,
       columnKey,
-      account,
+      account: targetAccount,
       quarter,
       author: authorName
     });
@@ -783,12 +936,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
     const { staffName, columnKey } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
+    const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
 
     const res = await deleteTrafficLightRemarkItem({
       metric_id,
       staffName,
       columnKey,
-      account,
+      account: targetAccount,
       quarter,
       author: authorName
     });
@@ -843,8 +997,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       if (!row) continue;
       const staffName = row[nameColumnKey];
 
+      const targetAccount = row._account || (account === 'all' ? 'trainers' : account);
+
       const res = await updateTrafficLightCell({
-        account,
+        account: targetAccount,
         quarter,
         staffName,
         columnKey: edit.colKey,
@@ -883,44 +1039,19 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // Filter Data by search, selected team, and optional remarks filter
   const filteredData = useMemo(() => {
-    if (!data) return [];
+    if (!data || data.length === 0) return [];
     let currentTeamName = '';
 
-    return data.filter((row) => {
+    const preFiltered = data.filter((row) => {
       const nameVal = String(row[nameColumnKey] || '').trim();
+      const isAccountHeader = row.isAccountHeader || nameVal.toUpperCase().startsWith('ACCOUNT:');
+      const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
 
-      if (isTrainee && (userName || email)) {
-        const qName = (userName || '').toLowerCase();
-        const qEmail = (email || '').toLowerCase().split('@')[0];
-        const lowerName = nameVal.toLowerCase();
-        if (nameVal.toUpperCase().startsWith('TEAM')) return false;
-        const isOwnTrainee = (qName && (lowerName.includes(qName) || qName.includes(lowerName))) || (qEmail && lowerName.includes(qEmail));
-        if (!isOwnTrainee) return false;
+      if (isAccountHeader) {
+        return true;
       }
 
-      if (isTrainer && (userName || email)) {
-        const qName = (userName || '').toLowerCase();
-        const qEmail = (email || '').toLowerCase().split('@')[0];
-        const lowerName = nameVal.toLowerCase();
-
-        if (nameVal.toUpperCase().startsWith('TEAM')) return false;
-
-        const isOwnTrainerRow = (
-          (userName && isTrainerMatch(nameVal, userName)) ||
-          (qName && (lowerName.includes(qName) || qName.includes(lowerName))) ||
-          (qEmail && (lowerName.includes(qEmail) || qEmail.includes(lowerName)))
-        );
-
-        const isAssignedTrainee = trainerTraineeNames.some(tName => 
-          lowerName === tName || lowerName.includes(tName) || tName.includes(lowerName)
-        );
-
-        if (!isOwnTrainerRow && !isAssignedTrainee) {
-          return false;
-        }
-      }
-
-      if (nameVal.toUpperCase().startsWith('TEAM')) {
+      if (isTeamHeader) {
         currentTeamName = nameVal;
         if (selectedTeam !== 'ALL' && currentTeamName !== selectedTeam) {
           return false;
@@ -928,18 +1059,71 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         return true;
       }
 
+      const rowAccount = row._account || account;
+
+      // 1. In Trainers account: Trainers can ONLY see their own record (they cannot see other trainers)
+      if (rowAccount === 'trainers' && isTrainer && (userName || email)) {
+        const qName = (userName || '').toLowerCase().trim();
+        const qEmail = (email || '').toLowerCase().split('@')[0].trim();
+        const lowerName = nameVal.toLowerCase().trim();
+        const isOwnTrainerRow = (
+          (userName && isTrainerMatch(nameVal, userName)) ||
+          (qName && (lowerName.includes(qName) || qName.includes(lowerName))) ||
+          (qEmail && (lowerName.includes(qEmail) || qEmail.includes(lowerName)))
+        );
+        if (!isOwnTrainerRow) return false;
+      }
+
+      // 2. In Client/Trainee Accounts (e.g. DFT, FLEXAR): Trainers only see their specific assigned trainees from the database
+      if (isTrainer && rowAccount !== 'trainers') {
+        const rowTrainer = String(row.assigned_trainer || '').trim();
+        const qName = (userName || '').toLowerCase().trim();
+        const qEmail = (email || '').toLowerCase().split('@')[0].trim();
+        const cleanTraineeName = nameVal.toLowerCase().trim();
+
+        const isDirectTrainerMatch = Boolean(
+          (rowTrainer && userName && isTrainerMatch(rowTrainer, userName)) ||
+          (rowTrainer && qName && (rowTrainer.toLowerCase().includes(qName) || qName.includes(rowTrainer.toLowerCase()))) ||
+          (rowTrainer && qEmail && (rowTrainer.toLowerCase().includes(qEmail) || qEmail.includes(rowTrainer.toLowerCase().replace(/\s+/g, ''))))
+        );
+
+        const isNameAssigned = trainerTraineeNames.length > 0 && trainerTraineeNames.some(tn => {
+          const cleanTn = tn.toLowerCase().trim();
+          return cleanTn === cleanTraineeName ||
+                 cleanTraineeName.includes(cleanTn) ||
+                 cleanTn.includes(cleanTraineeName) ||
+                 isTrainerMatch(cleanTraineeName, cleanTn);
+        });
+
+        if (!isDirectTrainerMatch && !isNameAssigned) {
+          return false;
+        }
+      }
+
+      // 3. For Trainees: only see their own row
+      if (isTrainee && (userName || email)) {
+        const qName = (userName || '').toLowerCase();
+        const qEmail = (email || '').toLowerCase().split('@')[0];
+        const lowerName = nameVal.toLowerCase();
+        const isOwnTrainee = (qName && (lowerName.includes(qName) || qName.includes(lowerName))) || (qEmail && lowerName.includes(qEmail));
+        if (!isOwnTrainee) return false;
+      }
+
+      // Team filter
       if (teamsList.length > 0) {
         if (selectedTeam !== 'ALL' && currentTeamName !== selectedTeam) {
           return false;
         }
       }
 
-      if (searchQuery) {
+      // Search Query
+      if (searchQuery.trim()) {
         if (!nameVal.toLowerCase().includes(searchQuery.toLowerCase())) {
           return false;
         }
       }
 
+      // Remarks Only filter
       if (filterWithRemarksOnly) {
         const hasAnyRemark = displayedDateColumns.some(col => {
           const key = `${nameVal}::${col}`;
@@ -950,7 +1134,67 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       return true;
     });
-  }, [data, nameColumnKey, isTrainee, isTrainer, userName, email, trainerTraineeNames, selectedTeam, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap]);
+
+    // Prune empty headers (headers with no following data rows)
+    const result: any[] = [];
+    for (let i = 0; i < preFiltered.length; i++) {
+      const row = preFiltered[i];
+      const isHeader = row.isAccountHeader || String(row[nameColumnKey] || '').toUpperCase().startsWith('ACCOUNT:');
+      const isTeam = String(row[nameColumnKey] || '').toUpperCase().startsWith('TEAM');
+
+      if (isHeader) {
+        let hasChildren = false;
+        for (let j = i + 1; j < preFiltered.length; j++) {
+          const nextRow = preFiltered[j];
+          const nextIsHeader = nextRow.isAccountHeader || String(nextRow[nameColumnKey] || '').toUpperCase().startsWith('ACCOUNT:');
+          if (nextIsHeader) break;
+          const nextIsTeam = String(nextRow[nameColumnKey] || '').toUpperCase().startsWith('TEAM');
+          if (!nextIsTeam) {
+            hasChildren = true;
+            break;
+          }
+        }
+        if (hasChildren) result.push(row);
+      } else if (isTeam) {
+        let hasChildren = false;
+        for (let j = i + 1; j < preFiltered.length; j++) {
+          const nextRow = preFiltered[j];
+          const nextIsHeader = nextRow.isAccountHeader || String(nextRow[nameColumnKey] || '').toUpperCase().startsWith('ACCOUNT:');
+          const nextIsTeam = String(nextRow[nameColumnKey] || '').toUpperCase().startsWith('TEAM');
+          if (nextIsHeader || nextIsTeam) break;
+          hasChildren = true;
+          break;
+        }
+        if (hasChildren) result.push(row);
+      } else {
+        result.push(row);
+      }
+    }
+
+    return result;
+  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
+
+  // Pagination State (Display 10 per page as requested)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [account, quarter, selectedTeam, searchQuery, filterWithRemarksOnly]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredData.slice(start, start + pageSize);
+  }, [filteredData, currentPage, pageSize]);
 
   // Calculate live summary KPI metrics
   const kpis = useMemo(() => {
@@ -959,11 +1203,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     let amberCount = 0;
     let redCount = 0;
 
-    const targetList = (isTrainer || isTrainee) ? filteredData : data;
-
-    targetList.forEach(row => {
+    filteredData.forEach(row => {
       const nameVal = String(row[nameColumnKey] || '').trim();
-      if (!nameVal.toUpperCase().startsWith('TEAM')) {
+      const isAccountHeader = row.isAccountHeader || nameVal.toUpperCase().startsWith('ACCOUNT:');
+      const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
+
+      if (!isAccountHeader && !isTeamHeader) {
         employeeCount++;
         allDateColumns.forEach(c => {
           const val = String(row[c] || '').toUpperCase().trim();
@@ -975,7 +1220,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     });
 
     return { employeeCount, greenCount, amberCount, redCount };
-  }, [data, filteredData, isTrainer, isTrainee, allDateColumns, nameColumnKey]);
+  }, [filteredData, allDateColumns, nameColumnKey]);
 
   // Total remarks count across all trainees & cells
   const totalRemarksCount = useMemo(() => {
@@ -995,8 +1240,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     { label: 'Resignation Notice', icon: LogOut, text: 'Resignation: Submitted formal resignation notice.' },
   ];
 
+  if (isInitialLoading) {
+    return (
+      <PageLoading
+        title="Loading Traffic Lights..."
+        subtitle="Evaluating risk indicators, milestones, and trainee performance flags"
+      />
+    );
+  }
+
   return (
-    <div className="space-y-4 w-full max-w-full px-0 pb-12 font-sans">
+    <div className="space-y-4 w-full max-w-full px-0 pb-72 min-h-[calc(100vh+150px)] font-sans">
       {/* Top-Right Success Toast Notification rendered in Portal to be in front of all drawers/modals */}
       {toast && mounted && createPortal(
         <div
@@ -1434,7 +1688,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                 <thead className="bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-black border-b border-slate-200/80 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-3 sticky left-0 bg-slate-50/95 dark:bg-slate-800/95 z-20 shadow-xs min-w-[220px]">
-                      {nameColumnKey}
+                      {account === 'trainers' ? 'Trainers' : account === 'all' ? 'Account / Trainees' : 'Trainees & Cohort'}
                     </th>
                     {displayedDateColumns.map((col) => {
                       const isLatest = col === latestDateColumn;
@@ -1459,14 +1713,36 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
-                  {filteredData.map((row, rowIndex) => {
+                  {paginatedData.map((row, index) => {
+                    const originalDataIndex = data.findIndex(d => (d.id && d.id === row.id) || (d[nameColumnKey] === row[nameColumnKey] && d._account === row._account));
+                    const actualIndex = originalDataIndex !== -1 ? originalDataIndex : index;
                     const nameVal = String(row[nameColumnKey] || '').trim();
+                    const isAccountHeader = row.isAccountHeader || nameVal.toUpperCase().startsWith('ACCOUNT:');
                     const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
+
+                    if (isAccountHeader) {
+                      return (
+                        <tr
+                          key={`acc_${index}_${nameVal}`}
+                          className="bg-[#2F6798]/15 dark:bg-[#2F6798]/30 text-[#2F6798] dark:text-blue-300 font-black text-xs uppercase tracking-wider"
+                        >
+                          <td
+                            colSpan={displayedDateColumns.length + 1}
+                            className="px-4 py-2.5 sticky left-0 bg-blue-50/95 dark:bg-slate-800/95 z-10 border-y border-blue-200/80 dark:border-slate-700"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-[#2F6798]" />
+                              <span className="font-extrabold tracking-wide">{nameVal}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
 
                     if (isTeamHeader) {
                       return (
                         <tr
-                          key={`team_${rowIndex}`}
+                          key={`team_${index}_${nameVal}`}
                           className="bg-slate-100/80 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-black text-xs uppercase tracking-wider"
                         >
                           <td
@@ -1486,7 +1762,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
                     return (
                       <tr
-                        key={row.id || rowIndex}
+                        key={row.id || `${actualIndex}_${nameVal}`}
                         className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors"
                       >
                         {/* Employee Name Column */}
@@ -1504,14 +1780,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                         {/* Date Cells */}
                         {displayedDateColumns.map((col) => {
                           const val = row[col];
-                          const userEmailStr = (email || '').toLowerCase();
-                          const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
-                          const isOwnRow =
-                            userEmailStr &&
-                            (userEmailStr.includes(nameVal.toLowerCase().replace(/\s+/g, '')) ||
-                              userEmailStr.includes(nameVal.toLowerCase().split(' ')[0]));
-                          const canEdit = canEditAll || isOwnRow;
-                          const isPending = pendingEdits[`${rowIndex}_${col}`];
+                          const canEdit = checkCanEditRow(nameVal, row._account);
+                          const isPending = pendingEdits[`${actualIndex}_${col}`];
                           const isLatest = col === latestDateColumn;
                           const remarkKey = `${nameVal}::${col}`;
                           const cellRemarksList = remarksMap[remarkKey] || [];
@@ -1526,12 +1796,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                             >
                               <StatusSelect
                                 value={val || ''}
-                                onChange={(newVal) => handleCellChange(rowIndex, col, newVal)}
+                                onChange={(newVal) => handleCellChange(actualIndex, col, newVal)}
                                 disabled={!canEdit}
                                 isPending={!!isPending}
                                 remark={existingRemark}
                                 remarksList={cellRemarksList}
-                                onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', rowIndex)}
+                                onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
                               />
                             </td>
                           );
@@ -1541,6 +1811,65 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination Controls Footer (Display 10 per page) */}
+          {!isLoading && filteredData.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Showing <strong className="text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, filteredData.length)}</strong> of <strong className="text-slate-800 dark:text-slate-200">{filteredData.length}</strong> records
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
+                    Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                    </button>
+
+                    <div className="flex items-center gap-1 px-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((p, i, arr) => {
+                          const prev = arr[i - 1];
+                          const showEllipsis = prev && p - prev > 1;
+                          return (
+                            <div key={p} className="flex items-center">
+                              {showEllipsis && <span className="px-1.5 text-xs text-slate-400">...</span>}
+                              <button
+                                onClick={() => setCurrentPage(p)}
+                                className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  currentPage === p
+                                    ? 'bg-[#2F6798] text-white shadow-xs'
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                    >
+                      Next <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
