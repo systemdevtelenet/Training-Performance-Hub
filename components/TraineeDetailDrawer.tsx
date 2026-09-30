@@ -36,6 +36,8 @@ export type DrawerTrainee = {
   trainingType: string;
   headcount?: number;
   attritionRate?: string;
+  attendanceRate?: string;
+  attRate?: string;
   contextLabel?: string;
   startDate?: string;
   endorsedDate?: string;
@@ -284,6 +286,13 @@ export function TraineeDetailDrawer({
   // Render logic for BATCH / STREAM View
   const renderBatchDetails = (batch: DrawerTrainee) => {
     const members = batch.members || [];
+    let totalP = 0, totalA = 0;
+    members.forEach((m: any) => {
+      totalP += (m.p || 0);
+      totalA += (m.a || 0);
+    });
+    const calculatedAtt = (totalP + totalA) > 0 ? `${(((totalP) / (totalP + totalA)) * 100).toFixed(1)}%` : '100.0%';
+    const finalAttendanceRate = batch.attendanceRate || batch.attRate || calculatedAtt;
 
     return (
       <div className="flex-1 overflow-y-auto font-sans bg-white dark:bg-slate-900">
@@ -293,21 +302,29 @@ export function TraineeDetailDrawer({
           <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{batch.name} Summary</h3>
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Account: {batch.accountName}</p>
           
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-              <Users className="w-5 h-5 text-[#2F6798] dark:text-[#5a9fd4]" />
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">Headcount</span>
-                <span className="text-lg font-black text-slate-800 dark:text-slate-100">{batch.headcount || members.length}</span>
+          <div className="grid grid-cols-3 gap-2.5 mt-4">
+            <div className="flex flex-col p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 mb-1">
+                <Users className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Headcount</span>
               </div>
+              <span className="text-base font-black text-slate-800 dark:text-slate-100">{batch.headcount || members.length}</span>
             </div>
 
-            <div className="flex items-center gap-3 p-3.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/30">
-              <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
-              <div>
-                <span className="text-[10px] font-bold text-red-600/70 dark:text-red-400 uppercase tracking-wider block">Attrition</span>
-                <span className="text-lg font-black text-red-600 dark:text-red-400">{batch.attritionRate || '0.0%'}</span>
+            <div className="flex flex-col p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/30">
+              <div className="flex items-center gap-1.5 text-emerald-600/80 dark:text-emerald-400 mb-1">
+                <CalendarDays className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Attendance</span>
               </div>
+              <span className="text-base font-black text-emerald-600 dark:text-emerald-400">{finalAttendanceRate}</span>
+            </div>
+
+            <div className="flex flex-col p-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/30">
+              <div className="flex items-center gap-1.5 text-red-600/80 dark:text-red-400 mb-1">
+                <TrendingDown className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Attrition</span>
+              </div>
+              <span className="text-base font-black text-red-600 dark:text-red-400">{batch.attritionRate || '0.0%'}</span>
             </div>
           </div>
         </div>
@@ -339,77 +356,138 @@ export function TraineeDetailDrawer({
                         : '') || 'Unassigned'}
                 </div>
               </div>
+              <div className="flex px-6 py-3.5">
+                <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Attendance Rate</div>
+                <div className="w-1/2 font-bold text-emerald-600 dark:text-emerald-400">{finalAttendanceRate}</div>
+              </div>
+              <div className="flex px-6 py-3.5">
+                <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Attrition Rate</div>
+                <div className="w-1/2 font-bold text-red-600 dark:text-red-400">{batch.attritionRate || '0.0%'}</div>
+              </div>
             </div>
           </div>
 
-          {/* TRAINEE LIST SECTION */}
-          <div className="space-y-3">
+          {/* TRAINEE LIST SECTION - GROUPED BY TRAINER */}
+          <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
               <h4 className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] uppercase tracking-wider">TRAINEE LIST</h4>
               <span className="text-[11px] font-bold text-slate-400">{members.length} Total</span>
             </div>
 
-            <div className="space-y-2">
-              {members.length === 0 ? (
-                <div className="text-center py-6 text-xs text-slate-400 italic">No trainees listed in this batch</div>
-              ) : (
-                members.map((member, idx) => {
-                  const statusStr = (member.status || (member.isEndorsed ? 'ENDORSED' : member.isLoss ? 'EOC' : 'ACTIVE')).toUpperCase();
-                  const badgeClass = statusStr === 'ENDORSED'
-                    ? 'border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40'
-                    : statusStr === 'EOC' || statusStr === 'LOSS' || statusStr === 'ATTRITION'
-                    ? 'border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
-                    : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40';
+            {members.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-400 italic">No trainees listed in this batch</div>
+            ) : (() => {
+              // Group members by assigned trainer
+              const trainerGroups: Record<string, any[]> = {};
+              members.forEach((member: any) => {
+                const trainerName = (member.assignedTrainer || member.assigned_trainer || 'Unassigned').trim();
+                if (!trainerGroups[trainerName]) {
+                  trainerGroups[trainerName] = [];
+                }
+                trainerGroups[trainerName].push(member);
+              });
 
-                  return (
-                    <div
-                      key={idx}
-                      className="flex w-full items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:border-[#2F6798] dark:hover:border-blue-400 hover:shadow-xs transition-all group"
-                    >
-                      <button 
-                        type="button"
-                        onClick={() => setSelectedMember({
-                          ...member,
-                          accountName: batch.accountName,
-                          batchName: batch.batchName,
-                          trainingType: batch.trainingType
-                        })}
-                        className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-xs text-[#2F6798] dark:text-[#5a9fd4] shrink-0">
-                          {getInitials(member.name)}
+              const sortedTrainers = Object.keys(trainerGroups).sort((a, b) => {
+                if (a === 'Unassigned') return 1;
+                if (b === 'Unassigned') return -1;
+                return a.localeCompare(b);
+              });
+
+              return (
+                <div className="space-y-5">
+                  {sortedTrainers.map((trainerName, groupIdx) => {
+                    const groupMembers = trainerGroups[trainerName];
+
+                    return (
+                      <div key={groupIdx} className="space-y-2">
+                        {/* Trainer Group Subheader - Header Blue Theme & Compact Size */}
+                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#2F6798] text-white shadow-2xs">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-md bg-white/20 text-white flex items-center justify-center font-bold">
+                              <UserCheck className="w-3 h-3 text-white" />
+                            </div>
+                            <span className="text-xs font-bold text-white tracking-wide">
+                              {trainerName}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                            {groupMembers.length} {groupMembers.length === 1 ? 'Trainee' : 'Trainees'}
+                          </span>
                         </div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-[#5a9fd4] transition-colors truncate">{member.name}</span>
-                      </button>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
-                          {statusStr}
-                        </span>
-                        {canDelete && onDelete && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete({
-                                ...member,
-                                accountName: batch.accountName,
-                                batchName: batch.batchName,
-                                trainingType: batch.trainingType
-                              });
-                            }}
-                            title={`Delete ${member.name}`}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        {/* Trainees under this trainer */}
+                        <div className="space-y-1.5 pl-1">
+                          {groupMembers.map((member, idx) => {
+                            const statusStr = (member.status || (member.isEndorsed ? 'ENDORSED' : member.isLoss ? 'EOC' : 'ACTIVE')).toUpperCase();
+                            const badgeClass = statusStr === 'ENDORSED'
+                              ? 'border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40'
+                              : statusStr === 'EOC' || statusStr === 'LOSS' || statusStr === 'ATTRITION'
+                              ? 'border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+                              : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40';
+
+                            return (
+                              <div
+                                key={idx}
+                                className="flex w-full items-center justify-between p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:border-[#2F6798] dark:hover:border-blue-400 hover:shadow-xs transition-all group"
+                              >
+                                <button 
+                                  type="button"
+                                  onClick={() => setSelectedMember({
+                                    ...member,
+                                    accountName: batch.accountName,
+                                    batchName: member.batchName || batch.batchName,
+                                    trainingType: batch.trainingType
+                                  })}
+                                  className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+                                >
+                                  <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-[11px] text-[#2F6798] dark:text-[#5a9fd4] shrink-0">
+                                    {getInitials(member.name)}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-[#5a9fd4] transition-colors truncate">
+                                      {member.name}
+                                    </span>
+                                    {member.batchName && member.batchName !== batch.name && (
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                        {member.batchName}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
+                                    {statusStr}
+                                  </span>
+                                  {canDelete && onDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete({
+                                          ...member,
+                                          accountName: batch.accountName,
+                                          batchName: member.batchName || batch.batchName,
+                                          trainingType: batch.trainingType
+                                        });
+                                      }}
+                                      title={`Delete ${member.name}`}
+                                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
         </div>

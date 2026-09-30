@@ -279,35 +279,76 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           trainer: t.assignedTrainer && t.assignedTrainer !== 'Unassigned' ? t.assignedTrainer : 'Unassigned',
           hc: 0, 
           lossCount: 0, 
+          p: 0,
+          a: 0,
           members: [] 
         };
       }
       accountMap[acctName].hc += 1;
       if (isLoss) accountMap[acctName].lossCount += 1;
+      accountMap[acctName].p += (t.p || 0);
+      accountMap[acctName].a += (t.a || 0);
       accountMap[acctName].members.push(t);
       if (accountMap[acctName].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
         accountMap[acctName].trainer = t.assignedTrainer;
       }
 
       const isInhouse = t.trainingType === 'INHOUSE';
-      const targetMap = isInhouse ? inhouseMap : pstMap;
-      const batchKey = t.batchName || 'Unknown Batch';
+      if (isInhouse) {
+        const batchKey = t.batchName || 'Unknown Batch';
+        if (!inhouseMap[batchKey]) {
+          inhouseMap[batchKey] = {
+            name: batchKey,
+            trainer: t.assignedTrainer || 'Unassigned',
+            hc: 0,
+            lossCount: 0,
+            p: 0,
+            a: 0,
+            members: []
+          };
+        }
+        inhouseMap[batchKey].hc += 1;
+        if (isLoss) inhouseMap[batchKey].lossCount += 1;
+        inhouseMap[batchKey].p += (t.p || 0);
+        inhouseMap[batchKey].a += (t.a || 0);
+        inhouseMap[batchKey].members.push(t);
 
-      if (!targetMap[batchKey]) {
-        targetMap[batchKey] = {
-          name: batchKey,
-          trainer: t.assignedTrainer || 'Unassigned',
-          hc: 0,
-          lossCount: 0,
-          members: []
-        };
-      }
-      targetMap[batchKey].hc += 1;
-      if (isLoss) targetMap[batchKey].lossCount += 1;
-      targetMap[batchKey].members.push(t);
+        if (inhouseMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
+          inhouseMap[batchKey].trainer = t.assignedTrainer;
+        }
+      } else {
+        // PST TRAINING: Group by overall group/account name (e.g. COVA -1, COVA -2, COVA -3 -> COVA)
+        let groupName = (t.accountName && t.accountName.toUpperCase() !== 'PST ACCOUNT' && t.accountName.toUpperCase() !== 'GENERAL' && t.accountName.trim() !== '')
+          ? t.accountName.trim()
+          : (t.batchName ? t.batchName.trim() : 'Unknown Group');
 
-      if (targetMap[batchKey].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
-        targetMap[batchKey].trainer = t.assignedTrainer;
+        // Clean out trailing wave/batch markers like " -1", " - 2", " -10", " Wave 1", " Batch 1", etc.
+        groupName = groupName
+          .replace(/\s*-\s*\d+.*$/i, '')
+          .replace(/\s+(wave|batch)\s*\d+.*$/i, '')
+          .trim() || groupName;
+
+        if (!pstMap[groupName]) {
+          pstMap[groupName] = {
+            name: groupName,
+            accountName: groupName,
+            trainer: t.assignedTrainer || 'Unassigned',
+            hc: 0,
+            lossCount: 0,
+            p: 0,
+            a: 0,
+            members: []
+          };
+        }
+        pstMap[groupName].hc += 1;
+        if (isLoss) pstMap[groupName].lossCount += 1;
+        pstMap[groupName].p += (t.p || 0);
+        pstMap[groupName].a += (t.a || 0);
+        pstMap[groupName].members.push(t);
+
+        if (pstMap[groupName].trainer === 'Unassigned' && t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
+          pstMap[groupName].trainer = t.assignedTrainer;
+        }
       }
     });
 
@@ -316,19 +357,34 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       return ((lCount / hc) * 100).toFixed(1) + '%';
     };
 
+    const formatAtt = (p: number, a: number) => {
+      const total = p + a;
+      if (total === 0) return '100.0%';
+      return ((p / total) * 100).toFixed(1) + '%';
+    };
+
     const inhouse = Object.values(inhouseMap).map(b => ({
       ...b,
-      attr: formatAttr(b.lossCount, b.hc)
+      attr: formatAttr(b.lossCount, b.hc),
+      attRate: formatAtt(b.p || 0, b.a || 0)
     }));
 
-    const pst = Object.values(pstMap).map(b => ({
-      ...b,
-      attr: formatAttr(b.lossCount, b.hc)
-    }));
+    const pst = Object.values(pstMap).map(b => {
+      const trainersFromMembers = b.members && b.members.length > 0
+        ? Array.from(new Set(b.members.map((m: any) => m.assignedTrainer).filter((tr: string) => tr && tr !== 'Unassigned'))).join(', ')
+        : '';
+      return {
+        ...b,
+        trainer: trainersFromMembers || b.trainer || 'Unassigned',
+        attr: formatAttr(b.lossCount, b.hc),
+        attRate: formatAtt(b.p || 0, b.a || 0)
+      };
+    });
 
     const clients = Object.values(accountMap).map(c => ({
       ...c,
-      attr: formatAttr(c.lossCount, c.hc)
+      attr: formatAttr(c.lossCount, c.hc),
+      attRate: formatAtt(c.p || 0, c.a || 0)
     }));
 
     const sortByName = (a: any, b: any) => a.name.localeCompare(b.name);
@@ -345,7 +401,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     };
   }, [filteredTrainees]);
 
-  const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string) => {
+  const openCard = (item: any, contextLabel: string, trainingType: string, accountName: string, trainer?: string, attRate?: string) => {
     const trainersFromMembers = item.members && item.members.length > 0
       ? Array.from(new Set(item.members.map((m: any) => m.assignedTrainer).filter((t: string) => t && t !== 'Unassigned'))).join(', ')
       : '';
@@ -359,11 +415,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       isBatch: true,
       name: item.name,
       batchName: item.name,
-      accountName,
+      accountName: accountName || item.accountName || item.name,
       trainingType,
       assignedTrainer: resolvedTrainer,
       headcount: item.hc,
       attritionRate: item.attr,
+      attendanceRate: item.attRate || attRate || '100.0%',
+      attRate: item.attRate || attRate || '100.0%',
       contextLabel,
       members: item.members
     });
@@ -870,7 +928,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 pr-2 hidden sm:block">
               {breakdownTab === 'all' && 'Side-by-side department overview'}
               {breakdownTab === 'inhouse' && `Full grid view of ${inhouseBatches.length} Inhouse batches`}
-              {breakdownTab === 'pst' && `Full grid view of ${pstBatches.length} PST waves`}
+              {breakdownTab === 'pst' && `Full grid view of ${pstBatches.length} PST groups`}
               {breakdownTab === 'accounts' && `Full grid view of ${clientAccounts.length} Client accounts`}
             </div>
           </div>
@@ -903,7 +961,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             <button
                               key={idx}
                               type="button"
-                              onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
+                              onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer, item.attRate)}
                               className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                             >
                               <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
@@ -928,23 +986,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       </div>
                       <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
                         {pstBatches.length === 0 ? (
-                          <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
+                          <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST groups</div>
                         ) : (
                           pstBatches.map((item, idx) => (
                             <button
                               key={idx}
                               type="button"
-                              onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
+                              onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || item.name, item.trainer, item.attRate)}
                               className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                             >
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
-                                  {item.trainer}
-                                </span>
-                              </div>
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1" title={item.name}>{item.name}</span>
                               <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
+                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Att: <strong className="text-emerald-600 dark:text-emerald-400">{item.attRate}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                               </span>
                             </button>
                           ))
@@ -970,7 +1023,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             <button
                               key={idx}
                               type="button"
-                              onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
+                              onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined, item.attRate)}
                               className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-purple-300 dark:hover:border-purple-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                             >
                               <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
@@ -1006,7 +1059,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer)}
+                      onClick={() => openCard(item, 'DEPT 1', 'INHOUSE TRAINING', 'General', item.trainer, item.attRate)}
                       className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
                       <span className="text-xs font-bold text-[#2F6798] dark:text-[#5a9fd4] truncate" title={item.name}>{item.name}</span>
@@ -1025,31 +1078,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             <div className="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-sm space-y-4 w-full">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
                 <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING WAVES ({pstBatches.length})
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> PST TRAINING GROUPS ({pstBatches.length})
                 </h3>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                   DEPT 2
                 </span>
               </div>
               {pstBatches.length === 0 ? (
-                <div className="text-center py-12 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST waves</div>
+                <div className="text-center py-12 text-xs font-medium text-slate-400 dark:text-slate-500">No matching PST groups</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {pstBatches.map((item, idx) => (
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || 'PST Account', item.trainer)}
+                      onClick={() => openCard(item, 'DEPT 2', 'PST TRAINING', item.accountName || item.name, item.trainer, item.attRate)}
                       className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
                     >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={item.name}>{item.name}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded shrink-0 max-w-[95px] truncate" title={item.trainer}>
-                          {item.trainer}
-                        </span>
-                      </div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1" title={item.name}>{item.name}</span>
                       <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
+                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Att: <strong className="text-emerald-600 dark:text-emerald-400">{item.attRate}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
                       </span>
                     </button>
                   ))}
