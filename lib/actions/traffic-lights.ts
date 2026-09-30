@@ -267,7 +267,8 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
           teams: tr.name,
           _account: 'trainers',
           assigned_trainer: tr.name,
-          position: tr.position || 'CORP-TR'
+          position: tr.position || tr.pos || 'Trainer',
+          startDate: tr.start_date || tr.startDate || tr.start || '-'
         };
         dates.forEach(d => { row[d] = null; });
         result.push(row);
@@ -284,7 +285,8 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
         // Group by wave / batch
         const groups: Record<string, any[]> = {};
         matched.forEach(t => {
-          const gKey = t.wave ? `TEAM WAVE ${t.wave}` : t.batch ? `TEAM BATCH ${t.batch}` : 'TEAM 1';
+          const batchNo = t.batch || t.wave || '1';
+          const gKey = `TEAM BATCH ${batchNo}`;
           if (!groups[gKey]) groups[gKey] = [];
           groups[gKey].push(t);
         });
@@ -302,7 +304,9 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
               teams: t.name,
               _account: account,
               assigned_trainer: t.assigned_trainer || t.trainer || '',
-              accountName: t.account
+              accountName: t.account,
+              position: t.position || 'Trainee',
+              startDate: t.start_date || t.startDate || t.date_hired || t.start || '-'
             };
             dates.forEach(d => { row[d] = null; });
             result.push(row);
@@ -319,14 +323,31 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
 
     if (metrics && metrics.length > 0) {
       metrics.forEach(m => {
-        const pName = m.person_id || '';
-        const targetRow = result.find(r => !r.isAccountHeader && !r.isTeamHeader && r.teams.toLowerCase() === pName.toLowerCase());
-        if (targetRow && m.metric_date && m.traffic_status) {
-          // Convert date to match format e.g. 4/3/2026
-          const dObj = new Date(m.metric_date);
-          const colKey = `${dObj.getMonth() + 1}/${dObj.getDate()}/${dObj.getFullYear()}`;
-          if (targetRow[colKey] !== undefined) {
-            targetRow[colKey] = m.traffic_status;
+        let pName = '';
+        let colKey = '';
+        if (m.source_table && m.source_table.includes('::')) {
+          const parts = m.source_table.split('::');
+          if (parts.length >= 4) {
+            pName = parts[2];
+            colKey = parts.slice(3).join('::');
+          }
+        }
+        if (!pName && m.person_id) {
+          pName = String(m.person_id);
+        }
+
+        if (pName && m.traffic_status) {
+          const targetRow = result.find(r => !r.isAccountHeader && !r.isTeamHeader && r.teams && r.teams.toLowerCase().trim() === pName.toLowerCase().trim());
+          if (targetRow) {
+            if (colKey && targetRow[colKey] !== undefined) {
+              targetRow[colKey] = m.traffic_status;
+            } else if (m.metric_date) {
+              const dObj = new Date(m.metric_date);
+              const fallbackColKey = `${dObj.getMonth() + 1}/${dObj.getDate()}/${dObj.getFullYear()}`;
+              if (targetRow[fallbackColKey] !== undefined) {
+                targetRow[fallbackColKey] = m.traffic_status;
+              }
+            }
           }
         }
       });
@@ -388,43 +409,64 @@ export async function updateTrafficLightCell(
       newValue = newValueArg || '';
     }
 
+    const cleanAccount = (account || '').toLowerCase().trim();
+    const cleanQuarter = (quarter || 'q2').toLowerCase().trim();
+    const cleanStaffName = String(matchValue || '').trim();
     const isoDate = parseDateToISO(colKey);
+    const sourceTable = `${cleanAccount}::${cleanQuarter}::${cleanStaffName}::${colKey}`;
 
-    // 1. Upsert into traffic_light_metrics
-    await supabaseAdmin
+    // 1. Save / Update in traffic_light_metrics
+    const { data: existingRecords } = await supabaseAdmin
       .from('traffic_light_metrics')
-      .upsert({
-        metric_group: account,
-        person_id: matchValue,
-        metric_date: isoDate,
-        traffic_status: newValue,
-        source_table: `${account}::${quarter}::${matchValue}::${colKey}`
-      }, { onConflict: 'source_table' });
+      .select('metric_id')
+      .eq('source_table', sourceTable);
+
+    if (existingRecords && existingRecords.length > 0) {
+      await supabaseAdmin
+        .from('traffic_light_metrics')
+        .update({
+          traffic_status: newValue || null,
+          metric_date: isoDate,
+          metric_group: cleanAccount
+        })
+        .eq('source_table', sourceTable);
+    } else {
+      await supabaseAdmin
+        .from('traffic_light_metrics')
+        .insert({
+          metric_group: cleanAccount,
+          metric_date: isoDate,
+          traffic_status: newValue || null,
+          source_table: sourceTable
+        });
+    }
 
     // 2. Also try updating legacy table if exists
     const candidateTables = [
-      `traffic_light_mon_${account}_${quarter}`,
-      `traffic_light_mon_ ${account}_${quarter}`,
-      `traffic_light_mon_${account}`,
-      `traffic_light_mon_ ${account}`,
-      `traffic_light_mon_other_acc_${quarter}`,
-      `traffic_light_mon_ other_acc_${quarter}`
+      `traffic_light_mon_${cleanAccount}_${cleanQuarter}`,
+      `traffic_light_mon_ ${cleanAccount}_${cleanQuarter}`,
+      `traffic_light_mon_${cleanAccount}`,
+      `traffic_light_mon_ ${cleanAccount}`,
+      `traffic_light_mon_other_acc_${cleanQuarter}`,
+      `traffic_light_mon_ other_acc_${cleanQuarter}`
     ];
 
     const candidateMatchKeys = [matchKey, 'teams', 'TRAINERS', 'trainers', 'name', 'js', 'RM-TEAMLEADS'];
 
     for (const tbl of candidateTables) {
       for (const mKey of candidateMatchKeys) {
-        await supabaseAdmin
-          .from(tbl)
-          .update({ [colKey]: newValue })
-          .eq(mKey, matchValue);
+        try {
+          await supabaseAdmin
+            .from(tbl)
+            .update({ [colKey]: newValue })
+            .eq(mKey, cleanStaffName);
+        } catch (ignored) {}
       }
     }
 
     await logActivity({
       title: 'Traffic Light Status Updated',
-      description: `Updated status for ${matchValue || 'staff'} (${colKey}) to "${newValue}" in ${account.toUpperCase()} (${quarter.toUpperCase()}).`,
+      description: `Updated status for ${cleanStaffName || 'staff'} (${colKey}) to "${newValue}" in ${cleanAccount.toUpperCase()} (${cleanQuarter.toUpperCase()}).`,
       iconType: 'success',
       author: 'Authorized Manager'
     });

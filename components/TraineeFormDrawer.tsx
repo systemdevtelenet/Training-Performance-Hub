@@ -22,6 +22,7 @@ import {
   Check
 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { useRole } from '@/components/providers/RoleProvider';
 
 export interface BulkRowTrainee {
   id: string;
@@ -78,6 +79,10 @@ export function TraineeFormDrawer({
   onSubmit,
   isSubmitting
 }: TraineeFormDrawerProps) {
+  const { role, actualRole, userName } = useRole();
+  const currentRole = role || actualRole;
+  const isTrainer = currentRole === 'TRAINER';
+
   const [rendered, setRendered] = useState(isOpen);
   const [open, setOpen] = useState(isOpen);
   
@@ -93,7 +98,7 @@ export function TraineeFormDrawer({
     trainingType: 'INHOUSE' as 'INHOUSE' | 'PST',
     batchName: 'General -1',
     accountName: accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'General',
-    assignedTrainer: 'Unassigned',
+    assignedTrainer: isTrainer && userName ? userName : 'Unassigned',
     status: 'ACTIVE'
   });
 
@@ -104,7 +109,7 @@ export function TraineeFormDrawer({
       trainingType: 'INHOUSE',
       batchName: 'General -1',
       accountName: 'General',
-      assignedTrainer: 'Unassigned',
+      assignedTrainer: isTrainer && userName ? userName : 'Unassigned',
       status: 'ACTIVE'
     }
   ]);
@@ -131,7 +136,11 @@ export function TraineeFormDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      setFormData(initialData);
+      const trainerDefault = isTrainer && userName ? userName : (initialData.assignedTrainer || 'Unassigned');
+      setFormData({
+        ...initialData,
+        assignedTrainer: mode === 'add' && isTrainer && userName ? userName : (initialData.assignedTrainer || trainerDefault)
+      });
       setSingleErrors({});
       setBulkErrors(null);
       setEntryMode('single');
@@ -139,7 +148,7 @@ export function TraineeFormDrawer({
         trainingType: initialData.trainingType || 'INHOUSE',
         batchName: initialData.batchName || 'General -1',
         accountName: initialData.accountName || 'General',
-        assignedTrainer: initialData.assignedTrainer || 'Unassigned',
+        assignedTrainer: trainerDefault,
         status: initialData.status || 'ACTIVE'
       });
       setBulkRows([
@@ -149,7 +158,7 @@ export function TraineeFormDrawer({
           trainingType: initialData.trainingType || 'INHOUSE',
           batchName: initialData.batchName || 'General -1',
           accountName: initialData.accountName || 'General',
-          assignedTrainer: initialData.assignedTrainer || 'Unassigned',
+          assignedTrainer: trainerDefault,
           status: initialData.status || 'ACTIVE'
         }
       ]);
@@ -591,11 +600,23 @@ export function TraineeFormDrawer({
                   <div className="flex px-4 py-3 items-center">
                     <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Assigned Trainer</div>
                     <div className="w-1/2">
-                      <CustomSelect
-                        value={formData.assignedTrainer}
-                        onChange={val => handleSingleFieldChange('assignedTrainer', val)}
-                        options={trainerOptions}
-                      />
+                      {isTrainer ? (
+                        <div className="w-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-between shadow-2xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <UserCheck className="w-4 h-4 text-[#2F6798] shrink-0" />
+                            <span className="truncate">{formData.assignedTrainer || userName || 'Assigned Trainer'}</span>
+                          </div>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-[#2F6798]/10 text-[#2F6798] dark:text-blue-300 shrink-0">
+                            You
+                          </span>
+                        </div>
+                      ) : (
+                        <CustomSelect
+                          value={formData.assignedTrainer}
+                          onChange={val => handleSingleFieldChange('assignedTrainer', val)}
+                          options={trainerOptions}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -681,11 +702,18 @@ export function TraineeFormDrawer({
 
                     <div>
                       <span className="font-medium text-slate-500 block mb-1">Default Trainer</span>
-                      <CustomSelect
-                        value={bulkDefaults.assignedTrainer}
-                        onChange={val => setBulkDefaults(prev => ({ ...prev, assignedTrainer: val }))}
-                        options={trainerOptions}
-                      />
+                      {isTrainer ? (
+                        <div className="w-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-between">
+                          <span className="truncate">{bulkDefaults.assignedTrainer || userName || 'Trainer'}</span>
+                          <span className="text-[9px] font-black text-[#2F6798] dark:text-blue-300">You</span>
+                        </div>
+                      ) : (
+                        <CustomSelect
+                          value={bulkDefaults.assignedTrainer}
+                          onChange={val => setBulkDefaults(prev => ({ ...prev, assignedTrainer: val }))}
+                          options={trainerOptions}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -766,12 +794,19 @@ export function TraineeFormDrawer({
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 flex-1 w-full md:w-auto">
                           {/* Dedicated Trainer Picker per Trainee */}
                           <div className="col-span-2 md:col-span-1">
-                            <CustomSelect
-                              value={row.assignedTrainer}
-                              onChange={val => handleUpdateBulkRow(index, 'assignedTrainer', val)}
-                              options={trainerOptions}
-                              placeholder="Trainer"
-                            />
+                            {isTrainer ? (
+                              <div className="w-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-between">
+                                <span className="truncate">{row.assignedTrainer || userName || 'Trainer'}</span>
+                                <span className="text-[9px] font-black text-[#2F6798] dark:text-blue-300">You</span>
+                              </div>
+                            ) : (
+                              <CustomSelect
+                                value={row.assignedTrainer}
+                                onChange={val => handleUpdateBulkRow(index, 'assignedTrainer', val)}
+                                options={trainerOptions}
+                                placeholder="Trainer"
+                              />
+                            )}
                           </div>
 
                           <div>

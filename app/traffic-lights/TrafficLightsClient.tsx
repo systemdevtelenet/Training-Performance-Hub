@@ -41,7 +41,10 @@ import {
   Filter,
   Sparkles,
   Maximize2,
-  ExternalLink
+  ExternalLink,
+  Table as TableIcon,
+  CalendarDays,
+  LayoutGrid
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import PageLoading from '@/components/PageLoading';
@@ -60,12 +63,12 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export const STATUS_OPTIONS = [
-  { value: '', label: 'None', icon: Circle, color: 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700', iconColor: 'text-slate-400', badgeStyle: 'bg-slate-50 text-slate-500 dark:bg-slate-900/50 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800' },
-  { value: 'Okay', label: 'Okay', icon: CheckCircle2, color: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 font-bold', iconColor: 'text-emerald-600 dark:text-emerald-400', badgeStyle: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 font-bold shadow-2xs' },
-  { value: 'Shaky', label: 'Shaky', icon: AlertTriangle, color: 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold', iconColor: 'text-amber-600 dark:text-amber-400', badgeStyle: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 font-bold shadow-2xs' },
-  { value: 'Terminated', label: 'Terminated', icon: XCircle, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
-  { value: 'Resigned', label: 'Resigned', icon: UserMinus, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
-  { value: 'Account Removed', label: 'Account Removed', icon: UserX, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-rose-600 dark:text-rose-400', badgeStyle: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 font-bold shadow-2xs' },
+  { value: '', label: 'None', icon: Circle, color: 'text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700', iconColor: 'text-slate-400', badgeStyle: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold' },
+  { value: 'Okay', label: 'Okay', icon: CheckCircle2, color: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-emerald-600 text-white font-bold shadow-xs hover:bg-emerald-700 border border-emerald-700' },
+  { value: 'Shaky', label: 'Shaky', icon: AlertTriangle, color: 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-amber-500 text-white font-bold shadow-xs hover:bg-amber-600 border border-amber-600' },
+  { value: 'Terminated', label: 'Terminated', icon: XCircle, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-rose-600 text-white font-bold shadow-xs hover:bg-rose-700 border border-rose-700' },
+  { value: 'Resigned', label: 'Resigned', icon: UserMinus, color: 'text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-red-700 text-white font-bold shadow-xs hover:bg-red-800 border border-red-800' },
+  { value: 'Account Removed', label: 'Account Removed', icon: UserX, color: 'text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-orange-600 text-white font-bold shadow-xs hover:bg-orange-700 border border-orange-700' },
 ];
 
 export const QUICK_REASON_TAGS = [
@@ -500,7 +503,6 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | null>(null);
 
   // Remarks / Notes State (Multi-Remarks Timeline)
   const [remarksMap, setRemarksMap] = useState<Record<string, TrafficLightRemarkItem[]>>({});
@@ -526,16 +528,36 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [isFullHistoryModalOpen, setIsFullHistoryModalOpen] = useState(false);
   const [showAllInDrawer, setShowAllInDrawer] = useState(false);
 
-  // UX ENHANCEMENT CONTROLS: WEEK WINDOW & SORT ORDER
-  const [weekWindow, setWeekWindow] = useState<'last4' | 'last8' | 'all'>('last4');
+  // UX ENHANCEMENT CONTROLS: VIEW MODE, DATE PICKER & SORT ORDER
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
+  const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date>(() => new Date(2026, 5, 1)); // Default June 2026 for Q2
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<{ date: Date; dateStr: string; entries: any[] } | null>(null);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
+  // Interactive Date Picker Popover State (matching Image 3)
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState<number>(2026);
+  const [pickerMonth, setPickerMonth] = useState<number>(5); // 0-indexed (5 is June)
+  const [pickerSelectedDay, setPickerSelectedDay] = useState<number>(1);
+  const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | 'status' | 'pickerMonth' | 'pickerYear' | null>(null);
+
+  // Sync date picker temp state when opening
+  useEffect(() => {
+    if (isDatePickerOpen) {
+      setPickerYear(calendarCurrentDate.getFullYear());
+      setPickerMonth(calendarCurrentDate.getMonth());
+      setPickerSelectedDay(calendarCurrentDate.getDate());
+    }
+  }, [isDatePickerOpen, calendarCurrentDate]);
 
   // Close custom dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('[data-dropdown]')) {
+      if (!target.closest('[data-dropdown]') && !target.closest('[data-datepicker]')) {
         setOpenDropdown(null);
+        setIsDatePickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -582,17 +604,24 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         getTrafficLightRemarks(account, quarter, accountsScope)
       ]);
 
-      if (resultRemarks.data) {
+      if (resultRemarks?.data) {
         setRemarksMap(resultRemarks.data);
+      } else {
+        setRemarksMap({});
       }
 
-      if (resultData.error || !resultData.data || resultData.data.length === 0) {
-        if (resultData.error) console.error('Error fetching traffic light data:', resultData.error);
+      if (!resultData || resultData.error || !resultData.data || resultData.data.length === 0) {
+        if (resultData?.error) console.error('Error fetching traffic light data:', resultData.error);
         setData([]);
         setAllDateColumns([]);
       } else {
         processData(resultData.data);
       }
+    } catch (err) {
+      console.error('Error in fetchTableData:', err);
+      setData([]);
+      setAllDateColumns([]);
+      setRemarksMap({});
     } finally {
       setIsLoading(false);
       setIsInitialLoading(false);
@@ -665,7 +694,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   useEffect(() => {
     fetchTableData();
 
-    // Supabase Realtime subscription to reflect remarks to everyone instantly
+    // Supabase Realtime subscription to reflect status updates & remarks to Admin and Trainers instantly
     const channel = supabase
       .channel(`traffic_light_realtime_${account}_${quarter}`)
       .on(
@@ -674,7 +703,15 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         () => {
           const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
           getTrafficLightRemarks(account, quarter, accountsScope).then(res => {
-            if (res.data) setRemarksMap(res.data);
+            if (res?.data) setRemarksMap(res.data);
+          }).catch(err => {
+            console.error('Error in realtime remarks fetch:', err);
+          });
+          // Also refresh table data so statuses reflect on Admin's screen immediately
+          getTrafficLightData(account, quarter, accountsScope).then(res => {
+            if (res?.data) processData(res.data);
+          }).catch(err => {
+            console.error('Error in realtime data fetch:', err);
           });
         }
       )
@@ -685,24 +722,96 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     };
   }, [account, quarter, visibleAccounts]);
 
-  // Dynamically compute active displayed columns based on weekWindow & sortOrder
-  const displayedDateColumns = useMemo(() => {
-    let dates = [...allDateColumns];
-
-    // 1. Filter by Week Window
-    if (weekWindow === 'last4') {
-      dates = dates.slice(-4);
-    } else if (weekWindow === 'last8') {
-      dates = dates.slice(-8);
+  // Dynamic Years Generator: Start from 1990 up to max(2031, currentYear + 5)
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const maxYear = Math.max(2031, currentYear + 5);
+    const yrs: number[] = [];
+    for (let y = 1990; y <= maxYear; y++) {
+      yrs.push(y);
     }
+    return yrs;
+  }, []);
 
-    // 2. Sort Order (Newest First puts latest week directly next to Employee Name)
+  // Helper to map month to quarter (q1, q2, q3, q4)
+  const getQuarterFromDate = (d: Date) => {
+    const m = d.getMonth();
+    if (m >= 0 && m <= 2) return 'q1';
+    if (m >= 3 && m <= 5) return 'q2';
+    if (m >= 6 && m <= 8) return 'q3';
+    return 'q4';
+  };
+
+  // Sync Quarter when Date Navigator changes
+  const handleDateChange = (newDate: Date) => {
+    setCalendarCurrentDate(newDate);
+    const targetQ = getQuarterFromDate(newDate);
+    if (targetQ !== quarter) {
+      setQuarter(targetQ);
+    }
+  };
+
+  // Sync Date Navigator when Quarter selector changes
+  const handleQuarterChange = (newQuarter: string) => {
+    setQuarter(newQuarter);
+    const currQ = getQuarterFromDate(calendarCurrentDate);
+    if (currQ !== newQuarter) {
+      const qStartMonth = newQuarter === 'q1' ? 0 : newQuarter === 'q2' ? 3 : newQuarter === 'q3' ? 6 : 9;
+      setCalendarCurrentDate(new Date(calendarCurrentDate.getFullYear(), qStartMonth, 1));
+    }
+  };
+
+  // Dynamically compute active displayed columns: Filter table dates strictly by selected Calendar Month
+  const displayedDateColumns = useMemo(() => {
+    const targetYear = calendarCurrentDate.getFullYear();
+    const targetMonth = calendarCurrentDate.getMonth(); // 0-indexed (e.g. 5 for June, 8 for Sept)
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const targetMonthPrefix = monthNames[targetMonth];
+
+    let dates = allDateColumns.filter(col => {
+      if (!col) return false;
+      const clean = col.trim();
+
+      // 1. Try Date.parse
+      try {
+        const parsed = new Date(clean);
+        if (!isNaN(parsed.getTime()) && !/^\d+$/.test(clean)) {
+          if (parsed.getFullYear() === targetYear && parsed.getMonth() === targetMonth) {
+            return true;
+          }
+          if (parsed.getMonth() === targetMonth) {
+            return true;
+          }
+        }
+      } catch {}
+
+      // 2. Try numeric splitting: M/D/YYYY or M/D/YY or M-D-YYYY
+      const parts = clean.split(/[\/\-]/).map(Number);
+      if (parts.length === 2 && !isNaN(parts[0])) {
+        return parts[0] === (targetMonth + 1);
+      }
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        const m = parts[0] > 1000 ? parts[1] : parts[0];
+        const yr = parts[2] < 100 ? 2000 + parts[2] : parts[2];
+        const y = parts[0] > 1000 ? parts[0] : yr;
+        return m === (targetMonth + 1) && (!y || y === targetYear);
+      }
+
+      // 3. Month name matching (e.g. "Jun 26", "Sep 5", "September 12")
+      if (clean.toLowerCase().includes(targetMonthPrefix)) {
+        return true;
+      }
+
+      return false;
+    });
+
+    // Strictly show only matched columns for the selected month (no fallback to other months)
     if (sortOrder === 'newest') {
-      dates.reverse();
+      dates = [...dates].reverse();
     }
 
     return dates;
-  }, [allDateColumns, weekWindow, sortOrder]);
+  }, [allDateColumns, calendarCurrentDate, sortOrder]);
 
   const latestDateColumn = useMemo(() => {
     if (allDateColumns.length === 0) return null;
@@ -731,6 +840,37 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     return teams;
   }, [data, nameColumnKey]);
 
+  // Helper to get Day of Week (e.g., FRI, TUE)
+  const getDayOfWeek = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      }
+    } catch (e) {}
+    return 'DAY';
+  };
+
+  // Helper to format Date Label (e.g. SEP 1 or 6/26)
+  const getFormattedDateLabel = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+        return `${month} ${d.getDate()}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
+
+  // Helper for 2-letter Avatar Initials
+  const getInitials = (nameStr: string) => {
+    if (!nameStr) return '?';
+    const parts = nameStr.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
   // Check if current user is authorized to edit a specific row
   const checkCanEditRow = (rowStaffName: string, rowAccount?: string) => {
     const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
@@ -739,39 +879,29 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     const targetAccount = rowAccount || account;
 
     if (isTrainer) {
-      // If viewing assigned client accounts (e.g. DFT, AWD, etc.), trainer can edit their trainees!
-      if (targetAccount !== 'trainers') {
-        const isAssignedAccount = (
-          trainerAccounts.some(ta => matchesTrafficLightAccount(targetAccount, ta)) ||
-          visibleAccounts.some(va => va.id === targetAccount || va.id === 'all')
-        );
-        if (isAssignedAccount) return true;
+      // In 'trainers' account: Trainers CANNOT edit their own or any trainer traffic lights (Admin only!)
+      if (targetAccount === 'trainers') {
+        return false;
       }
 
-      // On 'trainers' account, trainer can ONLY edit their own record
+      // In trainee/client accounts (e.g. DFT, FLEXAR, RM, etc.): Trainers CAN edit their assigned trainees!
       const cleanStaff = rowStaffName.toLowerCase().trim();
-      const userEmailStr = (email || '').toLowerCase().trim();
-      const userEmailHandle = userEmailStr.split('@')[0];
-      const userNameStr = (userName || '').toLowerCase().trim();
-
-      const isOwnRow = Boolean(
-        (userEmailStr && (userEmailStr.includes(cleanStaff.replace(/\s+/g, '')) || userEmailHandle.includes(cleanStaff) || cleanStaff.includes(userEmailHandle))) ||
-        (userNameStr && (isTrainerMatch(cleanStaff, userNameStr) || userNameStr.includes(cleanStaff) || cleanStaff.includes(userNameStr)))
+      const isAssignedTrainee = (
+        trainerTraineeNames.length > 0 &&
+        trainerTraineeNames.some(tn => {
+          const cleanTn = tn.toLowerCase().trim();
+          return cleanTn === cleanStaff || cleanStaff.includes(cleanTn) || cleanTn.includes(cleanStaff) || isTrainerMatch(cleanStaff, cleanTn);
+        })
       );
-      return isOwnRow;
+      const isAssignedAccount = (
+        trainerAccounts.some(ta => matchesTrafficLightAccount(targetAccount, ta)) ||
+        visibleAccounts.some(va => va.id === targetAccount || va.id === 'all')
+      );
+
+      return isAssignedTrainee || isAssignedAccount;
     }
 
-    const cleanStaff = rowStaffName.toLowerCase().trim();
-    const userEmailStr = (email || '').toLowerCase().trim();
-    const userEmailHandle = userEmailStr.split('@')[0];
-    const userNameStr = (userName || '').toLowerCase().trim();
-
-    const isOwnRow = Boolean(
-      (userEmailStr && (userEmailStr.includes(cleanStaff.replace(/\s+/g, '')) || userEmailHandle.includes(cleanStaff) || cleanStaff.includes(userEmailHandle))) ||
-      (userNameStr && (userNameStr.includes(cleanStaff) || cleanStaff.includes(userNameStr)))
-    );
-
-    return isOwnRow;
+    return false;
   };
 
   // Handle local cell edit change
@@ -1116,6 +1246,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         }
       }
 
+      // Status Filter
+      if (statusFilter !== 'ALL') {
+        const hasMatchingStatus = allDateColumns.some(col => {
+          const rawVal = row[col];
+          if (!rawVal) return false;
+          const cfg = getStatusConfig(String(rawVal));
+          return cfg.value.toLowerCase() === statusFilter.toLowerCase();
+        });
+        if (!hasMatchingStatus) return false;
+      }
+
       // Search Query
       if (searchQuery.trim()) {
         if (!nameVal.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -1172,7 +1313,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }
 
     return result;
-  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
+  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
 
   // Pagination State (Display 10 per page as requested)
   const [currentPage, setCurrentPage] = useState(1);
@@ -1181,7 +1322,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [account, quarter, selectedTeam, searchQuery, filterWithRemarksOnly]);
+  }, [account, quarter, selectedTeam, statusFilter, searchQuery, filterWithRemarksOnly]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
 
@@ -1239,6 +1380,166 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     { label: 'Medical / LOA', icon: HeartPulse, text: 'Medical Leave: On approved medical leave of absence.' },
     { label: 'Resignation Notice', icon: LogOut, text: 'Resignation: Submitted formal resignation notice.' },
   ];
+
+  // Month days generation for Traffic Lights Calendar
+  const calendarMonthInfo = useMemo(() => {
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const prevMonthTotalDays = new Date(year, month, 0).getDate();
+
+    const getMatchingColsForDate = (targetD: Date) => {
+      const tYear = targetD.getFullYear();
+      const tMonth = targetD.getMonth(); // 0-indexed
+      const tDate = targetD.getDate();
+
+      return allDateColumns.filter(col => {
+        try {
+          const parsed = new Date(col);
+          if (!isNaN(parsed.getTime())) {
+            return parsed.getFullYear() === tYear && parsed.getMonth() === tMonth && parsed.getDate() === tDate;
+          }
+        } catch {}
+
+        const parts = col.split(/[\/\-]/).map(Number);
+        if (parts.length === 2) {
+          return parts[0] === (tMonth + 1) && parts[1] === tDate;
+        }
+        if (parts.length === 3) {
+          if (parts[0] > 1000) {
+            return parts[0] === tYear && parts[1] === (tMonth + 1) && parts[2] === tDate;
+          } else {
+            const yr = parts[2] < 100 ? 2000 + parts[2] : parts[2];
+            return yr === tYear && parts[0] === (tMonth + 1) && parts[1] === tDate;
+          }
+        }
+        return false;
+      });
+    };
+
+    const days: {
+      dayNum: number;
+      isCurrentMonth: boolean;
+      date: Date;
+      dateKeyPattern: string;
+      matchingCols: string[];
+      entries: {
+        staffName: string;
+        rowAccount: string;
+        status: string;
+        colKey: string;
+        actualIndex: number;
+        remarksList: TrafficLightRemarkItem[];
+      }[];
+      statusCounts: Record<string, number>;
+    }[] = [];
+
+    // 1. Previous month trailing days
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const dNum = prevMonthTotalDays - i;
+      const d = new Date(year, month - 1, dNum);
+      days.push({
+        dayNum: dNum,
+        isCurrentMonth: false,
+        date: d,
+        dateKeyPattern: `${d.getMonth() + 1}/${dNum}/${d.getFullYear()}`,
+        matchingCols: [],
+        entries: [],
+        statusCounts: {}
+      });
+    }
+
+    // 2. Current month days
+    for (let dNum = 1; dNum <= totalDays; dNum++) {
+      const d = new Date(year, month, dNum);
+      const matchingCols = getMatchingColsForDate(d);
+      
+      const rawEntries: {
+        staffName: string;
+        rowAccount: string;
+        status: string;
+        colKey: string;
+        actualIndex: number;
+        remarksList: TrafficLightRemarkItem[];
+      }[] = [];
+
+      const statusCounts: Record<string, number> = {
+        Okay: 0,
+        Shaky: 0,
+        Terminated: 0,
+        Resigned: 0,
+        'Account Removed': 0,
+      };
+
+      if (matchingCols.length > 0) {
+        filteredData.forEach((row, idx) => {
+          const staffName = String(row[nameColumnKey] || '').trim();
+          const isHeader = row.isAccountHeader || staffName.toUpperCase().startsWith('ACCOUNT:') || staffName.toUpperCase().startsWith('TEAM');
+          if (isHeader) return;
+
+          const originalDataIndex = data.findIndex(item => (item.id && item.id === row.id) || (item[nameColumnKey] === row[nameColumnKey] && item._account === row._account));
+          const actualIndex = originalDataIndex !== -1 ? originalDataIndex : idx;
+
+          matchingCols.forEach(col => {
+            const val = row[col];
+            if (val && String(val).trim()) {
+              const rawStatus = String(val).trim();
+              const config = getStatusConfig(rawStatus);
+              if (config.value) {
+                const rKey = `${staffName}::${col}`;
+                const rList = remarksMap[rKey] || [];
+                const entry = {
+                  staffName,
+                  rowAccount: row._account || account,
+                  status: config.value,
+                  colKey: col,
+                  actualIndex,
+                  remarksList: rList
+                };
+
+                const cLabel = config.label;
+                if (statusCounts[cLabel] !== undefined) {
+                  statusCounts[cLabel]++;
+                }
+
+                if (statusFilter === 'ALL' || statusFilter.toUpperCase() === config.value.toUpperCase()) {
+                  rawEntries.push(entry);
+                }
+              }
+            }
+          });
+        });
+      }
+
+      days.push({
+        dayNum: dNum,
+        isCurrentMonth: true,
+        date: d,
+        dateKeyPattern: `${month + 1}/${dNum}/${year}`,
+        matchingCols,
+        entries: rawEntries,
+        statusCounts
+      });
+    }
+
+    // 3. Next month leading days
+    const remaining = (7 - (days.length % 7)) % 7;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({
+        dayNum: i,
+        isCurrentMonth: false,
+        date: d,
+        dateKeyPattern: `${d.getMonth() + 1}/${i}/${d.getFullYear()}`,
+        matchingCols: [],
+        entries: [],
+        statusCounts: {}
+      });
+    }
+
+    return { year, month, days };
+  }, [calendarCurrentDate, allDateColumns, filteredData, data, nameColumnKey, account, remarksMap, statusFilter]);
 
   if (isInitialLoading) {
     return (
@@ -1319,26 +1620,6 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         </div>
 
         <div className="flex items-center gap-2">
-          {pendingCount > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveAll}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all animate-bounce"
-              >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                Save Changes ({pendingCount})
-              </button>
-              <button
-                onClick={handleDiscardEdits}
-                disabled={isSaving}
-                className="px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all"
-              >
-                Discard
-              </button>
-            </div>
-          )}
-
           <button
             onClick={fetchTableData}
             disabled={isLoading}
@@ -1396,7 +1677,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
         {/* Box 4: Critical / Loss Flags */}
         <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 p-3.5 shadow-2xs flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-40 pointer-events-none select-none opacity-[0.45] dark:opacity-[0.25] group-hover:opacity-[0.65] dark:group-hover:opacity-[0.45] transition-all duration-300 transform group-hover:scale-105 z-0">
+          <div className="absolute -right-2 -bottom-2 w-28 sm:w-36 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
             <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
           <div className="relative z-10">
@@ -1409,32 +1690,32 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         </div>
       </div>
 
-      {/* ONE SINGLE UNIFIED EXTERNAL CONTAINER FOR FILTERS, WEEK WINDOW & TEAMS TABLE */}
+      {/* ONE SINGLE UNIFIED EXTERNAL CONTAINER FOR FILTERS & TEAMS TABLE / CALENDAR */}
       <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-5">
         
-        {/* Section 1: Global Filter Bar (Account, Quarter, Team, Search) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pb-4 border-b border-slate-100 dark:border-slate-700/60">
-          {/* Account Selector */}
-          <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
-            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+        {/* Section 1: Global Filter Bar (Account, Quarter, Team, Status, Search) - Compact Filters, Longer Search */}
+        <div className="flex flex-wrap items-end gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+          {/* 1. Account Selector */}
+          <div className="relative w-36 shrink-0" data-dropdown>
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5 text-[#2F6798]" />
               <span>SELECT ACCOUNT</span>
             </div>
             <button
               type="button"
               onClick={() => setOpenDropdown(prev => prev === 'account' ? null : 'account')}
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
             >
               <span className="truncate">{visibleAccounts.find(a => a.id === account)?.name || account.toUpperCase()}</span>
               {openDropdown === 'account' ? (
-                <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
               )}
             </button>
 
             {openDropdown === 'account' && (
-              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+              <div className="absolute top-[calc(100%+6px)] left-0 w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
                 {visibleAccounts.map((acc) => {
                   const isSelected = account === acc.id;
                   return (
@@ -1446,7 +1727,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                         setOpenDropdown(null);
                       }}
                       className={cn(
-                        "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
                         isSelected
                           ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
                           : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
@@ -1460,27 +1741,27 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             )}
           </div>
 
-          {/* Quarter Selector */}
-          <div className="relative col-span-1 sm:col-span-1 lg:col-span-2" data-dropdown>
-            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          {/* 2. Quarter Selector */}
+          <div className="relative w-28 shrink-0" data-dropdown>
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
               <span>QUARTER</span>
             </div>
             <button
               type="button"
               onClick={() => setOpenDropdown(prev => prev === 'quarter' ? null : 'quarter')}
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
+              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
             >
               <span className="truncate">{quarters.find(q => q.id === quarter)?.name || quarter}</span>
               {openDropdown === 'quarter' ? (
-                <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
               )}
             </button>
 
             {openDropdown === 'quarter' && (
-              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
+              <div className="absolute top-[calc(100%+6px)] left-0 w-32 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
                 {quarters.map((q) => {
                   const isSelected = quarter === q.id;
                   return (
@@ -1488,11 +1769,11 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                       key={q.id}
                       type="button"
                       onClick={() => {
-                        setQuarter(q.id);
+                        handleQuarterChange(q.id);
                         setOpenDropdown(null);
                       }}
                       className={cn(
-                        "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
                         isSelected
                           ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
                           : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
@@ -1506,142 +1787,438 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             )}
           </div>
 
-          {/* Team Filter Dropdown */}
-          {teamsList.length > 0 && (
-            <div className="relative col-span-1 sm:col-span-1 lg:col-span-3" data-dropdown>
-              <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#2F6798]" />
-                <span>TEAM FILTER</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpenDropdown(prev => prev === 'team' ? null : 'team')}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
-              >
-                <span className="truncate">
-                  {selectedTeam === 'ALL' ? `All Teams (${teamsList.length})` : selectedTeam}
-                </span>
-                {openDropdown === 'team' ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-                )}
-              </button>
-
-              {openDropdown === 'team' && (
-                <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTeam('ALL');
-                      setOpenDropdown(null);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3.5 py-2 rounded-xl text-xs transition-colors",
-                      selectedTeam === 'ALL'
-                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                    )}
-                  >
-                    All Teams ({teamsList.length})
-                  </button>
-                  {teamsList.map((t) => {
-                    const isSelected = selectedTeam === t.name;
-                    return (
-                      <button
-                        key={t.name}
-                        type="button"
-                        onClick={() => {
-                          setSelectedTeam(t.name);
-                          setOpenDropdown(null);
-                        }}
-                        className={cn(
-                          "w-full text-left px-3.5 py-2 rounded-xl text-xs truncate transition-colors",
-                          isSelected
-                            ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                            : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                        )}
-                      >
-                        {t.name} ({t.count})
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+          {/* 3. Team Filter Dropdown */}
+          <div className="relative w-36 shrink-0" data-dropdown>
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>TEAM FILTER</span>
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(prev => prev === 'team' ? null : 'team')}
+              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
+            >
+              <span className="truncate">
+                {selectedTeam === 'ALL' ? (teamsList.length > 0 ? `All Teams (${teamsList.length})` : 'All Teams') : selectedTeam}
+              </span>
+              {openDropdown === 'team' ? (
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              )}
+            </button>
 
-          {/* Search Employee Field */}
-          <div className={cn("col-span-1 sm:col-span-2", teamsList.length > 0 ? "lg:col-span-4" : "lg:col-span-7")}>
-            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            {openDropdown === 'team' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTeam('ALL');
+                    setOpenDropdown(null);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
+                    selectedTeam === 'ALL'
+                      ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  )}
+                >
+                  All Teams ({teamsList.length})
+                </button>
+                {teamsList.map((t) => {
+                  const isSelected = selectedTeam === t.name;
+                  return (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTeam(t.name);
+                        setOpenDropdown(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs truncate transition-colors cursor-pointer",
+                        isSelected
+                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      {t.name} ({t.count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 4. Status Filter Dropdown */}
+          <div className="relative w-36 shrink-0" data-dropdown>
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>STATUS FILTER</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(prev => prev === 'status' ? null : 'status')}
+              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                {statusFilter !== 'ALL' && (
+                  <span className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    statusFilter === 'Okay' ? 'bg-emerald-500' :
+                    statusFilter === 'Shaky' ? 'bg-amber-400' :
+                    statusFilter === 'Terminated' ? 'bg-rose-500' :
+                    statusFilter === 'Resigned' ? 'bg-red-500' : 'bg-orange-500'
+                  )} />
+                )}
+                <span className="truncate">{statusFilter === 'ALL' ? 'All Statuses' : statusFilter}</span>
+              </div>
+              {openDropdown === 'status' ? (
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              )}
+            </button>
+
+            {openDropdown === 'status' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
+                {['ALL', 'Okay', 'Shaky', 'Terminated', 'Resigned', 'Account Removed'].map((st) => {
+                  const isSelected = statusFilter === st;
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(st);
+                        setOpenDropdown(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer",
+                        isSelected
+                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      {st !== 'ALL' ? (
+                        <span className={cn(
+                          "w-2 h-2 rounded-full shrink-0",
+                          st === 'Okay' ? 'bg-emerald-500' :
+                          st === 'Shaky' ? 'bg-amber-400' :
+                          st === 'Terminated' ? 'bg-rose-500' :
+                          st === 'Resigned' ? 'bg-red-500' : 'bg-orange-500'
+                        )} />
+                      ) : (
+                        <Circle className="w-2 h-2 text-slate-400 shrink-0" />
+                      )}
+                      <span>{st === 'ALL' ? 'All Statuses' : st}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 5. Search Employee Field - Expanded Full Width */}
+          <div className="relative flex-1 min-w-[200px]">
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-[#2F6798]" />
               <span>SEARCH EMPLOYEE</span>
             </div>
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <div className="relative group">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-[#2F6798] transition-colors" />
               <input
                 type="text"
                 placeholder="Type name or batch..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] shadow-2xs transition-all"
+                className="h-10 w-full rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-4 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
               />
             </div>
           </div>
         </div>
 
-        {/* Section 2: WEEK WINDOW RANGE, CHRONOLOGICAL SORT & REMARKS FILTER CONTROLS */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700/60">
-          {/* Left: Week Window Filter */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-[#2F6798]" /> Week Window:
-            </span>
+        {/* Section 2: VIEW MODE SWITCHER & COMPACT DATE PICKER CONTROLS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+          {/* Left: View Mode Toggle + Unified Date Navigator Bar (No Today Button) */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* View Mode Toggle: Table View vs Calendar View */}
+            <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                  viewMode === 'table'
+                    ? "bg-[#2F6798] text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Table View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('calendar')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                  viewMode === 'calendar'
+                    ? "bg-[#2F6798] text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>Calendar View</span>
+              </button>
+            </div>
 
-            <div className="inline-flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+            {/* Date Navigator & Interactive Popover Trigger */}
+            <div className="relative flex items-center gap-1.5 flex-wrap" data-datepicker>
+              {/* Prev Month Button */}
               <button
                 type="button"
-                onClick={() => setWeekWindow('last4')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  weekWindow === 'last4'
-                    ? 'bg-[#2F6798] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-                }`}
+                onClick={() => {
+                  handleDateChange(new Date(calendarCurrentDate.getFullYear(), calendarCurrentDate.getMonth() - 1, 1));
+                }}
+                className="w-8 h-8 rounded-2xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                title="Previous Month"
               >
-                Last 4 Weeks
+                <ChevronLeft className="w-4 h-4" />
               </button>
+
+              {/* Month-Year Pill Trigger with Chevron (Image 2) */}
               <button
                 type="button"
-                onClick={() => setWeekWindow('last8')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  weekWindow === 'last8'
-                    ? 'bg-[#2F6798] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-                }`}
+                onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                className="px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-xs font-bold text-[#2F6798] dark:text-blue-300 flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:border-[#2F6798]/50"
               >
-                Last 8 Weeks
+                <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
+                <span className="font-black text-slate-900 dark:text-slate-100">
+                  {calendarCurrentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </span>
+                {isDatePickerOpen ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                )}
               </button>
+
+              {/* Next Month Button */}
               <button
                 type="button"
-                onClick={() => setWeekWindow('all')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  weekWindow === 'all'
-                    ? 'bg-[#2F6798] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-                }`}
+                onClick={() => {
+                  handleDateChange(new Date(calendarCurrentDate.getFullYear(), calendarCurrentDate.getMonth() + 1, 1));
+                }}
+                className="w-8 h-8 rounded-2xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                title="Next Month"
               >
-                All ({allDateColumns.length} Weeks)
+                <ChevronRight className="w-4 h-4" />
               </button>
+
+              {/* AESTHETIC COMPACT DATE PICKER POPOVER MODAL (MATCHING IMAGE 3) */}
+              {isDatePickerOpen && (
+                <div
+                  className="absolute top-[calc(100%+8px)] left-0 z-50 w-[305px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-3.5 space-y-2.5 animate-in fade-in zoom-in-95 duration-150"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Top Header Row with Title (e.g. "June 1"), Month/Year Dropdowns, and Calendar Badge */}
+                  <div className="flex items-start justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                        {new Date(pickerYear, pickerMonth, 1).toLocaleDateString('en-US', { month: 'long' })} {pickerSelectedDay}
+                      </h3>
+
+                      {/* Month & Year Selection Pill Buttons */}
+                      <div className="flex items-center gap-1.5">
+                        {/* Month Selector */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setOpenDropdown(prev => prev === 'pickerMonth' ? null : 'pickerMonth')}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 hover:bg-slate-200 transition-colors"
+                          >
+                            <span>{new Date(pickerYear, pickerMonth, 1).toLocaleDateString('en-US', { month: 'long' })}</span>
+                            <ChevronDown className="w-3 h-3 text-slate-400" />
+                          </button>
+
+                          {openDropdown === 'pickerMonth' && (
+                            <div className="absolute top-[calc(100%+4px)] left-0 w-36 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-50 max-h-48 overflow-y-auto space-y-0.5">
+                              {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((mName, mIdx) => (
+                                <button
+                                  key={mName}
+                                  type="button"
+                                  onClick={() => {
+                                    setPickerMonth(mIdx);
+                                    setOpenDropdown(null);
+                                  }}
+                                  className={cn(
+                                    "w-full text-left px-2 py-1 rounded-md text-xs transition-colors",
+                                    pickerMonth === mIdx
+                                      ? "font-bold text-[#2F6798] bg-blue-50 dark:bg-blue-950/40"
+                                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  )}
+                                >
+                                  {mName}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Year Selector (1990 - 2031+) */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setOpenDropdown(prev => prev === 'pickerYear' ? null : 'pickerYear')}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 hover:bg-slate-200 transition-colors"
+                          >
+                            <span>{pickerYear}</span>
+                            <ChevronDown className="w-3 h-3 text-slate-400" />
+                          </button>
+
+                          {openDropdown === 'pickerYear' && (
+                            <div className="absolute top-[calc(100%+4px)] left-0 w-24 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-50 max-h-48 overflow-y-auto space-y-0.5">
+                              {availableYears.map((yr) => (
+                                <button
+                                  key={yr}
+                                  type="button"
+                                  onClick={() => {
+                                    setPickerYear(yr);
+                                    setOpenDropdown(null);
+                                  }}
+                                  className={cn(
+                                    "w-full text-left px-2 py-1 rounded-md text-xs transition-colors",
+                                    pickerYear === yr
+                                      ? "font-bold text-[#2F6798] bg-blue-50 dark:bg-blue-950/40"
+                                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  )}
+                                >
+                                  {yr}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cute Calendar Badge with Top Ring Tabs (Image 3) */}
+                    <div className="w-10 h-10 bg-[#2F6798] rounded-xl flex items-center justify-center relative shadow-sm shrink-0">
+                      <div className="absolute -top-1 left-2 w-1 h-2 bg-slate-200 rounded-full" />
+                      <div className="absolute -top-1 right-2 w-1 h-2 bg-slate-200 rounded-full" />
+                      <span className="text-[10px] font-black text-white tracking-wider">
+                        {pickerYear}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 7-Weekday Header (Image 3) */}
+                  <div className="grid grid-cols-7 text-center text-[9.5px] font-black uppercase tracking-wider text-[#2F6798] dark:text-blue-300">
+                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((w) => (
+                      <div key={w} className="py-0.5">
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Calendar Days Matrix (2-digit zero-padded numbers, Image 3) */}
+                  {(() => {
+                    const firstDayIdx = new Date(pickerYear, pickerMonth, 1).getDay();
+                    const totalMonthDays = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+                    const prevMonthDays = new Date(pickerYear, pickerMonth, 0).getDate();
+
+                    const matrixDays: { dayNum: number; isCurr: boolean }[] = [];
+
+                    // Leading days from prev month
+                    for (let i = firstDayIdx - 1; i >= 0; i--) {
+                      matrixDays.push({ dayNum: prevMonthDays - i, isCurr: false });
+                    }
+                    // Current month days
+                    for (let d = 1; d <= totalMonthDays; d++) {
+                      matrixDays.push({ dayNum: d, isCurr: true });
+                    }
+                    // Trailing days
+                    const rem = (7 - (matrixDays.length % 7)) % 7;
+                    for (let i = 1; i <= rem; i++) {
+                      matrixDays.push({ dayNum: i, isCurr: false });
+                    }
+
+                    return (
+                      <div className="grid grid-cols-7 gap-y-1 text-center text-xs">
+                        {matrixDays.map((item, idx) => {
+                          const isSelected = item.isCurr && item.dayNum === pickerSelectedDay;
+                          const padNum = item.dayNum < 10 ? `0${item.dayNum}` : `${item.dayNum}`;
+
+                          return (
+                            <div key={idx} className="flex items-center justify-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (item.isCurr) {
+                                    setPickerSelectedDay(item.dayNum);
+                                  } else {
+                                    if (idx < 7) {
+                                      setPickerMonth(prev => prev === 0 ? 11 : prev - 1);
+                                      if (pickerMonth === 0) setPickerYear(y => y - 1);
+                                    } else {
+                                      setPickerMonth(prev => prev === 11 ? 0 : prev + 1);
+                                      if (pickerMonth === 11) setPickerYear(y => y + 1);
+                                    }
+                                    setPickerSelectedDay(item.dayNum);
+                                  }
+                                }}
+                                className={cn(
+                                  "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer",
+                                  isSelected
+                                    ? "bg-[#2F6798] text-white font-black shadow-md scale-105"
+                                    : item.isCurr
+                                    ? "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    : "text-slate-300 dark:text-slate-600 font-normal hover:text-slate-500"
+                                )}
+                              >
+                                {padNum}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Selected Date Summary Box (Image 3) */}
+                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-bold">
+                      <Clock className="w-3.5 h-3.5 text-[#2F6798]" />
+                      <span>Selected Date</span>
+                    </div>
+                    <span className="font-black text-[#2F6798] dark:text-blue-300">
+                      {new Date(pickerYear, pickerMonth, pickerSelectedDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  {/* Confirm Selection Action Button (Image 3) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newD = new Date(pickerYear, pickerMonth, pickerSelectedDay);
+                      handleDateChange(newD);
+                      setIsDatePickerOpen(false);
+                    }}
+                    className="w-full py-2 bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    Confirm Selection
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Right: Remarks Filter & Chronological Sort Toggle */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Right: Remarks Only Filter & Sorting Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setFilterWithRemarksOnly(!filterWithRemarksOnly)}
               className={cn(
-                "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs border",
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-2xs border",
                 filterWithRemarksOnly
                   ? "bg-[#C8A54B] text-white border-[#b08e3a] shadow-md shadow-[#C8A54B]/20"
                   : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700"
@@ -1659,7 +2236,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             <button
               type="button"
               onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
               title="Switch column date ordering"
             >
               <ArrowUpDown className="w-3.5 h-3.5 text-[#2F6798]" />
@@ -1668,213 +2245,490 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
           </div>
         </div>
 
-        {/* Section 3: Teams Table Container */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden flex flex-col w-full">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center p-24 text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin mb-4 text-[#2F6798]" />
-              <p className="text-xs font-semibold">Loading traffic light records...</p>
-            </div>
-          ) : filteredData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-24 text-slate-400">
-              <ShieldCheck className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-              <p className="text-xs font-medium text-slate-500">
-                {filterWithRemarksOnly ? 'No records with remarks found in this selection.' : 'No records found for this team / filter selection.'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
-              <table className="w-full text-left text-xs border-collapse min-w-[700px]">
-                <thead className="bg-slate-50/90 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-black border-b border-slate-200/80 dark:border-slate-700">
-                  <tr>
-                    <th className="px-4 py-3 sticky left-0 bg-slate-50/95 dark:bg-slate-800/95 z-20 shadow-xs min-w-[220px]">
-                      {account === 'trainers' ? 'Trainers' : account === 'all' ? 'Account / Trainees' : 'Trainees & Cohort'}
-                    </th>
-                    {displayedDateColumns.map((col) => {
-                      const isLatest = col === latestDateColumn;
-                      return (
-                        <th
-                          key={col}
-                          className={`px-3 py-3 text-center min-w-[155px] ${
-                            isLatest ? 'bg-blue-100/60 dark:bg-blue-950/60 text-[#2F6798] dark:text-blue-300 font-extrabold' : ''
-                          }`}
-                        >
-                          <div className="flex flex-col items-center gap-0.5">
-                            {isLatest && (
-                              <span className="bg-[#2F6798] text-white text-[9px] font-black px-1.5 py-0.2 rounded-md tracking-wider">
-                                LATEST
-                              </span>
-                            )}
-                            <span>{col}</span>
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
-                  {paginatedData.map((row, index) => {
-                    const originalDataIndex = data.findIndex(d => (d.id && d.id === row.id) || (d[nameColumnKey] === row[nameColumnKey] && d._account === row._account));
-                    const actualIndex = originalDataIndex !== -1 ? originalDataIndex : index;
-                    const nameVal = String(row[nameColumnKey] || '').trim();
-                    const isAccountHeader = row.isAccountHeader || nameVal.toUpperCase().startsWith('ACCOUNT:');
-                    const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
-
-                    if (isAccountHeader) {
-                      return (
-                        <tr
-                          key={`acc_${index}_${nameVal}`}
-                          className="bg-[#2F6798]/15 dark:bg-[#2F6798]/30 text-[#2F6798] dark:text-blue-300 font-black text-xs uppercase tracking-wider"
-                        >
-                          <td
-                            colSpan={displayedDateColumns.length + 1}
-                            className="px-4 py-2.5 sticky left-0 bg-blue-50/95 dark:bg-slate-800/95 z-10 border-y border-blue-200/80 dark:border-slate-700"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-[#2F6798]" />
-                              <span className="font-extrabold tracking-wide">{nameVal}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    if (isTeamHeader) {
-                      return (
-                        <tr
-                          key={`team_${index}_${nameVal}`}
-                          className="bg-slate-100/80 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-black text-xs uppercase tracking-wider"
-                        >
-                          <td
-                            colSpan={displayedDateColumns.length + 1}
-                            className="px-4 py-2.5 sticky left-0 bg-slate-100/90 dark:bg-slate-800/90 z-10 border-y border-slate-200/80 dark:border-slate-700"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-[#2F6798]" />
-                              <span>{nameVal}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    const initialLetter = nameVal.charAt(0).toUpperCase() || 'E';
-
-                    return (
-                      <tr
-                        key={row.id || `${actualIndex}_${nameVal}`}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors"
-                      >
-                        {/* Employee Name Column */}
-                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 min-w-[220px]">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                              {initialLetter}
-                            </div>
-                            <span className="truncate text-xs font-bold tracking-tight">
-                              {nameVal}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Date Cells */}
-                        {displayedDateColumns.map((col) => {
-                          const val = row[col];
-                          const canEdit = checkCanEditRow(nameVal, row._account);
-                          const isPending = pendingEdits[`${actualIndex}_${col}`];
-                          const isLatest = col === latestDateColumn;
-                          const remarkKey = `${nameVal}::${col}`;
-                          const cellRemarksList = remarksMap[remarkKey] || [];
-                          const existingRemark = cellRemarksList[cellRemarksList.length - 1]?.remarks;
-
-                          return (
-                            <td
-                              key={col}
-                              className={`px-2 py-2 text-center align-middle ${
-                                isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
-                              }`}
-                            >
-                              <StatusSelect
-                                value={val || ''}
-                                onChange={(newVal) => handleCellChange(actualIndex, col, newVal)}
-                                disabled={!canEdit}
-                                isPending={!!isPending}
-                                remark={existingRemark}
-                                remarksList={cellRemarksList}
-                                onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pagination Controls Footer (Display 10 per page) */}
-          {!isLoading && filteredData.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-              <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Showing <strong className="text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, filteredData.length)}</strong> of <strong className="text-slate-800 dark:text-slate-200">{filteredData.length}</strong> records
+        {/* Section 3: VIEW CONTENT (TABLE VIEW OR CALENDAR VIEW) */}
+        {viewMode === 'calendar' ? (
+          /* CALENDAR VIEW CONTAINER */
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden flex flex-col w-full">
+            {/* Month & Year Title Bar Above Calendar (e.g. September 2026) */}
+            <div className="px-5 py-3.5 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800/90 border-b border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#2F6798]/10 dark:bg-blue-950/50 flex items-center justify-center text-[#2F6798] dark:text-blue-300">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    {calendarCurrentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Traffic Lights Monthly Schedule &amp; Activity
+                  </p>
+                </div>
               </div>
+            </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
-                    Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong>
-                  </div>
+            {/* 7-Day Header */}
+            <div className="grid grid-cols-7 bg-[#2F6798] dark:bg-[#24527a] text-white text-center text-[10px] font-black uppercase tracking-wider overflow-hidden">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <div key={day} className="py-2 border-r border-blue-400/20 last:border-r-0">
+                  {day}
+                </div>
+              ))}
+            </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" /> Prev
-                    </button>
+            {/* Calendar Days 7-Column Grid */}
+            <div className="grid grid-cols-7 gap-px bg-slate-200/80 dark:border-slate-700/80 bg-slate-200 dark:bg-slate-800">
+              {calendarMonthInfo.days.map((dayItem, dIdx) => {
+                const isToday = dayItem.date.toDateString() === new Date().toDateString();
+                const hasEntries = dayItem.entries.length > 0;
+                return (
+                  <div
+                    key={dIdx}
+                    className={cn(
+                      "min-h-[120px] sm:min-h-[140px] p-2 transition-all flex flex-col justify-between group/day",
+                      dayItem.isCurrentMonth
+                        ? isToday
+                          ? "bg-blue-50/50 dark:bg-blue-950/20"
+                          : "bg-white dark:bg-slate-900"
+                        : "bg-slate-50/60 dark:bg-slate-900/40 opacity-45"
+                    )}
+                  >
+                    {/* Day Cell Top Header */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={cn(
+                          "w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black",
+                          isToday
+                            ? "bg-[#2F6798] text-white shadow-xs"
+                            : dayItem.isCurrentMonth
+                            ? "text-slate-700 dark:text-slate-300"
+                            : "text-slate-400 dark:text-slate-600"
+                        )}
+                      >
+                        {dayItem.dayNum}
+                      </span>
 
-                    <div className="flex items-center gap-1 px-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                        .map((p, i, arr) => {
-                          const prev = arr[i - 1];
-                          const showEllipsis = prev && p - prev > 1;
-                          return (
-                            <div key={p} className="flex items-center">
-                              {showEllipsis && <span className="px-1.5 text-xs text-slate-400">...</span>}
-                              <button
-                                onClick={() => setCurrentPage(p)}
-                                className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                  currentPage === p
-                                    ? 'bg-[#2F6798] text-white shadow-xs'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
-                                }`}
-                              >
-                                {p}
-                              </button>
-                            </div>
-                          );
-                        })}
+                      {hasEntries && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCalendarDay({
+                            date: dayItem.date,
+                            dateStr: dayItem.dateKeyPattern,
+                            entries: dayItem.entries
+                          })}
+                          className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-[#2F6798]/10 text-[#2F6798] dark:text-blue-300 hover:bg-[#2F6798]/20 transition-colors cursor-pointer"
+                        >
+                          {dayItem.entries.length} staff
+                        </button>
+                      )}
                     </div>
 
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
-                    >
-                      Next <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    {/* Day Cell Entries */}
+                    <div className="space-y-1 my-1 flex-1 overflow-hidden">
+                      {dayItem.entries.slice(0, 3).map((entry, eIdx) => {
+                        const cfg = getStatusConfig(entry.status);
+                        const noteCount = entry.remarksList?.length || 0;
+                        return (
+                          <button
+                            key={`${entry.staffName}_${entry.colKey}_${eIdx}`}
+                            type="button"
+                            onClick={() => handleOpenRemarks(entry.staffName, selectedTeam, entry.colKey, entry.status, entry.actualIndex, entry.rowAccount)}
+                            className={cn(
+                              "w-full text-left p-1 rounded-lg text-[9.5px] font-bold flex items-center justify-between gap-1 shadow-2xs hover:scale-[1.01] transition-transform cursor-pointer",
+                              cfg.badgeStyle
+                            )}
+                            title={`${entry.staffName} (${cfg.label}) - Click to view/edit remarks`}
+                          >
+                            <span className="truncate pr-0.5">{entry.staffName}</span>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {noteCount > 0 && (
+                                <span className="w-3.5 h-3.5 rounded-full bg-white/30 text-white flex items-center justify-center text-[7.5px] font-black">
+                                  {noteCount}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                      {dayItem.entries.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCalendarDay({
+                            date: dayItem.date,
+                            dateStr: dayItem.dateKeyPattern,
+                            entries: dayItem.entries
+                          })}
+                          className="w-full text-center py-0.5 text-[9px] font-extrabold text-[#2F6798] dark:text-blue-300 bg-blue-50/70 dark:bg-blue-950/50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer"
+                        >
+                          +{dayItem.entries.length - 3} more staff
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick status summary dots on footer */}
+                    {hasEntries && (
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800 text-[8px] font-black">
+                        {dayItem.statusCounts['Okay'] > 0 && (
+                          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {dayItem.statusCounts['Okay']}
+                          </span>
+                        )}
+                        {dayItem.statusCounts['Shaky'] > 0 && (
+                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                            {dayItem.statusCounts['Shaky']}
+                          </span>
+                        )}
+                        {(dayItem.statusCounts['Terminated'] > 0 || dayItem.statusCounts['Resigned'] > 0 || dayItem.statusCounts['Account Removed'] > 0) && (
+                          <span className="text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            {(dayItem.statusCounts['Terminated'] || 0) + (dayItem.statusCounts['Resigned'] || 0) + (dayItem.statusCounts['Account Removed'] || 0)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          /* TABLE VIEW CONTAINER */
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs overflow-hidden flex flex-col w-full">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center p-24 text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin mb-4 text-[#2F6798]" />
+                <p className="text-xs font-semibold">Loading traffic light records...</p>
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-24 text-slate-400">
+                <ShieldCheck className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
+                <p className="text-xs font-medium text-slate-500">
+                  {filterWithRemarksOnly ? 'No records with remarks found in this selection.' : 'No records found for this team / filter selection.'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
+                <table className="w-full text-left text-xs border-collapse min-w-[850px]">
+                  <thead className="bg-[#2F6798] dark:bg-[#24527a] text-white uppercase tracking-wider text-[10px] font-black border-b border-blue-900/40">
+                    <tr>
+                      <th className="px-3 py-1.5 sticky left-0 bg-[#2F6798] dark:bg-[#24527a] z-20 min-w-[105px] text-center border-r border-blue-400/20">
+                        START DATE
+                      </th>
+                      <th className="px-3 py-1.5 sticky left-[105px] bg-[#2F6798] dark:bg-[#24527a] z-20 min-w-[125px] text-left border-r border-blue-400/20">
+                        POSITION
+                      </th>
+                      <th className="px-4 py-1.5 sticky left-[230px] bg-[#2F6798] dark:bg-[#24527a] z-20 min-w-[220px] text-left border-r border-blue-400/20 shadow-xs">
+                        {account === 'trainers' ? 'TRAINER NAME' : account === 'all' ? 'ACCOUNT & TRAINEE' : 'EMPLOYEE NAME'}
+                      </th>
+                      {displayedDateColumns.length === 0 ? (
+                        <th className="px-6 py-2.5 text-center text-[11px] font-semibold text-blue-100 min-w-[280px]">
+                          No date records found for {calendarCurrentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </th>
+                      ) : (
+                        displayedDateColumns.map((col) => {
+                          const isLatest = col === latestDateColumn;
+                          const dayOfWeek = getDayOfWeek(col);
+                          const dateLabel = getFormattedDateLabel(col);
+                          return (
+                            <th
+                              key={col}
+                              className={`px-3 py-1.5 text-center min-w-[145px] border-r border-blue-400/20 last:border-r-0 ${
+                                isLatest ? 'bg-[#1d4c75] text-amber-300 font-black' : 'text-white'
+                              }`}
+                            >
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-[9.5px] font-bold tracking-wider text-blue-100 uppercase">
+                                  {dayOfWeek}
+                                </span>
+                                <span className="text-[11px] font-black tracking-wide">
+                                  {dateLabel}
+                                </span>
+                                {isLatest && (
+                                  <span className="bg-amber-400 text-slate-900 text-[7.5px] font-black px-1.5 py-0.2 rounded mt-0.5 tracking-wider">
+                                    LATEST
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                          );
+                        })
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                    {paginatedData.map((row, index) => {
+                      const originalDataIndex = data.findIndex(d => (d.id && d.id === row.id) || (d[nameColumnKey] === row[nameColumnKey] && d._account === row._account));
+                      const actualIndex = originalDataIndex !== -1 ? originalDataIndex : index;
+                      const nameVal = String(row[nameColumnKey] || '').trim();
+                      const isAccountHeader = row.isAccountHeader || nameVal.toUpperCase().startsWith('ACCOUNT:');
+                      const isTeamHeader = nameVal.toUpperCase().startsWith('TEAM');
+
+                      if (isAccountHeader) {
+                        return (
+                          <tr
+                            key={`acc_${index}_${nameVal}`}
+                            className="bg-[#2F6798]/15 dark:bg-[#2F6798]/30 text-[#2F6798] dark:text-blue-300 font-black text-xs uppercase tracking-wider"
+                          >
+                            <td
+                              colSpan={Math.max(1, displayedDateColumns.length) + 3}
+                              className="px-4 py-2.5 sticky left-0 bg-blue-50/95 dark:bg-slate-800/95 z-10 border-y border-blue-200/80 dark:border-slate-700"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-[#2F6798]" />
+                                <span className="font-extrabold tracking-wide">{nameVal}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      if (isTeamHeader) {
+                        return (
+                          <tr
+                            key={`team_${index}_${nameVal}`}
+                            className="bg-slate-100/80 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-black text-xs uppercase tracking-wider"
+                          >
+                            <td
+                              colSpan={Math.max(1, displayedDateColumns.length) + 3}
+                              className="px-4 py-2.5 sticky left-0 bg-slate-100/90 dark:bg-slate-800/90 z-10 border-y border-slate-200/80 dark:border-slate-700"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-[#2F6798]" />
+                                <span>{nameVal}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const initials = getInitials(nameVal);
+
+                      return (
+                        <tr
+                          key={row.id || `${actualIndex}_${nameVal}`}
+                          className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors"
+                        >
+                          {/* Start Date */}
+                          <td className="px-3 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 min-w-[105px]">
+                            {row.startDate || row.start_date || '-'}
+                          </td>
+
+                          {/* Position */}
+                          <td className="px-3 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 sticky left-[105px] bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 min-w-[125px]">
+                            <span className="truncate block">{row.position || (account === 'trainers' ? 'Trainer' : 'Trainee')}</span>
+                          </td>
+
+                          {/* Employee Name Column with 2-letter Avatar Initial */}
+                          <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 sticky left-[230px] bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-700 shadow-xs min-w-[220px]">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0 border border-[#2F6798]/20 shadow-2xs">
+                                {initials}
+                              </div>
+                              <span className="truncate text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                                {nameVal}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Date Status Cells */}
+                          {displayedDateColumns.length === 0 ? (
+                            <td className="px-4 py-3 text-center text-xs text-slate-400 dark:text-slate-500 italic">
+                              No evaluation records for {calendarCurrentDate.toLocaleDateString('en-US', { month: 'long' })}
+                            </td>
+                          ) : (
+                            displayedDateColumns.map((col) => {
+                              const val = row[col];
+                              const canEdit = checkCanEditRow(nameVal, row._account);
+                              const isPending = pendingEdits[`${actualIndex}_${col}`];
+                              const isLatest = col === latestDateColumn;
+                              const remarkKey = `${nameVal}::${col}`;
+                              const cellRemarksList = remarksMap[remarkKey] || [];
+                              const existingRemark = cellRemarksList[cellRemarksList.length - 1]?.remarks;
+
+                              return (
+                                <td
+                                  key={col}
+                                  className={`px-2 py-2 text-center align-middle border-r border-slate-100 dark:border-slate-800/80 last:border-r-0 ${
+                                    isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
+                                  }`}
+                                >
+                                  <StatusSelect
+                                    value={val || ''}
+                                    onChange={(newVal) => handleCellChange(actualIndex, col, newVal)}
+                                    disabled={!canEdit}
+                                    isPending={!!isPending}
+                                    remark={existingRemark}
+                                    remarksList={cellRemarksList}
+                                    onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
+                                  />
+                                </td>
+                              );
+                            })
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination Controls Footer (Display 10 per page) */}
+            {!isLoading && filteredData.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  Showing <strong className="text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, filteredData.length)}</strong> of <strong className="text-slate-800 dark:text-slate-200">{filteredData.length}</strong> records
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
+                      Page <strong className="text-slate-800 dark:text-slate-200">{currentPage}</strong> of <strong className="text-slate-800 dark:text-slate-200">{totalPages}</strong>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                      </button>
+
+                      <div className="flex items-center gap-1 px-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                          .map((p, i, arr) => {
+                            const prev = arr[i - 1];
+                            const showEllipsis = prev && p - prev > 1;
+                            return (
+                              <div key={p} className="flex items-center">
+                                {showEllipsis && <span className="px-1.5 text-xs text-slate-400">...</span>}
+                                <button
+                                  onClick={() => setCurrentPage(p)}
+                                  className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    currentPage === p
+                                      ? 'bg-[#2F6798] text-white shadow-xs'
+                                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
+                                  }`}
+                                >
+                                  {p}
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                      >
+                        Next <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
+
+      {/* MODAL POPUP FOR SELECTED CALENDAR DAY (VIEW ALL STAFF ROSTER ON THIS DATE) */}
+      {selectedCalendarDay && mounted && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl border border-slate-200/90 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 bg-[#2F6798] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                  <Calendar className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">
+                    {selectedCalendarDay.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  </h3>
+                  <p className="text-[11px] text-white/80">
+                    {selectedCalendarDay.entries.length} staff recorded on this date
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCalendarDay(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* List of staff on this day */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              {selectedCalendarDay.entries.map((entry, idx) => {
+                const cfg = getStatusConfig(entry.status);
+                const noteCount = entry.remarksList?.length || 0;
+                return (
+                  <div
+                    key={`${entry.staffName}_${idx}`}
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-3 shadow-2xs hover:shadow-xs transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0 border border-[#2F6798]/20">
+                        {getInitials(entry.staffName)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                          {entry.staffName}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {entry.rowAccount?.toUpperCase() || account.toUpperCase()} &middot; {entry.colKey}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1",
+                        cfg.badgeStyle
+                      )}>
+                        <span>{cfg.label}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCalendarDay(null);
+                          handleOpenRemarks(entry.staffName, selectedTeam, entry.colKey, entry.status, entry.actualIndex, entry.rowAccount);
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#2F6798] dark:text-blue-300 flex items-center gap-1 shadow-2xs cursor-pointer transition-all"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>{noteCount > 0 ? `Remarks (${noteCount})` : 'Remarks'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end bg-slate-50/80 dark:bg-slate-900/60 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedCalendarDay(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* SIDE-RIGHT DRAWER / MODAL FOR MULTI-REMARKS & HISTORY TIMELINE */}
       {activeRemarkModal && mounted && createPortal(
@@ -1944,6 +2798,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                 const modalKey = `${activeRemarkModal.staffName}::${activeRemarkModal.columnKey}`;
                 const rawList = remarksMap[modalKey] || [];
                 const totalNotes = rawList.length;
+
+                const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+                const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const canManageActiveRemarks = Boolean(
+                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
+                  (isTrainer && !isTrainerAccountModal)
+                );
 
                 // Associate each note with its original 1-based chronological index
                 const indexedList = rawList.map((item, idx) => ({
@@ -2121,7 +2982,9 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                       <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-1">
                         <MessageSquarePlus className="w-5 h-5 text-slate-300 dark:text-slate-600 mx-auto" />
                         <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">No remarks logged yet</p>
-                        <p className="text-[9px] text-slate-400">Use the form below to post the first remark or coaching note.</p>
+                        <p className="text-[9px] text-slate-400">
+                          {canManageActiveRemarks ? 'Use the form below to post the first remark or coaching note.' : 'Remarks will appear here once logged by administrators.'}
+                        </p>
                       </div>
                     ) : sortedList.length === 0 ? (
                       <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-1">
@@ -2170,7 +3033,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                                   )}
                                 </div>
 
-                                {!isEditing && (
+                                {!isEditing && canManageActiveRemarks && (
                                   <div className="flex items-center gap-0.5">
                                     <button
                                       type="button"
@@ -2262,63 +3125,85 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                 );
               })()}
 
-              {/* SECTION 2: ADD NEW REMARK COMPOSER */}
-              <div className="pt-4 border-t border-slate-200/80 dark:border-slate-700/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5 text-[#2F6798]" />
-                    <span>Add New Remark</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">
-                    {newRemarkDraft.length} characters
-                  </span>
-                </div>
+              {/* SECTION 2: ADD NEW REMARK COMPOSER (ADMIN OR ASSIGNED TRAINER ONLY) */}
+              {(() => {
+                const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+                const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const canManageActiveRemarks = Boolean(
+                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
+                  (isTrainer && !isTrainerAccountModal)
+                );
 
-                {/* Quick Presets */}
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_REASON_TAGS.map((tag) => {
-                    const TagIcon = tag.icon;
-                    return (
+                if (!canManageActiveRemarks) {
+                  return (
+                    <div className="pt-4 border-t border-slate-200/80 dark:border-slate-700/80">
+                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5">
+                        <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="font-medium">Trainer remarks are view-only. Only Administrators can add, edit, or delete remarks on trainer records.</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="pt-4 border-t border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                        <Plus className="w-3.5 h-3.5 text-[#2F6798]" />
+                        <span>Add New Remark</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">
+                        {newRemarkDraft.length} characters
+                      </span>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_REASON_TAGS.map((tag) => {
+                        const TagIcon = tag.icon;
+                        return (
+                          <button
+                            key={tag.label}
+                            type="button"
+                            onClick={() => {
+                              setNewRemarkDraft(prev => {
+                                const trimmed = prev.trim();
+                                if (!trimmed) return tag.text;
+                                return `${trimmed}\n- ${tag.text}`;
+                              });
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-semibold rounded-xl bg-slate-100 dark:bg-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all cursor-pointer border border-slate-200/80 dark:border-slate-600 flex items-center gap-1 shadow-2xs"
+                          >
+                            <TagIcon className="w-3 h-3 text-[#2F6798]" />
+                            <span>{tag.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* New Remark Input */}
+                    <textarea
+                      rows={4}
+                      value={newRemarkDraft}
+                      onChange={(e) => setNewRemarkDraft(e.target.value)}
+                      placeholder="Type a new remark or update for this employee (e.g. coaching notes, absences, progress, documentation)..."
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all shadow-2xs"
+                    />
+
+                    <div className="flex items-center justify-end">
                       <button
-                        key={tag.label}
                         type="button"
-                        onClick={() => {
-                          setNewRemarkDraft(prev => {
-                            const trimmed = prev.trim();
-                            if (!trimmed) return tag.text;
-                            return `${trimmed}\n- ${tag.text}`;
-                          });
-                        }}
-                        className="px-2.5 py-1 text-[10px] font-semibold rounded-xl bg-slate-100 dark:bg-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all cursor-pointer border border-slate-200/80 dark:border-slate-600 flex items-center gap-1 shadow-2xs"
+                        disabled={isPostingRemark || !newRemarkDraft.trim()}
+                        onClick={handleAddRemark}
+                        className="px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <TagIcon className="w-3 h-3 text-[#2F6798]" />
-                        <span>{tag.label}</span>
+                        {isPostingRemark ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        <span>Post Remark</span>
                       </button>
-                    );
-                  })}
-                </div>
-
-                {/* New Remark Input */}
-                <textarea
-                  rows={4}
-                  value={newRemarkDraft}
-                  onChange={(e) => setNewRemarkDraft(e.target.value)}
-                  placeholder="Type a new remark or update for this employee (e.g. coaching notes, absences, progress, documentation)..."
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all shadow-2xs"
-                />
-
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    disabled={isPostingRemark || !newRemarkDraft.trim()}
-                    onClick={handleAddRemark}
-                    className="px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isPostingRemark ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Post Remark</span>
-                  </button>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Drawer Footer */}
@@ -2371,6 +3256,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                 const modalKey = `${activeRemarkModal.staffName}::${activeRemarkModal.columnKey}`;
                 const rawList = remarksMap[modalKey] || [];
                 const totalNotes = rawList.length;
+
+                const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+                const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const canManageActiveRemarks = Boolean(
+                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
+                  (isTrainer && !isTrainerAccountModal)
+                );
 
                 const indexedList = rawList.map((item, idx) => ({
                   ...item,
@@ -2531,7 +3423,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                                   )}
                                 </div>
 
-                                {!isEditing && (
+                                {!isEditing && canManageActiveRemarks && (
                                   <div className="flex items-center gap-0.5">
                                     <button
                                       type="button"
@@ -2604,7 +3496,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/60 shrink-0">
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Live timeline synchronized with Supabase
+                Live timeline updated in real-time
               </span>
               <button
                 type="button"
@@ -2628,7 +3520,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Saving Changes</h3>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Updating traffic light records in database...</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Please wait while your updates are being saved...</p>
             </div>
           </div>
         </div>,
@@ -2690,6 +3582,40 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               </button>
             </div>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Bottom-Right Action Bar for Save Changes & Discard */}
+      {pendingCount > 0 && mounted && createPortal(
+        <div className="fixed bottom-6 right-6 z-[9990] flex items-center gap-3 p-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700 animate-in slide-in-from-bottom-5 fade-in duration-200 ring-1 ring-black/5">
+          <div className="flex items-center gap-2 pl-2 pr-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+              {pendingCount} unsaved {pendingCount === 1 ? 'change' : 'changes'}
+            </span>
+          </div>
+
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+
+          <button
+            type="button"
+            onClick={handleDiscardEdits}
+            disabled={isSaving}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+          >
+            Discard
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveAll}
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Save Changes ({pendingCount})
+          </button>
         </div>,
         document.body
       )}

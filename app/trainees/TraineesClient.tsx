@@ -29,10 +29,13 @@ import {
   Briefcase,
   UserCheck,
   Loader2,
-  Sparkles
+  Sparkles,
+  UserMinus,
+  ShieldAlert
 } from 'lucide-react';
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
 import { TraineeFormDrawer } from '@/components/TraineeFormDrawer';
+import { OffboardTraineeDrawer, OffboardData } from '@/components/OffboardTraineeDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -108,6 +111,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [selectedCard, setSelectedCard] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [breakdownTab, setBreakdownTab] = useState<'all' | 'inhouse' | 'pst' | 'accounts'>('all');
+  const [rosterFilter, setRosterFilter] = useState<'active' | 'offboarded' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('All');
   const [selectedQuarter, setSelectedQuarter] = useState('All');
@@ -128,6 +132,9 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         setBreakdownTab('pst');
       } else if (t === 'accounts') {
         setBreakdownTab('accounts');
+      } else if (t === 'offboarded') {
+        setRosterFilter('offboarded');
+        setViewMode('table');
       }
     }
   }, []);
@@ -138,6 +145,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isOffboardModalOpen, setIsOffboardModalOpen] = useState(false);
+  const [offboardingTrainee, setOffboardingTrainee] = useState<Trainee | null>(null);
   const [editingTrainee, setEditingTrainee] = useState<Trainee | null>(null);
   const [deletingTrainee, setDeletingTrainee] = useState<Trainee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -216,11 +225,23 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     return Array.from(set).sort();
   }, [trainees]);
 
+  const activeTraineesCount = useMemo(() => {
+    return trainees.filter(t => !t.isLoss && !isLossStatus(t.status)).length;
+  }, [trainees]);
+
+  const offboardedTraineesCount = useMemo(() => {
+    return trainees.filter(t => t.isLoss || isLossStatus(t.status)).length;
+  }, [trainees]);
+
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  // Filter trainees based on global search & selects
+  // Filter trainees based on global search, roster filter, & selects
   const filteredTrainees = useMemo(() => {
     return trainees.filter(t => {
+      const isLoss = Boolean(t.isLoss || isLossStatus(t.status));
+      if (rosterFilter === 'active' && isLoss) return false;
+      if (rosterFilter === 'offboarded' && !isLoss) return false;
+
       if (selectedAccount !== 'All' && t.accountName !== selectedAccount) return false;
       if (selectedQuarter !== 'All' && t.quarter !== selectedQuarter) return false;
       if (selectedMonth !== 'All' && t.month !== selectedMonth) return false;
@@ -236,12 +257,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       return true;
     });
-  }, [trainees, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [trainees, rosterFilter, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [deferredSearchQuery, rosterFilter, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Paginated trainees slice
   const totalPages = Math.ceil(filteredTrainees.length / pageSize) || 1;
@@ -624,6 +645,45 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }
   };
 
+  // Handle Offboard Trainee Submit
+  const handleOffboardTraineeSubmit = async (offboardData: OffboardData) => {
+    if (!canManageTrainees) {
+      showToast('You have read-only access and cannot offboard trainees.', 'Permission Denied', 'warning');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/trainees/offboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(offboardData)
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        setTrainees(prev => prev.map(t => {
+          if (t.name.trim().toLowerCase() === offboardData.traineeName.trim().toLowerCase()) {
+            return {
+              ...t,
+              status: offboardData.status,
+              isLoss: true,
+              isEndorsed: false
+            };
+          }
+          return t;
+        }));
+        showToast(`${offboardData.traineeName} has been officially offboarded as ${offboardData.status}.`, 'Trainee Offboarded', 'success');
+        setIsOffboardModalOpen(false);
+        setOffboardingTrainee(null);
+      } else {
+        showToast(resData.error || 'Failed to offboard trainee.', 'Offboard Failed', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error offboarding trainee.', 'Offboard Error', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {
     const rawStatus = (status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING')).trim();
     const upperStatus = rawStatus.toUpperCase();
@@ -679,26 +739,38 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         </div>
 
         {/* Action Controls & View Switcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {canManageTrainees && !isTrainee && (
-            <button
-              onClick={() => {
-                setFormData({
-                  name: '',
-                  trainingType: 'INHOUSE',
-                  batchName: '',
-                  accountName: availableAccounts.length > 1 ? availableAccounts[1] : 'General',
-                  assignedTrainer: isTrainer ? (userName || 'Trainer') : 'Unassigned',
-                  status: 'ACTIVE',
-                  quarter: 'Q1',
-                  month: 'January'
-                });
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5"
-            >
-              <Plus className="w-4 h-4" /> Add Trainee
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setFormData({
+                    name: '',
+                    trainingType: 'INHOUSE',
+                    batchName: '',
+                    accountName: availableAccounts.length > 1 ? availableAccounts[1] : 'General',
+                    assignedTrainer: isTrainer ? (userName || 'Trainer') : 'Unassigned',
+                    status: 'ACTIVE',
+                    quarter: 'Q1',
+                    month: 'January'
+                  });
+                  setIsAddModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Trainee
+              </button>
+
+              <button
+                onClick={() => {
+                  setOffboardingTrainee(null);
+                  setIsOffboardModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/90 dark:border-rose-800/80 rounded-xl text-xs font-bold shadow-2xs transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <UserMinus className="w-4 h-4 text-rose-600 dark:text-rose-400" /> Offboard Trainee
+              </button>
+            </>
           )}
 
           <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner">
@@ -1144,13 +1216,53 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       {/* VIEW MODE 2: ALL TRAINEES TABLE WITH PAGINATION & UNBOXED COLORED ACTION ICONS */}
       {viewMode === 'table' && (
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
-              <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase font-mono">
-                ALL TRAINEES DIRECTORY ({filteredTrainees.length})
-              </h3>
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
+                <h3 className="text-xs font-black tracking-wider text-slate-800 dark:text-slate-100 uppercase font-mono">
+                  TRAINEES DIRECTORY ({filteredTrainees.length})
+                </h3>
+              </div>
+
+              {/* Roster Filter Pill Switcher */}
+              <div className="inline-flex bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-300/80 dark:border-slate-700 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setRosterFilter('active')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    rosterFilter === 'active'
+                      ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-blue-300 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Active ({activeTraineesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRosterFilter('offboarded')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    rosterFilter === 'offboarded'
+                      ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <UserMinus className="w-3 h-3 text-rose-500" /> Offboarded &amp; Attrition ({offboardedTraineesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRosterFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    rosterFilter === 'all'
+                      ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  All ({trainees.length})
+                </button>
+              </div>
             </div>
+
             <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span>Rows per page:</span>
@@ -1236,7 +1348,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                         <td className="py-3 px-4 text-right min-w-[100px]">
                           {/* Unboxed Colored Icon Actions */}
                           <div className="flex items-center justify-end gap-2.5">
-                            {canManageTrainees && !t.isEndorsed && (
+                            {canManageTrainees && !t.isEndorsed && !t.isLoss && !isLossStatus(t.status) && (
                               <button
                                 onClick={() => handleEndorseTrainee(t)}
                                 title="Endorse Trainee"
@@ -1254,6 +1366,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                             </button>
                             {canManageTrainees && (
                               <>
+                                {!t.isLoss && !isLossStatus(t.status) && (
+                                  <button
+                                    onClick={() => {
+                                      setOffboardingTrainee(t);
+                                      setIsOffboardModalOpen(true);
+                                    }}
+                                    title="Offboard Trainee"
+                                    className="text-rose-600 dark:text-rose-400 hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                  >
+                                    <UserMinus className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setEditingTrainee(t);
@@ -1501,6 +1625,21 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           </div>
         </div>,
         document.body
+      )}
+
+      {/* OFFBOARD TRAINEE DRAWER (RIGHT PANEL) */}
+      {canManageTrainees && (
+        <OffboardTraineeDrawer
+          isOpen={isOffboardModalOpen}
+          trainee={offboardingTrainee}
+          availableTrainees={trainees}
+          onClose={() => {
+            setIsOffboardModalOpen(false);
+            setOffboardingTrainee(null);
+          }}
+          onSubmit={handleOffboardTraineeSubmit}
+          isSubmitting={isSubmitting}
+        />
       )}
 
       {/* Trainee Detail Drawer */}

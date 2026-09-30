@@ -19,6 +19,7 @@ import {
   Shield
 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { CustomDatePicker } from '@/components/ui/CustomDatePicker';
 
 const DEFAULT_ROLE_OPTIONS = [
   { value: 3, label: 'Account Manager' },
@@ -419,15 +420,10 @@ export function EmployeeFormDrawer({
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Hire Date
                 </label>
-                <input
-                  type="date"
+                <CustomDatePicker
                   value={formData.hire_date}
-                  onChange={e => handleFieldChange('hire_date', e.target.value)}
-                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition-all ${
-                    errors.hire_date
-                      ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#2F6798] focus:bg-white'
-                  }`}
+                  onChange={val => handleFieldChange('hire_date', val)}
+                  hasError={Boolean(errors.hire_date)}
                 />
                 {errors.hire_date && (
                   <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-in fade-in duration-150">

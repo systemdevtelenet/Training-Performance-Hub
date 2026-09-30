@@ -70,6 +70,7 @@ const getNavItems = (role: UserRole): NavItem[] => {
         { name: 'All Trainees Directory', href: '/trainees', icon: Users, desc: 'Trainee records & cohort rosters' },
         { name: 'Performance & Grades', href: '/trainees?tab=performance', icon: GraduationCap, desc: 'Assessments, mock scores & gate milestones' },
         { name: 'Wave Rosters & Batches', href: '/trainees?tab=batches', icon: ShieldCheck, desc: 'Batch groupings & assigned accounts' },
+        { name: 'Offboarded & Attrition', href: '/trainees?tab=offboarded', icon: TrendingDown, desc: 'Separations, exit reasons & attrition records' },
       ]
     },
     { 
