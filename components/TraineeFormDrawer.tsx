@@ -79,7 +79,7 @@ export function TraineeFormDrawer({
   onSubmit,
   isSubmitting
 }: TraineeFormDrawerProps) {
-  const { role, actualRole, userName } = useRole();
+  const { role, actualRole, userName, userMeta } = useRole();
   const currentRole = role || actualRole;
   const isTrainer = currentRole === 'TRAINER';
 
@@ -93,11 +93,15 @@ export function TraineeFormDrawer({
   const [formData, setFormData] = useState(initialData);
   const [singleErrors, setSingleErrors] = useState<Record<string, string>>({});
 
+  const defaultTrainerAccount = (userMeta?.accounts && userMeta.accounts !== 'N/A' && userMeta.accounts !== 'CORP')
+    ? userMeta.accounts.split(/[\/,]/)[0].trim()
+    : (accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'RM');
+
   // Bulk Form States
   const [bulkDefaults, setBulkDefaults] = useState({
-    trainingType: 'INHOUSE' as 'INHOUSE' | 'PST',
-    batchName: 'General -1',
-    accountName: accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'General',
+    trainingType: (isTrainer ? 'PST' : 'INHOUSE') as 'INHOUSE' | 'PST',
+    batchName: isTrainer ? `${defaultTrainerAccount} -1` : 'General -1',
+    accountName: isTrainer ? defaultTrainerAccount : (accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'General'),
     assignedTrainer: isTrainer && userName ? userName : 'Unassigned',
     status: 'ACTIVE'
   });
@@ -106,9 +110,9 @@ export function TraineeFormDrawer({
     {
       id: 'row-1',
       name: '',
-      trainingType: 'INHOUSE',
-      batchName: 'General -1',
-      accountName: 'General',
+      trainingType: isTrainer ? 'PST' : 'INHOUSE',
+      batchName: isTrainer ? `${defaultTrainerAccount} -1` : 'General -1',
+      accountName: isTrainer ? defaultTrainerAccount : 'General',
       assignedTrainer: isTrainer && userName ? userName : 'Unassigned',
       status: 'ACTIVE'
     }
@@ -137,17 +141,24 @@ export function TraineeFormDrawer({
   useEffect(() => {
     if (isOpen) {
       const trainerDefault = isTrainer && userName ? userName : (initialData.assignedTrainer || 'Unassigned');
+      const trackDefault = mode === 'add' ? (isTrainer ? 'PST' : (initialData.trainingType || 'PST')) : (initialData.trainingType || 'INHOUSE');
+      const accDefault = mode === 'add' && isTrainer ? defaultTrainerAccount : (initialData.accountName || 'General');
+      const batchDefault = mode === 'add' && isTrainer ? `${defaultTrainerAccount} -1` : (initialData.batchName || 'General -1');
+
       setFormData({
         ...initialData,
+        trainingType: trackDefault,
+        accountName: accDefault,
+        batchName: batchDefault,
         assignedTrainer: mode === 'add' && isTrainer && userName ? userName : (initialData.assignedTrainer || trainerDefault)
       });
       setSingleErrors({});
       setBulkErrors(null);
       setEntryMode('single');
       setBulkDefaults({
-        trainingType: initialData.trainingType || 'INHOUSE',
-        batchName: initialData.batchName || 'General -1',
-        accountName: initialData.accountName || 'General',
+        trainingType: trackDefault,
+        batchName: batchDefault,
+        accountName: accDefault,
         assignedTrainer: trainerDefault,
         status: initialData.status || 'ACTIVE'
       });
@@ -155,9 +166,9 @@ export function TraineeFormDrawer({
         {
           id: `row-${Date.now()}-1`,
           name: '',
-          trainingType: initialData.trainingType || 'INHOUSE',
-          batchName: initialData.batchName || 'General -1',
-          accountName: initialData.accountName || 'General',
+          trainingType: trackDefault,
+          batchName: batchDefault,
+          accountName: accDefault,
           assignedTrainer: trainerDefault,
           status: initialData.status || 'ACTIVE'
         }

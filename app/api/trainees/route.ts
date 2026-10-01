@@ -234,11 +234,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const authorParam = searchParams.get('author') || searchParams.get('userName');
+    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' ? authorParam.trim() : 'Nissi';
+
     await logActivity({
       title: 'Trainee Removed',
       description: `Removed trainee ${cleanName} from ${type || (isPst ? 'PST Training' : 'Inhouse Training')}.`,
       iconType: 'alert',
-      author: 'Training Team'
+      author: authorName
     });
 
     try {

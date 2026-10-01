@@ -520,7 +520,7 @@ export const getTraineesData = unstable_cache(
           quarter: row.quarter || '',
           p: pCount,
           a: aCount,
-          isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+          isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
           isLoss,
           assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
           batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
@@ -552,7 +552,7 @@ export const getTraineesData = unstable_cache(
           quarter: row.quarter || '',
           p: pCount,
           a: aCount,
-          isEndorsed: row.endorsed_date ? true : (row.status || '').toUpperCase() === 'ENDORSED',
+          isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
           isLoss,
           assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
           batchName: batchName,
@@ -567,9 +567,9 @@ export const getTraineesData = unstable_cache(
       return [];
     }
   },
-  ['trainees-data-v1'],
+  ['trainees-data-v2'],
   {
-    revalidate: 3600,
+    revalidate: 5,
     tags: ['trainees']
   }
 );

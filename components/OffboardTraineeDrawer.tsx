@@ -17,7 +17,8 @@ import {
   HelpCircle,
   Sparkles,
   Info,
-  Check
+  Check,
+  Send
 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker';
@@ -208,10 +209,21 @@ export function OffboardTraineeDrawer({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    await onSubmit(formData);
+    const currentRole = role || actualRole;
+    const isAdminRole = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+    const isTrainer = currentRole === 'TRAINER' || !isAdminRole;
+    await onSubmit({
+      ...formData,
+      isTrainerRequest: isTrainer,
+      author: isTrainer ? (userName || 'Trainer') : (userName || 'Nissi')
+    } as any);
   };
 
   if (!rendered) return null;
+
+  const currentRole = role || actualRole;
+  const isAdminRole = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+  const isTrainer = currentRole === 'TRAINER' || !isAdminRole;
 
   return createPortal(
     <div
@@ -242,12 +254,18 @@ export function OffboardTraineeDrawer({
             <div>
               <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
                 Offboard Trainee
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 uppercase tracking-wider">
-                  Attrition &amp; Separation
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  isTrainer
+                    ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+                    : 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300'
+                }`}>
+                  {isTrainer ? 'Approval Request' : 'Attrition & Separation'}
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                Record employee separation, exit reasons, and update hub analytics.
+                {isTrainer
+                  ? 'Request administrative approval to separate an assigned trainee.'
+                  : 'Record employee separation, exit reasons, and update hub analytics.'}
               </p>
             </div>
           </div>
@@ -418,10 +436,22 @@ export function OffboardTraineeDrawer({
           </div>
 
           {/* Action Notice */}
-          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-300">
-            <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <div className={`p-3.5 rounded-xl border flex items-start gap-2.5 text-[11px] ${
+            isTrainer
+              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80 text-amber-800 dark:text-amber-300'
+              : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80 text-rose-800 dark:text-rose-300'
+          }`}>
+            <Info className={`w-4 h-4 shrink-0 mt-0.5 ${isTrainer ? 'text-amber-600' : 'text-rose-600'}`} />
             <span>
-              Offboarding will mark this trainee as separated, update their Traffic Lights status to <strong>{formData.status}</strong>, and archive them into the <strong>Offboarded Staff</strong> roster.
+              {isTrainer ? (
+                <>
+                  <strong>Approval Request Notice:</strong> Submitting this request will immediately notify <strong>Administration (Nissi)</strong> for final separation review and clearance before the trainee is offboarded.
+                </>
+              ) : (
+                <>
+                  Offboarding will mark this trainee as separated, update their Traffic Lights status to <strong>{formData.status}</strong>, and archive them into the <strong>Offboarded Staff</strong> roster.
+                </>
+              )}
             </span>
           </div>
 
@@ -430,17 +460,21 @@ export function OffboardTraineeDrawer({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className={`w-full py-2.5 px-4 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer ${
+                isTrainer
+                  ? 'bg-[#2F6798] hover:bg-[#24527a]'
+                  : 'bg-rose-600 hover:bg-rose-700'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing Offboarding...
+                  {isTrainer ? 'Submitting Approval Request...' : 'Processing Offboarding...'}
                 </>
               ) : (
                 <>
-                  <UserMinus className="w-4 h-4" />
-                  Confirm &amp; Finalize Offboarding
+                  {isTrainer ? <Send className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
+                  {isTrainer ? 'Submit Request for Admin Approval' : 'Confirm & Finalize Offboarding'}
                 </>
               )}
             </button>

@@ -74,6 +74,8 @@ function isTrainingLog(row: any): boolean {
     title.includes('login') ||
     title.includes('trainee') ||
     title.includes('trainer') ||
+    title.includes('offboard') ||
+    title.includes('approval') ||
     title.includes('remark') ||
     title.includes('attendance') ||
     title.includes('reliability') ||

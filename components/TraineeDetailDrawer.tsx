@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   TrendingDown,
   Users,
-  Trash2
+  Trash2,
+  UserMinus
 } from 'lucide-react';
 
 export type DrawerTrainee = {
@@ -50,7 +51,9 @@ export function TraineeDetailDrawer({
   onEndorse,
   canEndorse = false,
   onDelete,
-  canDelete = false
+  canDelete = false,
+  onOffboard,
+  canOffboard = false
 }: { 
   trainee: DrawerTrainee | null; 
   onClose: () => void;
@@ -58,6 +61,8 @@ export function TraineeDetailDrawer({
   canEndorse?: boolean;
   onDelete?: (trainee: DrawerTrainee) => Promise<void>;
   canDelete?: boolean;
+  onOffboard?: (trainee: DrawerTrainee) => void;
+  canOffboard?: boolean;
 }) {
   const [rendered, setRendered] = useState(Boolean(trainee));
   const [open, setOpen] = useState(Boolean(trainee));
@@ -266,18 +271,28 @@ export function TraineeDetailDrawer({
             </div>
           )}
 
-          {/* Delete Record Option */}
-          {canDelete && onDelete && (
-            <div className="mt-5 flex justify-end">
+          {/* Actions Section */}
+          <div className="mt-5 flex items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+            {canOffboard && onOffboard && !t.isLoss && (
+              <button
+                type="button"
+                onClick={() => onOffboard(t)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl transition-colors cursor-pointer border border-amber-200/80 dark:border-amber-800/60"
+              >
+                <UserMinus className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Offboard / Separation Request
+              </button>
+            )}
+
+            {canDelete && onDelete && (
               <button
                 type="button"
                 onClick={() => onDelete(t)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer border border-red-200/60 dark:border-red-900/40"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer border border-red-200/60 dark:border-red-900/40 ml-auto"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete Trainee Record
+                <Trash2 className="w-3.5 h-3.5" /> Delete Record
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );

@@ -36,9 +36,11 @@ import {
 import { DrawerTrainee, TraineeDetailDrawer } from '@/components/TraineeDetailDrawer';
 import { TraineeFormDrawer } from '@/components/TraineeFormDrawer';
 import { OffboardTraineeDrawer, OffboardData } from '@/components/OffboardTraineeDrawer';
+import { AdminOffboardApprovalsDrawer } from '@/components/AdminOffboardApprovalsDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import PageLoading from '@/components/PageLoading';
 
 export type Trainee = {
   id: string;
@@ -68,11 +70,12 @@ const isLossStatus = (status?: string) => {
 import { isTrainerMatch } from '@/lib/analytics-utils';
 
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
-  const { role, actualRole, userName, email } = useRole();
+  const { role, actualRole, userName, email, isLoading, userMeta } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
   const isTrainer = currentRole === 'TRAINER';
   const isTrainee = currentRole === 'TRAINEE';
+  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
   const canManageTrainees = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'].includes(currentRole);
 
   const scopedInitialTrainees = useMemo(() => {
@@ -81,7 +84,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       const qTrainer = userName || '';
       const qEmail = (email || '').toLowerCase().split('@')[0];
       return initialTrainees.filter(t => {
-        if (!t.assignedTrainer) return false;
+        if (!t.assignedTrainer || t.assignedTrainer === 'Unassigned') return false;
         return (
           isTrainerMatch(t.assignedTrainer, qTrainer) ||
           (qTrainer && t.assignedTrainer.toLowerCase().includes(qTrainer.toLowerCase())) ||
@@ -101,7 +104,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       });
     }
     return initialTrainees;
-  }, [initialTrainees, isTrainer, isTrainee, userName, email]);
+  }, [initialTrainees, isTrainer, isTrainee, userName, email, userMeta]);
 
   const [trainees, setTrainees] = useState<Trainee[]>(scopedInitialTrainees);
 
@@ -116,6 +119,28 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [selectedAccount, setSelectedAccount] = useState('All');
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
+
+  // Approvals queue states (Admin)
+  const [isApprovalsModalOpen, setIsApprovalsModalOpen] = useState(false);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  const fetchPendingApprovalsCount = async () => {
+    try {
+      const res = await fetch('/api/trainees/offboard');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.requests)) {
+        setPendingApprovalsCount(data.requests.length);
+      }
+    } catch (err) {
+      console.warn('Error fetching pending approvals count:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchPendingApprovalsCount();
+    }
+  }, [isAdmin]);
 
   // Sync search and tab params from URL if navigated from Topbar / Sidebar
   useEffect(() => {
@@ -626,7 +651,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     if (!deletingTrainee) return;
     setIsSubmitting(true);
     try {
-      const url = `/api/trainees?name=${encodeURIComponent(deletingTrainee.name)}&type=${deletingTrainee.trainingType || 'INHOUSE'}&batch=${encodeURIComponent(deletingTrainee.batchName || '')}&account=${encodeURIComponent(deletingTrainee.accountName || '')}`;
+      const author = (userName && userName !== 'Super Admin' && !userName.toLowerCase().includes('admin')) ? userName : 'Nissi';
+      const url = `/api/trainees?name=${encodeURIComponent(deletingTrainee.name)}&type=${deletingTrainee.trainingType || 'INHOUSE'}&batch=${encodeURIComponent(deletingTrainee.batchName || '')}&account=${encodeURIComponent(deletingTrainee.accountName || '')}&author=${encodeURIComponent(author)}`;
       const res = await fetch(url, {
         method: 'DELETE'
       });
@@ -660,18 +686,23 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       });
       const resData = await res.json();
       if (resData.success) {
-        setTrainees(prev => prev.map(t => {
-          if (t.name.trim().toLowerCase() === offboardData.traineeName.trim().toLowerCase()) {
-            return {
-              ...t,
-              status: offboardData.status,
-              isLoss: true,
-              isEndorsed: false
-            };
-          }
-          return t;
-        }));
-        showToast(`${offboardData.traineeName} has been officially offboarded as ${offboardData.status}.`, 'Trainee Offboarded', 'success');
+        if (resData.pendingApproval) {
+          showToast(`Offboarding request for ${offboardData.traineeName} has been submitted for Admin approval.`, 'Approval Requested', 'info');
+          fetchPendingApprovalsCount();
+        } else {
+          setTrainees(prev => prev.map(t => {
+            if (t.name.trim().toLowerCase() === offboardData.traineeName.trim().toLowerCase()) {
+              return {
+                ...t,
+                status: offboardData.status,
+                isLoss: true,
+                isEndorsed: false
+              };
+            }
+            return t;
+          }));
+          showToast(`${offboardData.traineeName} has been officially offboarded as ${offboardData.status}.`, 'Trainee Offboarded', 'success');
+        }
         setIsOffboardModalOpen(false);
         setOffboardingTrainee(null);
       } else {
@@ -685,37 +716,24 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   };
 
   const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {
-    const rawStatus = (status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING')).trim();
+    const rawStatus = (status || (isLoss ? 'RESIGNED' : isEndorsed ? 'ENDORSED' : 'ONGOING')).trim();
     const upperStatus = rawStatus.toUpperCase();
 
-    if (upperStatus === 'ENDORSED' || isEndorsed) {
-      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
-    }
     if (isLoss || isLossStatus(upperStatus)) {
       return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-red-300 text-red-700 bg-red-50 shadow-sm">{upperStatus || 'ATTRITION'}</span>;
+    }
+    if (upperStatus === 'ENDORSED' || isEndorsed) {
+      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
     }
     return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{upperStatus}</span>;
   };
 
-  if (currentRole === 'EMPLOYEE' || currentRole === 'GUEST') {
+  if (isLoading) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-lg mx-auto space-y-4 shadow-sm my-12">
-        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] flex items-center justify-center mx-auto">
-          <GraduationCap className="w-6 h-6" />
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Personal Performance Portal</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-            Company-wide trainee directories and batch management are reserved for Trainers and Administrators. Your personal training progress, attendance rate, and weekly evaluations are available on your Dashboard.
-          </p>
-        </div>
-        <a
-          href="/"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all"
-        >
-          Return to My Dashboard
-        </a>
-      </div>
+      <PageLoading
+        title="Loading Trainees Directory..."
+        subtitle="Retrieving batch allocations and trainee metrics"
+      />
     );
   }
 
@@ -770,6 +788,21 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               >
                 <UserMinus className="w-4 h-4 text-rose-600 dark:text-rose-400" /> Offboard Trainee
               </button>
+
+              {isAdmin && (
+                <button
+                  onClick={() => setIsApprovalsModalOpen(true)}
+                  className="relative flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80 rounded-xl text-xs font-bold shadow-2xs transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  Offboard Approvals
+                  {pendingApprovalsCount > 0 && (
+                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-black text-white bg-rose-500 rounded-full shadow-xs animate-pulse">
+                      {pendingApprovalsCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </>
           )}
 
@@ -795,6 +828,34 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           </div>
         </div>
       </div>
+
+      {/* ADMIN PENDING APPROVALS ALERT BANNER */}
+      {isAdmin && pendingApprovalsCount > 0 && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-700/70 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black flex items-center gap-2">
+                <span>{pendingApprovalsCount} Pending Offboarding Approval {pendingApprovalsCount > 1 ? 'Requests' : 'Request'}</span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 rounded-full">
+                  Action Required
+                </span>
+              </p>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80 font-medium">
+                Trainers have submitted separation requests awaiting administrative review and approval before records are updated.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsApprovalsModalOpen(true)}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            Review &amp; Approve ({pendingApprovalsCount})
+          </button>
+        </div>
+      )}
 
       {/* TOP SUMMARY KPI BOXES - PROPERLY ARRANGED & RESPONSIVE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1247,7 +1308,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  <UserMinus className="w-3 h-3 text-rose-500" /> Offboarded &amp; Attrition ({offboardedTraineesCount})
+                  <UserMinus className="w-3 h-3 text-rose-500" /> Offboarded Staff ({offboardedTraineesCount})
                 </button>
                 <button
                   type="button"
@@ -1493,14 +1554,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               const resData = await res.json();
               if (resData.success) {
                 if (data.isBulk && Array.isArray(data.trainees)) {
+                  const curMonth = new Date().toLocaleString('default', { month: 'long' });
+                  const curQuarter = 'Q' + Math.ceil((new Date().getMonth() + 1) / 3);
                   const newTrainees: Trainee[] = data.trainees.map((t: any, idx: number) => {
                     const matchedRecord = Array.isArray(resData.data) ? resData.data[idx] : null;
                     return {
                       id: matchedRecord?.id || matchedRecord?.name || `bulk-${Date.now()}-${idx}`,
                       name: t.name,
                       status: t.status || 'ACTIVE',
-                      month: t.month || 'September',
-                      quarter: t.quarter || 'Q3',
+                      month: t.month || curMonth,
+                      quarter: t.quarter || curQuarter,
                       p: 0,
                       a: 0,
                       isEndorsed: t.status === 'ENDORSED',
@@ -1514,12 +1577,14 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                   setTrainees(prev => [...newTrainees, ...prev]);
                   showToast(`Successfully enrolled ${newTrainees.length} trainees into cohorts!`, 'Bulk Enrollment Complete', 'success');
                 } else {
+                  const curMonth = new Date().toLocaleString('default', { month: 'long' });
+                  const curQuarter = 'Q' + Math.ceil((new Date().getMonth() + 1) / 3);
                   const newTrainee: Trainee = {
                     id: resData.data?.id || Math.random().toString(),
                     name: data.name,
                     status: data.status,
-                    month: data.month || 'September',
-                    quarter: data.quarter || 'Q3',
+                    month: data.month || curMonth,
+                    quarter: data.quarter || curQuarter,
                     p: 0,
                     a: 0,
                     isEndorsed: data.status === 'ENDORSED',
@@ -1639,6 +1704,19 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           }}
           onSubmit={handleOffboardTraineeSubmit}
           isSubmitting={isSubmitting}
+        />
+      )}
+
+      {/* ADMIN OFFBOARD APPROVALS QUEUE DRAWER */}
+      {isAdmin && (
+        <AdminOffboardApprovalsDrawer
+          isOpen={isApprovalsModalOpen}
+          onClose={() => setIsApprovalsModalOpen(false)}
+          onApprovedOrDeclined={() => {
+            fetchPendingApprovalsCount();
+            window.location.reload();
+          }}
+          onUpdateCount={(cnt) => setPendingApprovalsCount(cnt)}
         />
       )}
 

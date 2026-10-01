@@ -32,8 +32,8 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'CTNP Hub',
   },
-  formatDetection: {
-    telephone: false,
+  other: {
+    'mobile-web-app-capable': 'yes',
   },
 };
 
@@ -43,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${poppins.variable}`} suppressHydrationWarning>
       <head>
+        <meta name="mobile-web-app-capable" content="yes" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/favicon.svg" />
         <script
