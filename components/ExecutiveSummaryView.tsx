@@ -240,7 +240,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-xs space-y-6">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column */}
         <div className="flex flex-col gap-6">

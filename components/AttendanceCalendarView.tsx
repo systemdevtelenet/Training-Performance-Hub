@@ -1132,13 +1132,13 @@ export function AttendanceCalendarView({
             toastMessage.type === 'error'
               ? 'bg-rose-600 border-rose-700 shadow-rose-900/20'
               : toastMessage.type === 'info'
-              ? 'bg-[#2F6798] border-[#204a6e] shadow-[#2F6798]/30'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 border-amber-400/80 shadow-xl shadow-amber-500/30'
               : 'bg-emerald-600 border-emerald-700 shadow-emerald-900/20'
           }`}>
             {toastMessage.type === 'error' ? (
               <AlertCircle className="w-4 h-4 shrink-0 text-white animate-pulse" />
             ) : toastMessage.type === 'info' ? (
-              <Sparkles className="w-4 h-4 shrink-0 text-sky-200 animate-pulse" />
+              <Sparkles className="w-4 h-4 shrink-0 text-amber-100 animate-pulse" />
             ) : (
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-100 animate-pulse" />
             )}
