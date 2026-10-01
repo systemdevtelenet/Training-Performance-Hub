@@ -1130,16 +1130,22 @@ export function AttendanceCalendarView({
         <div className="fixed bottom-6 right-6 z-[99999] animate-in fade-in slide-in-from-bottom-5 duration-200">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold text-white ${
             toastMessage.type === 'error'
-              ? 'bg-rose-600 border-rose-700'
+              ? 'bg-rose-600 border-rose-700 shadow-rose-900/20'
               : toastMessage.type === 'info'
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-[#2F6798] border-[#24527a]'
+              ? 'bg-[#2F6798] border-[#204a6e] shadow-[#2F6798]/30'
+              : 'bg-emerald-600 border-emerald-700 shadow-emerald-900/20'
           }`}>
-            <Sparkles className="w-4 h-4 shrink-0 text-white/90 animate-pulse" />
+            {toastMessage.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0 text-white animate-pulse" />
+            ) : toastMessage.type === 'info' ? (
+              <Sparkles className="w-4 h-4 shrink-0 text-sky-200 animate-pulse" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-100 animate-pulse" />
+            )}
             <span>{toastMessage.text}</span>
             <button
               onClick={() => setToastMessage(null)}
-              className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-2"
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-2 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
