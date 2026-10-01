@@ -1154,11 +1154,7 @@ export function AttendanceCalendarView({
             <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">
               Trainee Attendance &amp; Status Calendar
             </h1>
-            {isTrainer ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#2F6798] border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800">
-                <UserCheck className="w-3 h-3" /> Trainer Live Tagging Mode
-              </span>
-            ) : (
+            {!isTrainer && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
                 <Eye className="w-3 h-3" /> Admin Reflection Mode (Read-Only)
               </span>

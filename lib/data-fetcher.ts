@@ -12,165 +12,159 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
 const supabaseAdmin = createClient(supabaseUrl, supabaseAdminKey);
 
-// We define a cache tag so we can revalidate on-demand if needed
-export const getDashboardData = unstable_cache(
-  async () => {
-    try {
-      // Fetch live data from Supabase tables
-      const { data: inhouseData, error: inhouseError } = await supabaseAdmin
-        .from('inhouse')
-        .select('*');
+// We export direct async functions for real-time live data consistency across all pages
+export const getDashboardData = async () => {
+  try {
+    // Fetch live data from Supabase tables
+    const { data: inhouseData, error: inhouseError } = await supabaseAdmin
+      .from('inhouse')
+      .select('*');
 
-      const { data: pstData, error: pstError } = await supabaseAdmin
-        .from('product_spec_training')
-        .select('*');
+    const { data: pstData, error: pstError } = await supabaseAdmin
+      .from('product_spec_training')
+      .select('*');
 
-      const { data: trainersData } = await supabaseAdmin
-        .from('trainers')
-        .select('*');
+    const { data: trainersData } = await supabaseAdmin
+      .from('trainers')
+      .select('*');
 
-      const { data: trainersProfile } = await supabaseAdmin
-        .from('trainers_profile')
-        .select('*');
+    const { data: trainersProfile } = await supabaseAdmin
+      .from('trainers_profile')
+      .select('*');
 
-      const inhouseList = inhouseData || [];
-      const pstList = pstData || [];
-      const trainersList = trainersData || [];
-      const profileList = trainersProfile || [];
+    const inhouseList = inhouseData || [];
+    const pstList = pstData || [];
+    const trainersList = trainersData || [];
+    const profileList = trainersProfile || [];
 
-      const trainerNamesSet = new Set<string>();
-      trainersList.forEach(t => { if (t.name) trainerNamesSet.add(t.name.trim()); });
-      profileList.forEach(p => { if (p.name) trainerNamesSet.add(p.name.trim()); });
+    const trainerNamesSet = new Set<string>();
+    trainersList.forEach(t => { if (t.name) trainerNamesSet.add(t.name.trim()); });
+    profileList.forEach(p => { if (p.name) trainerNamesSet.add(p.name.trim()); });
 
-      const totalTrainees = inhouseList.length + pstList.length;
-      const activeTrainers = trainersList.filter(t => (t.status || '').toUpperCase() === 'ACTIVE' || !t.status).length || trainersList.length;
-      const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
+    const totalTrainees = inhouseList.length + pstList.length;
+    const activeTrainers = trainersList.filter(t => (t.status || '').toUpperCase() === 'ACTIVE' || !t.status).length || trainersList.length;
+    const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
 
-      let totalLosses = 0;
-      const accountsSet = new Set<string>();
+    let totalLosses = 0;
+    const accountsSet = new Set<string>();
 
-      const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+    const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
 
-      // Grouping for Inhouse
-      const inhouseGroups: any = {};
-      inhouseList.forEach(item => {
-        const accountName = (item.account || item.acount || '').trim() || 'General';
-        const batchName = item.batch ? `Batch ${item.batch}` : 'Unassigned Batch';
-        accountsSet.add(accountName);
+    // Grouping for Inhouse
+    const inhouseGroups: any = {};
+    inhouseList.forEach(item => {
+      const accountName = (item.account || item.acount || '').trim() || 'General';
+      const batchName = item.batch ? `Batch ${item.batch}` : 'Unassigned Batch';
+      accountsSet.add(accountName);
 
-        if (!inhouseGroups[accountName]) inhouseGroups[accountName] = {};
-        if (!inhouseGroups[accountName][batchName]) inhouseGroups[accountName][batchName] = { members: [] };
+      if (!inhouseGroups[accountName]) inhouseGroups[accountName] = {};
+      if (!inhouseGroups[accountName][batchName]) inhouseGroups[accountName][batchName] = { members: [] };
 
-        const statusUpper = (item.status || '').toUpperCase();
-        const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
-        if (isLoss) totalLosses++;
+      const statusUpper = (item.status || '').toUpperCase();
+      const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
+      if (isLoss) totalLosses++;
 
-        let pCount = 0, aCount = 0;
-        for (const col of inhouseAttCols) {
-          const val = (item[col] || '').toString().trim().toUpperCase();
-          if (val === 'P') pCount++;
-          if (val === 'A') aCount++;
-        }
+      let pCount = 0, aCount = 0;
+      for (const col of inhouseAttCols) {
+        const val = (item[col] || '').toString().trim().toUpperCase();
+        if (val === 'P') pCount++;
+        if (val === 'A') aCount++;
+      }
 
-        inhouseGroups[accountName][batchName].members.push({
-          id: item.id || item.name,
-          name: item.name,
-          assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
-          status: item.status || 'ACTIVE',
-          accountName,
-          batchName,
-          month: item.month || 'January',
-          quarter: item.quarter || 'Q1',
-          isLoss,
-          p: pCount,
-          a: aCount
-        });
+      inhouseGroups[accountName][batchName].members.push({
+        id: item.id || item.name,
+        name: item.name,
+        assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
+        status: item.status || 'ACTIVE',
+        accountName,
+        batchName,
+        month: item.month || 'January',
+        quarter: item.quarter || 'Q1',
+        isLoss,
+        p: pCount,
+        a: aCount
       });
+    });
 
-      // Grouping for PST
-      const pstGroups: any = {};
-      pstList.forEach(item => {
-        const accountName = (item.account || item.accountName || '').trim() || 'General';
-        const rawWave = item.wave ? `${item.wave}`.replace(/^(wave\s*)/i, '').trim() : '';
-        const batchName = rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : item.batchName || 'Unassigned Batch');
-        accountsSet.add(accountName);
+    // Grouping for PST
+    const pstGroups: any = {};
+    pstList.forEach(item => {
+      const accountName = (item.account || item.accountName || '').trim() || 'General';
+      const rawWave = item.wave ? `${item.wave}`.replace(/^(wave\s*)/i, '').trim() : '';
+      const batchName = rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : item.batchName || 'Unassigned Batch');
+      accountsSet.add(accountName);
 
-        if (!pstGroups[accountName]) pstGroups[accountName] = {};
-        if (!pstGroups[accountName][batchName]) pstGroups[accountName][batchName] = { members: [] };
+      if (!pstGroups[accountName]) pstGroups[accountName] = {};
+      if (!pstGroups[accountName][batchName]) pstGroups[accountName][batchName] = { members: [] };
 
-        const statusUpper = (item.status || '').toUpperCase();
-        const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
-        if (isLoss) totalLosses++;
+      const statusUpper = (item.status || '').toUpperCase();
+      const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
+      if (isLoss) totalLosses++;
 
-        let pCount = 0, aCount = 0;
-        for (let i = 1; i <= 62; i++) {
-          const val = (item[`att_status_day_${i}`] || '').toString().trim().toUpperCase();
-          if (val === 'P') pCount++;
-          if (val === 'A') aCount++;
-        }
+      let pCount = 0, aCount = 0;
+      for (let i = 1; i <= 62; i++) {
+        const val = (item[`att_status_day_${i}`] || '').toString().trim().toUpperCase();
+        if (val === 'P') pCount++;
+        if (val === 'A') aCount++;
+      }
 
-        pstGroups[accountName][batchName].members.push({
-          id: item.id || item.name,
-          name: item.name,
-          assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
-          status: item.status || 'ACTIVE',
-          accountName,
-          batchName,
-          month: item.month || 'January',
-          quarter: item.quarter || 'Q1',
-          isLoss,
-          p: pCount,
-          a: aCount
-        });
+      pstGroups[accountName][batchName].members.push({
+        id: item.id || item.name,
+        name: item.name,
+        assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
+        status: item.status || 'ACTIVE',
+        accountName,
+        batchName,
+        month: item.month || 'January',
+        quarter: item.quarter || 'Q1',
+        isLoss,
+        p: pCount,
+        a: aCount
       });
+    });
 
-      const batchSet = new Set();
-      Object.keys(inhouseGroups).forEach(acc => Object.keys(inhouseGroups[acc]).forEach(b => batchSet.add(`IH-${acc}-${b}`)));
-      Object.keys(pstGroups).forEach(acc => Object.keys(pstGroups[acc]).forEach(b => batchSet.add(`PST-${acc}-${b}`)));
+    const batchSet = new Set();
+    Object.keys(inhouseGroups).forEach(acc => Object.keys(inhouseGroups[acc]).forEach(b => batchSet.add(`IH-${acc}-${b}`)));
+    Object.keys(pstGroups).forEach(acc => Object.keys(pstGroups[acc]).forEach(b => batchSet.add(`PST-${acc}-${b}`)));
 
-      const overallAttrition = totalTrainees > 0 ? ((totalLosses / totalTrainees) * 100).toFixed(1) + '%' : '0.0%';
+    const overallAttrition = totalTrainees > 0 ? ((totalLosses / totalTrainees) * 100).toFixed(1) + '%' : '0.0%';
 
-      const transformed = JSON.parse(JSON.stringify(dummyPayload));
-      transformed.metrics = {
-        totalTrainees,
-        overallAttrition,
-        activeTrainers,
-        classesInSession: batchSet.size
-      };
-      transformed.allAccounts = Array.from(accountsSet).sort();
-      transformed.allTrainers = Array.from(trainerNamesSet).sort();
-      transformed.inhouse.groups = inhouseGroups;
-      transformed.pst.groups = pstGroups;
-      transformed.summary.trainersSummary = {
-        headcount: activeTrainers,
-        attendanceRate: '98.5%',
-        reliabilityRate: '97.2%',
-        attritionRate: '0.0%',
-        totalLosses: 0
-      };
+    const transformed = JSON.parse(JSON.stringify(dummyPayload));
+    transformed.metrics = {
+      totalTrainees,
+      overallAttrition,
+      activeTrainers,
+      classesInSession: batchSet.size
+    };
+    transformed.allAccounts = Array.from(accountsSet).sort();
+    transformed.allTrainers = Array.from(trainerNamesSet).sort();
+    transformed.inhouse.groups = inhouseGroups;
+    transformed.pst.groups = pstGroups;
+    transformed.summary.trainersSummary = {
+      headcount: activeTrainers,
+      attendanceRate: '98.5%',
+      reliabilityRate: '97.2%',
+      attritionRate: '0.0%',
+      totalLosses: 0
+    };
 
-      return transformed;
-    } catch (err) {
-      console.error('Error in getDashboardData:', err);
-      return dummyPayload;
-    }
-  },
-  ['dashboard-data-cache-v9'],
-  {
-    revalidate: 60,
-    tags: ['dashboard'],
+    return transformed;
+  } catch (err) {
+    console.error('Error in getDashboardData:', err);
+    return dummyPayload;
   }
-);
+};
 
 export const getTrainersData = async () => {
-  const { data: trainers, error: trainersError } = await supabaseAdmin
-    .from('trainers')
-    .select('*');
+  try {
+    const { data: trainers, error: trainersError } = await supabaseAdmin
+      .from('trainers')
+      .select('*');
 
-  if (trainersError) {
-    console.error('Error fetching trainers:', trainersError);
-    return [];
-  }
+    if (trainersError) {
+      console.error('Error fetching trainers:', trainersError);
+      return [];
+    }
 
     const { data: trainersProfile, error: profileError } = await supabaseAdmin
       .from('trainers_profile')
@@ -467,6 +461,10 @@ export const getTrainersData = async () => {
     });
 
     return mapped;
+  } catch (err) {
+    console.error('Error fetching trainers data:', err);
+    return [];
+  }
 };
 
 export const getTraineesData = async () => {
@@ -560,181 +558,174 @@ export const getTraineesData = async () => {
   }
 };
 
-export const getEmployeesData = unstable_cache(
-  async () => {
-    try {
-      const { data: employees, error: empErr } = await supabaseAdmin
-        .from('employees')
-        .select('*')
-        .order('id', { ascending: false });
+export const getEmployeesData = async () => {
+  try {
+    const { data: employees, error: empErr } = await supabaseAdmin
+      .from('employees')
+      .select('*')
+      .order('id', { ascending: false });
 
-      if (empErr) console.error('Error fetching employees:', empErr);
+    if (empErr) console.error('Error fetching employees:', empErr);
 
-      const { data: statuses } = await supabaseAdmin.from('statuses').select('*');
-      const { data: accounts } = await supabaseAdmin.from('accounts').select('*');
-      const { data: roles } = await supabaseAdmin.from('roles').select('*');
-      const { data: assignments } = await supabaseAdmin.from('employee_assignments').select('*');
-      const { data: trainersProfile } = await supabaseAdmin.from('trainers_profile').select('*');
-      const { data: inhouseData } = await supabaseAdmin.from('inhouse').select('*');
-      const { data: pstData } = await supabaseAdmin.from('product_spec_training').select('*');
+    const { data: statuses } = await supabaseAdmin.from('statuses').select('*');
+    const { data: accounts } = await supabaseAdmin.from('accounts').select('*');
+    const { data: roles } = await supabaseAdmin.from('roles').select('*');
+    const { data: assignments } = await supabaseAdmin.from('employee_assignments').select('*');
+    const { data: trainersProfile } = await supabaseAdmin.from('trainers_profile').select('*');
+    const { data: inhouseData } = await supabaseAdmin.from('inhouse').select('*');
+    const { data: pstData } = await supabaseAdmin.from('product_spec_training').select('*');
 
-      const statusMap = new Map<number, string>();
-      (statuses || []).forEach(s => statusMap.set(s.status_id, s.status_name));
+    const statusMap = new Map<number, string>();
+    (statuses || []).forEach(s => statusMap.set(s.status_id, s.status_name));
 
-      const roleMap = new Map<number, string>();
-      (roles || []).forEach(r => roleMap.set(r.role_id, r.role_name));
+    const roleMap = new Map<number, string>();
+    (roles || []).forEach(r => roleMap.set(r.role_id, r.role_name));
 
-      const accountMap = new Map<number, string>();
-      (accounts || []).forEach(a => accountMap.set(a.account_id, a.account_name || a.account_code));
+    const accountMap = new Map<number, string>();
+    (accounts || []).forEach(a => accountMap.set(a.account_id, a.account_name || a.account_code));
 
-      const empAccountsMap = new Map<number, string[]>();
-      (assignments || []).forEach(asg => {
-        const accName = accountMap.get(asg.account_id);
-        if (accName && asg.employee_id) {
-          const existing = empAccountsMap.get(asg.employee_id) || [];
-          if (!existing.includes(accName)) {
-            existing.push(accName);
-            empAccountsMap.set(asg.employee_id, existing);
-          }
+    const empAccountsMap = new Map<number, string[]>();
+    (assignments || []).forEach(asg => {
+      const accName = accountMap.get(asg.account_id);
+      if (accName && asg.employee_id) {
+        const existing = empAccountsMap.get(asg.employee_id) || [];
+        if (!existing.includes(accName)) {
+          existing.push(accName);
+          empAccountsMap.set(asg.employee_id, existing);
         }
+      }
+    });
+
+    const processedCodes = new Set<string>();
+    const processedEmails = new Set<string>();
+    const processedNames = new Set<string>();
+    const resultList: any[] = [];
+
+    // 1. Prioritize Trainers from trainers_profile as PRIMARY employees at top
+    (trainersProfile || []).forEach((t, idx) => {
+      const code = String(t.employee_num || '').trim();
+      const email = (t.gmail_account && t.gmail_account !== 'mail' ? t.gmail_account : t.thunderbird_account && t.thunderbird_account !== 'mail' ? t.thunderbird_account : null);
+      const name = t.name || `Trainer ${idx + 1}`;
+      const pos = (t.position || 'Trainer').trim();
+
+      const matchingEmp = (employees || []).find(e => 
+        (code && String(e.employee_code || '').trim().toLowerCase() === code.toLowerCase()) ||
+        (email && (e.employee_email || '').trim().toLowerCase() === email.toLowerCase()) ||
+        (name && (e.employee_name || '').trim().toLowerCase() === name.toLowerCase())
+      );
+
+      if (code) processedCodes.add(code.toLowerCase());
+      if (email) processedEmails.add(email.toLowerCase());
+      processedNames.add(name.toLowerCase());
+
+      const isResigned = (t.status || '').toUpperCase() === 'RESIGNED';
+      const isInactive = (t.status || '').toUpperCase() === 'INACTIVE';
+      const statusId = isResigned ? 3 : isInactive ? 2 : 1;
+      const statusName = isResigned ? 'Resigned' : isInactive ? 'Inactive' : 'Active';
+
+      const roleTitle = pos.toUpperCase().includes('HEAD') 
+        ? 'Head of Training' 
+        : pos.toUpperCase().includes('COORDINATOR') 
+        ? 'Training Coordinator' 
+        : pos.toUpperCase().includes('CORP') 
+        ? 'Corporate Trainer' 
+        : 'Trainer';
+
+      resultList.push({
+        id: matchingEmp ? matchingEmp.id : -(1000 + idx),
+        employee_code: code || matchingEmp?.employee_code || 'N/A',
+        employee_name: name,
+        employee_email: email || matchingEmp?.employee_email || null,
+        status_id: statusId,
+        status_name: statusName,
+        role_id: matchingEmp?.role_id || 10,
+        role_name: roleTitle,
+        category: 'TRAINER',
+        hire_date: t.start_date || matchingEmp?.hire_date || null,
+        vici_link: matchingEmp?.vici_link || null,
+        avatar_url: t.profile_pic && t.profile_pic !== 'None ' ? t.profile_pic : matchingEmp?.avatar_url || null,
+        assigned_accounts: t.accounts || (matchingEmp ? (empAccountsMap.get(matchingEmp.id) || []).join(', ') : 'Unassigned') || 'Unassigned',
+        is_primary_trainer: true
       });
+    });
 
-      const processedCodes = new Set<string>();
-      const processedEmails = new Set<string>();
-      const processedNames = new Set<string>();
-      const resultList: any[] = [];
+    // 2. Add remaining employees from employees table (Admins, QA, TLs, Agents)
+    (employees || []).forEach(emp => {
+      const code = String(emp.employee_code || '').trim().toLowerCase();
+      const email = (emp.employee_email || '').trim().toLowerCase();
+      const name = (emp.employee_name || '').trim().toLowerCase();
 
-      // 1. Prioritize Trainers from trainers_profile as PRIMARY employees at top
-      (trainersProfile || []).forEach((t, idx) => {
-        const code = String(t.employee_num || '').trim();
-        const email = (t.gmail_account && t.gmail_account !== 'mail' ? t.gmail_account : t.thunderbird_account && t.thunderbird_account !== 'mail' ? t.thunderbird_account : null);
-        const name = t.name || `Trainer ${idx + 1}`;
-        const pos = (t.position || 'Trainer').trim();
+      if ((code && processedCodes.has(code)) || (email && processedEmails.has(email)) || (name && processedNames.has(name))) {
+        return; // Already merged with trainers
+      }
 
-        const matchingEmp = (employees || []).find(e => 
-          (code && String(e.employee_code || '').trim().toLowerCase() === code.toLowerCase()) ||
-          (email && (e.employee_email || '').trim().toLowerCase() === email.toLowerCase()) ||
-          (name && (e.employee_name || '').trim().toLowerCase() === name.toLowerCase())
-        );
+      const assignedAccs = empAccountsMap.get(emp.id) || [];
+      const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
+      const roleName = roleMap.get(emp.role_id) || 'Agent';
 
-        if (code) processedCodes.add(code.toLowerCase());
-        if (email) processedEmails.add(email.toLowerCase());
-        processedNames.add(name.toLowerCase());
+      let category = 'AGENT';
+      const rUpper = roleName.toUpperCase();
+      const nUpper = (emp.employee_name || '').toUpperCase();
 
-        const isResigned = (t.status || '').toUpperCase() === 'RESIGNED';
-        const isInactive = (t.status || '').toUpperCase() === 'INACTIVE';
-        const statusId = isResigned ? 3 : isInactive ? 2 : 1;
-        const statusName = isResigned ? 'Resigned' : isInactive ? 'Inactive' : 'Active';
+      if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
+        category = 'ADMIN';
+      } else if (rUpper.includes('QA') || rUpper.includes('QUALITY') || nUpper.startsWith('QA ') || nUpper.startsWith('QAS ')) {
+        category = 'QA';
+      } else if (rUpper.includes('TL') || rUpper.includes('LEADER') || rUpper.includes('MANAGER') || nUpper.startsWith('TL ')) {
+        category = 'TL';
+      } else {
+        category = 'AGENT';
+      }
 
-        const roleTitle = pos.toUpperCase().includes('HEAD') 
-          ? 'Head of Training' 
-          : pos.toUpperCase().includes('COORDINATOR') 
-          ? 'Training Coordinator' 
-          : pos.toUpperCase().includes('CORP') 
-          ? 'Corporate Trainer' 
-          : 'Trainer';
-
-        resultList.push({
-          id: matchingEmp ? matchingEmp.id : -(1000 + idx),
-          employee_code: code || matchingEmp?.employee_code || 'N/A',
-          employee_name: name,
-          employee_email: email || matchingEmp?.employee_email || null,
-          status_id: statusId,
-          status_name: statusName,
-          role_id: matchingEmp?.role_id || 10,
-          role_name: roleTitle,
-          category: 'TRAINER',
-          hire_date: t.start_date || matchingEmp?.hire_date || null,
-          vici_link: matchingEmp?.vici_link || null,
-          avatar_url: t.profile_pic && t.profile_pic !== 'None ' ? t.profile_pic : matchingEmp?.avatar_url || null,
-          assigned_accounts: t.accounts || (matchingEmp ? (empAccountsMap.get(matchingEmp.id) || []).join(', ') : 'Unassigned') || 'Unassigned',
-          is_primary_trainer: true
-        });
+      resultList.push({
+        ...emp,
+        status_name: statusName,
+        role_id: emp.role_id || 1,
+        role_name: roleName,
+        category,
+        assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
+        account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
+        is_primary_trainer: false
       });
+    });
 
-      // 2. Add remaining employees from employees table (Admins, QA, TLs, Agents)
-      (employees || []).forEach(emp => {
-        const code = String(emp.employee_code || '').trim().toLowerCase();
-        const email = (emp.employee_email || '').trim().toLowerCase();
-        const name = (emp.employee_name || '').trim().toLowerCase();
+    // 3. Add active Trainees from inhouse and PST
+    const traineeNames = new Set<string>();
+    let traineeIndex = 0;
+    (inhouseData || []).concat(pstData || []).forEach(t => {
+      const tName = (t.name || '').trim();
+      if (!tName || traineeNames.has(tName.toLowerCase())) return;
+      traineeNames.add(tName.toLowerCase());
 
-        if ((code && processedCodes.has(code)) || (email && processedEmails.has(email)) || (name && processedNames.has(name))) {
-          return; // Already merged with trainers
-        }
+      const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
+      const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
 
-        const assignedAccs = empAccountsMap.get(emp.id) || [];
-        const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
-        const roleName = roleMap.get(emp.role_id) || 'Agent';
-
-        let category = 'AGENT';
-        const rUpper = roleName.toUpperCase();
-        const nUpper = (emp.employee_name || '').toUpperCase();
-
-        if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
-          category = 'ADMIN';
-        } else if (rUpper.includes('QA') || rUpper.includes('QUALITY') || nUpper.startsWith('QA ') || nUpper.startsWith('QAS ')) {
-          category = 'QA';
-        } else if (rUpper.includes('TL') || rUpper.includes('LEADER') || rUpper.includes('MANAGER') || nUpper.startsWith('TL ')) {
-          category = 'TL';
-        } else {
-          category = 'AGENT';
-        }
-
-        resultList.push({
-          ...emp,
-          status_name: statusName,
-          role_id: emp.role_id || 1,
-          role_name: roleName,
-          category,
-          assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
-          account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
-          is_primary_trainer: false
-        });
+      resultList.push({
+        id: -(5000 + traineeIndex++),
+        employee_code: 'TRAINEE',
+        employee_name: tName,
+        employee_email: null,
+        status_id: isLoss ? 3 : 1,
+        status_name: statusName,
+        role_id: 11,
+        role_name: 'Trainee',
+        category: 'TRAINEE',
+        hire_date: null,
+        vici_link: null,
+        assigned_accounts: t.account || t.acount || 'Training Roster',
+        is_primary_trainer: false
       });
+    });
 
-      // 3. Add active Trainees from inhouse and PST
-      const traineeNames = new Set<string>();
-      let traineeIndex = 0;
-      (inhouseData || []).concat(pstData || []).forEach(t => {
-        const tName = (t.name || '').trim();
-        if (!tName || traineeNames.has(tName.toLowerCase())) return;
-        traineeNames.add(tName.toLowerCase());
-
-        const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
-        const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
-
-        resultList.push({
-          id: -(5000 + traineeIndex++),
-          employee_code: 'TRAINEE',
-          employee_name: tName,
-          employee_email: null,
-          status_id: isLoss ? 3 : 1,
-          status_name: statusName,
-          role_id: 11,
-          role_name: 'Trainee',
-          category: 'TRAINEE',
-          hire_date: null,
-          vici_link: null,
-          assigned_accounts: t.account || t.acount || 'Training Roster',
-          is_primary_trainer: false
-        });
-      });
-
-      return {
-        employees: resultList,
-        accounts: accounts || [],
-        statuses: statuses || [],
-        roles: roles || []
-      };
-    } catch (e) {
-      console.error('getEmployeesData error:', e);
-      return { employees: [], accounts: [], statuses: [], roles: [] };
-    }
-  },
-  ['employees-data-v2'],
-  {
-    revalidate: 3600,
-    tags: ['employees']
+    return {
+      employees: resultList,
+      accounts: accounts || [],
+      statuses: statuses || [],
+      roles: roles || []
+    };
+  } catch (e) {
+    console.error('getEmployeesData error:', e);
+    return { employees: [], accounts: [], statuses: [], roles: [] };
   }
-);
+};
 

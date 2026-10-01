@@ -106,10 +106,7 @@ export async function POST(req: Request) {
 
     try {
       revalidateTag('trainees');
-      revalidateTag('trainers');
-      revalidateTag('dashboard');
       revalidatePath('/trainees');
-      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Ignore in static/non-edge context
@@ -180,10 +177,7 @@ export async function PUT(req: Request) {
 
     try {
       revalidateTag('trainees');
-      revalidateTag('trainers');
-      revalidateTag('dashboard');
       revalidatePath('/trainees');
-      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Ignore in static/non-edge context
@@ -252,10 +246,8 @@ export async function DELETE(req: Request) {
 
     try {
       revalidateTag('trainees');
-      revalidateTag('trainers');
       revalidateTag('dashboard');
       revalidatePath('/trainees');
-      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Non-blocking in static generation

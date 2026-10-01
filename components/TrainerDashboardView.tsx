@@ -176,27 +176,28 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       setIsTrafficLoading(true);
       try {
         const { data } = await supabase
-          .from('traffic_lights_rm')
-          .select('*');
+          .from('traffic_light_metrics')
+          .select('source_table, traffic_status, metric_date, remarks')
+          .neq('metric_group', 'offboard_pending')
+          .order('metric_date', { ascending: true });
 
         if (data) {
           const map: Record<string, { status: string; remarks: string; date: string }> = {};
           data.forEach((row: any) => {
-            const rawName = (row.name || row.teams || '').toLowerCase().trim();
-            if (!rawName) return;
-
-            const nonDateKeys = ['id', 'created_at', 'teams', 'name', 'account', 'position', 'trainer', 'remarks', 'remark', 'notes'];
-            const dateKeys = Object.keys(row).filter(k => !nonDateKeys.includes(k.toLowerCase()));
-            
-            let latestDate = 'Current';
-            let status = 'Okay';
-            if (dateKeys.length > 0) {
-              latestDate = dateKeys[dateKeys.length - 1];
-              status = row[latestDate] || 'Okay';
+            let staffName = '';
+            if (row.source_table && row.source_table.includes('::')) {
+              const parts = row.source_table.split('::');
+              if (parts.length >= 3) {
+                staffName = parts[2].trim().toLowerCase();
+              }
             }
-
-            const remarks = row.remarks || row.remark || row.notes || '';
-            map[rawName] = { status, remarks, date: latestDate };
+            if (staffName && row.traffic_status) {
+              map[staffName] = {
+                status: row.traffic_status,
+                remarks: row.remarks || '',
+                date: row.metric_date || ''
+              };
+            }
           });
           setTrafficLightsMap(map);
         }
@@ -206,7 +207,20 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
         setIsTrafficLoading(false);
       }
     }
+
     fetchTrafficLights();
+
+    // Subscribe to realtime updates on traffic_light_metrics
+    const channel = supabase
+      .channel('trainer_dashboard_traffic_lights')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, () => {
+        fetchTrafficLights();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Filter trainees by period/month/search
@@ -250,7 +264,8 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
 
       const cleanTName = (t.name || '').toLowerCase().trim();
       const tl = trafficLightsMap[cleanTName];
-      const statusUpper = (tl?.status || 'OKAY').toUpperCase();
+      const rawStatus = tl?.status && tl.status.trim() !== '' ? tl.status.trim() : (t.isLoss ? 'Terminated' : 'None');
+      const statusUpper = rawStatus.toUpperCase();
 
       if (statusUpper.includes('OKAY') || statusUpper.includes('GREEN')) {
         greenCount++;
@@ -258,13 +273,11 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
         amberCount++;
       } else if (statusUpper.includes('RED') || statusUpper.includes('TERMINATED') || statusUpper.includes('RESIGNED') || statusUpper.includes('ACCOUNT REMOVED')) {
         redCount++;
-      } else {
-        greenCount++;
       }
     });
 
     const totalDays = totalP + totalA;
-    const classAttendanceRate = totalDays > 0 ? ((totalP / totalDays) * 100).toFixed(1) + '%' : '100.0%';
+    const classAttendanceRate = totalDays > 0 ? ((totalP / totalDays) * 100).toFixed(1) + '%' : '—';
 
     return {
       totalTrainees,
@@ -657,11 +670,12 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                 {paginatedRosterTrainees.map((t, idx) => {
                   const cleanTName = (t.name || '').toLowerCase().trim();
                   const tl = trafficLightsMap[cleanTName];
-                  const status = tl?.status || (t.isLoss ? 'Terminated' : 'Okay');
-                  const sUpper = status.toUpperCase();
+                  const rawStatus = tl?.status && tl.status.trim() !== '' ? tl.status.trim() : (t.isLoss ? 'Terminated' : 'None');
+                  const sUpper = rawStatus.toUpperCase();
+                  const isNone = sUpper === 'NONE' || sUpper === 'NOT SET' || sUpper === 'UNTAGGED';
 
                   const totalDays = (t.p || 0) + (t.a || 0);
-                  const attRate = totalDays > 0 ? `${(((t.p || 0) / totalDays) * 100).toFixed(0)}%` : '100%';
+                  const attRate = totalDays > 0 ? `${(((t.p || 0) / totalDays) * 100).toFixed(0)}%` : '—';
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
@@ -678,22 +692,33 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200">
                           {attRate}
-                          <span className="text-[10px] text-slate-400 font-normal">({t.p || 0}P / {t.a || 0}A)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {totalDays > 0 ? `(${t.p || 0}P / ${t.a || 0}A)` : '(0P / 0A)'}
+                          </span>
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          sUpper.includes('OKAY') || sUpper.includes('GREEN')
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isNone
+                            ? 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                            : sUpper.includes('OKAY') || sUpper.includes('GREEN')
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300'
                             : sUpper.includes('SHAKY') || sUpper.includes('AMBER') || sUpper.includes('YELLOW')
                             ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300'
+                            : sUpper.includes('RESIGNED')
+                            ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/60 dark:text-red-300'
+                            : sUpper.includes('ACCOUNT REMOVED')
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950/60 dark:text-orange-300'
                             : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
+                            isNone ? 'bg-slate-400 dark:bg-slate-500' :
                             sUpper.includes('OKAY') || sUpper.includes('GREEN') ? 'bg-emerald-500' :
-                            sUpper.includes('SHAKY') || sUpper.includes('AMBER') || sUpper.includes('YELLOW') ? 'bg-amber-500' : 'bg-rose-500'
+                            sUpper.includes('SHAKY') || sUpper.includes('AMBER') || sUpper.includes('YELLOW') ? 'bg-amber-500' :
+                            sUpper.includes('RESIGNED') ? 'bg-red-600' :
+                            sUpper.includes('ACCOUNT REMOVED') ? 'bg-orange-500' : 'bg-rose-500'
                           }`} />
-                          {status}
+                          {isNone ? 'None' : rawStatus}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right">
