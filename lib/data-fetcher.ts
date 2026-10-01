@@ -162,16 +162,15 @@ export const getDashboardData = unstable_cache(
   }
 );
 
-export const getTrainersData = unstable_cache(
-  async () => {
-    const { data: trainers, error: trainersError } = await supabaseAdmin
-      .from('trainers')
-      .select('*');
+export const getTrainersData = async () => {
+  const { data: trainers, error: trainersError } = await supabaseAdmin
+    .from('trainers')
+    .select('*');
 
-    if (trainersError) {
-      console.error('Error fetching trainers:', trainersError);
-      return [];
-    }
+  if (trainersError) {
+    console.error('Error fetching trainers:', trainersError);
+    return [];
+  }
 
     const { data: trainersProfile, error: profileError } = await supabaseAdmin
       .from('trainers_profile')
@@ -468,111 +467,98 @@ export const getTrainersData = unstable_cache(
     });
 
     return mapped;
-  },
-  ['trainers-data-v4'],
-  {
-    revalidate: 3600,
-    tags: ['trainers']
-  }
-);
+};
 
-export const getTraineesData = unstable_cache(
-  async () => {
-    try {
-      const { data: inhouseData, error: err1 } = await supabaseAdmin
-        .from('inhouse')
-        .select('*')
-        .order('name', { ascending: true });
+export const getTraineesData = async () => {
+  try {
+    const { data: inhouseData, error: err1 } = await supabaseAdmin
+      .from('inhouse')
+      .select('*')
+      .order('name', { ascending: true });
 
-      const { data: pstData, error: err2 } = await supabaseAdmin
-        .from('product_spec_training')
-        .select('*')
-        .order('name', { ascending: true });
+    const { data: pstData, error: err2 } = await supabaseAdmin
+      .from('product_spec_training')
+      .select('*')
+      .order('name', { ascending: true });
 
-      if (err1) console.error('Error fetching INHOUSE:', err1);
-      if (err2) console.error('Error fetching PST:', err2);
+    if (err1) console.error('Error fetching INHOUSE:', err1);
+    if (err2) console.error('Error fetching PST:', err2);
 
-      const isLossStatus = (st?: string) => {
-        if (!st) return false;
-        const s = st.toUpperCase().trim();
-        return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+    const isLossStatus = (st?: string) => {
+      if (!st) return false;
+      const s = st.toUpperCase().trim();
+      return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+    };
+
+    const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+
+    // Map INHOUSE rows to Trainee type
+    const mappedInhouse = (inhouseData || []).map((row: any) => {
+      let pCount = 0;
+      let aCount = 0;
+      for (const col of inhouseAttCols) {
+        const val = (row[col] || '').trim().toUpperCase();
+        if (val === 'P') pCount++;
+        if (val === 'A') aCount++;
+      }
+
+      const isLoss = isLossStatus(row.status);
+
+      return {
+        id: row.name || Math.random().toString(),
+        name: row.name || 'Unknown',
+        status: row.status || 'ACTIVE',
+        month: row.month || '',
+        quarter: row.quarter || '',
+        p: pCount,
+        a: aCount,
+        isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
+        isLoss,
+        assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+        batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
+        accountName: row.account || row.acount || 'General',
+        trainingType: 'INHOUSE' as const
       };
+    });
 
-      const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
+    // Map PST rows to Trainee type
+    const mappedPst = (pstData || []).map((row: any) => {
+      let pCount = 0;
+      let aCount = 0;
+      for (let i = 1; i <= 62; i++) {
+        const val = row[`att_status_day_${i}`];
+        if (val === 'P') pCount++;
+        if (val === 'A') aCount++;
+      }
 
-      // Map INHOUSE rows to Trainee type
-      const mappedInhouse = (inhouseData || []).map((row: any) => {
-        let pCount = 0;
-        let aCount = 0;
-        for (const col of inhouseAttCols) {
-          const val = (row[col] || '').trim().toUpperCase();
-          if (val === 'P') pCount++;
-          if (val === 'A') aCount++;
-        }
+      const acct = (row.account || row.acount || 'PST Account').trim();
+      const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
+      const batchName = `${acct} -${rawWave || '1'}`;
+      const isLoss = isLossStatus(row.status);
 
-        const isLoss = isLossStatus(row.status);
+      return {
+        id: row.name || Math.random().toString(),
+        name: row.name || 'Unknown',
+        status: row.status || 'ACTIVE',
+        month: row.month || '',
+        quarter: row.quarter || '',
+        p: pCount,
+        a: aCount,
+        isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
+        isLoss,
+        assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+        batchName: batchName,
+        accountName: acct,
+        trainingType: 'PST' as const
+      };
+    });
 
-        return {
-          id: row.name || Math.random().toString(),
-          name: row.name || 'Unknown',
-          status: row.status || 'ACTIVE',
-          month: row.month || '',
-          quarter: row.quarter || '',
-          p: pCount,
-          a: aCount,
-          isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
-          isLoss,
-          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
-          batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
-          accountName: row.account || row.acount || 'General',
-          trainingType: 'INHOUSE' as const
-        };
-      });
-
-      // Map PST rows to Trainee type
-      const mappedPst = (pstData || []).map((row: any) => {
-        let pCount = 0;
-        let aCount = 0;
-        for (let i = 1; i <= 62; i++) {
-          const val = row[`att_status_day_${i}`];
-          if (val === 'P') pCount++;
-          if (val === 'A') aCount++;
-        }
-
-        const acct = (row.account || row.acount || 'PST Account').trim();
-        const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
-        const batchName = `${acct} -${rawWave || '1'}`;
-        const isLoss = isLossStatus(row.status);
-
-        return {
-          id: row.name || Math.random().toString(),
-          name: row.name || 'Unknown',
-          status: row.status || 'ACTIVE',
-          month: row.month || '',
-          quarter: row.quarter || '',
-          p: pCount,
-          a: aCount,
-          isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
-          isLoss,
-          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
-          batchName: batchName,
-          accountName: acct,
-          trainingType: 'PST' as const
-        };
-      });
-
-      return [...mappedInhouse, ...mappedPst];
-    } catch (e) {
-      console.error('getTraineesData error:', e);
-      return [];
-    }
-  },
-  ['trainees-data-v2'],
-  {
-    revalidate: 5,
-    tags: ['trainees']
+    return [...mappedInhouse, ...mappedPst];
+  } catch (e) {
+    console.error('getTraineesData error:', e);
+    return [];
   }
-);
+};
 
 export const getEmployeesData = unstable_cache(
   async () => {

@@ -234,14 +234,15 @@ export async function PUT(req: Request) {
 
     const cleanName = traineeName.trim();
     const pendingKey = `offboard_pending::${cleanName.toLowerCase().replace(/\s+/g, '_')}`;
-    const actingAdmin = adminName || 'Nissi';
+    const dataToApply = requestData || {};
+    const requestedTrainer = dataToApply.requestedBy || dataToApply.assignedTrainer || 'Trainer';
 
     if (action === 'decline') {
       await supabase.from('traffic_light_metrics').delete().eq('source_table', pendingKey);
 
       await logActivity({
-        title: `Offboarding Request Declined: ${cleanName}`,
-        description: `Offboarding request for ${cleanName} was reviewed and declined by ${actingAdmin}.`,
+        title: `Offboarding Declined: ${cleanName}`,
+        description: `Offboarding request for ${cleanName} submitted by Trainer ${requestedTrainer} was reviewed and declined by ${actingAdmin}.`,
         iconType: 'alert',
         author: actingAdmin,
         actionUrl: '/trainees'
@@ -254,7 +255,6 @@ export async function PUT(req: Request) {
     }
 
     // Action: Approve
-    const dataToApply = requestData || {};
     const trainingType = dataToApply.trainingType || 'PST';
     const isPst = (trainingType || '').toUpperCase().includes('PST');
     const targetTable = isPst ? 'product_spec_training' : 'inhouse';
@@ -273,10 +273,10 @@ export async function PUT(req: Request) {
     // 2. Remove pending request
     await supabase.from('traffic_light_metrics').delete().eq('source_table', pendingKey);
 
-    // 3. Log Activity
+    // 3. Log Activity notifying trainer and team
     await logActivity({
       title: `Offboarding Approved: ${cleanName}`,
-      description: `Offboarding approved for ${cleanName} (${cleanStatus} - ${dataToApply.reasonCategory || 'Standard separation'}). Finalized by ${actingAdmin}.`,
+      description: `Offboarding request for ${cleanName} submitted by Trainer ${requestedTrainer} has been approved and finalized (${cleanStatus} - ${dataToApply.reasonCategory || 'Standard separation'}) by ${actingAdmin}.`,
       iconType: 'alert',
       author: actingAdmin,
       actionUrl: '/trainees'
