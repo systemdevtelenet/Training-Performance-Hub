@@ -398,14 +398,15 @@ function StatusSelect({
 }
 
 function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean {
-  if (!accId || !traineeAcc) return false;
+  if (!accId) return false;
   const cleanId = accId.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanTrainee = traineeAcc.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTrainee = (traineeAcc || 'general').toLowerCase().replace(/[^a-z0-9]/g, '');
   
   if (cleanId === cleanTrainee) return true;
   if (cleanTrainee.includes(cleanId) || cleanId.includes(cleanTrainee)) return true;
   
   // Specific alias mappings:
+  if (cleanId === 'general' && (cleanTrainee.includes('general') || cleanTrainee === '' || cleanTrainee.includes('bilingual'))) return true;
   if ((cleanId === 'dft' || cleanId === 'deferit') && (cleanTrainee.includes('deferit') || cleanTrainee.includes('dft'))) return true;
   if (cleanId === 'flexar' && cleanTrainee.includes('flexar')) return true;
   if (cleanId === 'xpn' && cleanTrainee.includes('xpn')) return true;
@@ -416,7 +417,7 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
   if (cleanId === 'ono' && cleanTrainee.includes('ono')) return true;
   if (cleanId === 'awd' && cleanTrainee.includes('awd')) return true;
   if (cleanId === 'rm' && cleanTrainee.includes('rm')) return true;
-  if ((cleanId === 'otheracc' || cleanId === 'other') && ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr'].some(s => cleanTrainee.includes(s))) return true;
+  if ((cleanId === 'otheracc' || cleanId === 'other') && (cleanTrainee.includes('general') || ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr', 'bilingual'].some(s => cleanTrainee.includes(s)))) return true;
 
   return false;
 }
@@ -428,11 +429,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const isTrainee = currentRole === 'TRAINEE';
 
   const accounts = (initialAccounts && initialAccounts.length > 0) ? initialAccounts : [
+    { id: 'trainers', name: 'Trainers' },
+    { id: 'general', name: 'General' },
     { id: 'rm', name: 'RM' },
     { id: 'xpn', name: 'XPN' },
     { id: 'fleet', name: 'Fleet' },
     { id: 'leaders', name: 'Leaders' },
-    { id: 'trainers', name: 'Trainers' },
     { id: 'dft', name: 'DFT' },
     { id: 'js', name: 'JS' },
     { id: 'ono', name: 'ONO' },
@@ -471,10 +473,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     if (isTrainer) {
       const filtered = accounts.filter(acc => {
         const accId = acc.id.toLowerCase();
-        if (accId === 'trainers') return true;
+        if (accId === 'trainers' || accId === 'general') return true;
         return trainerAccounts.some(ta => matchesTrafficLightAccount(acc.id, ta));
       });
-      list = filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers');
+      list = filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers' || a.id.toLowerCase() === 'general');
     } else {
       list = accounts;
     }
@@ -496,6 +498,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   }, [visibleAccounts]);
   const [quarter, setQuarter] = useState('q2');
   const [selectedTeam, setSelectedTeam] = useState<string>('ALL');
+  const [selectedTrainer, setSelectedTrainer] = useState<string>('ALL');
   const [data, setData] = useState<any[]>([]);
   const [allDateColumns, setAllDateColumns] = useState<string[]>([]);
   const [nameColumnKey, setNameColumnKey] = useState<string>('Teams');
@@ -540,7 +543,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   const [pickerYear, setPickerYear] = useState<number>(2026);
   const [pickerMonth, setPickerMonth] = useState<number>(5); // 0-indexed (5 is June)
   const [pickerSelectedDay, setPickerSelectedDay] = useState<number>(1);
-  const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | 'status' | 'pickerMonth' | 'pickerYear' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | 'trainer' | 'status' | 'pickerMonth' | 'pickerYear' | null>(null);
 
   // Sync date picker temp state when opening
   useEffect(() => {
@@ -593,6 +596,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     setIsLoading(true);
     setPendingEdits({});
     setSelectedTeam('ALL');
+    setSelectedTrainer('ALL');
     
     // Scoped accounts list when account === 'all'
     const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
@@ -839,6 +843,22 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
     return teams;
   }, [data, nameColumnKey]);
+
+  // Discover all distinct trainers present in active traffic light data
+  const trainersFilterList = useMemo(() => {
+    const set = new Set<string>();
+    data.forEach(r => {
+      if (r.isAccountHeader || r.isTeamHeader) return;
+      const tr = String(r.assigned_trainer || '').trim();
+      if (tr && tr !== 'Unassigned' && tr.toLowerCase() !== 'null' && tr.toLowerCase() !== 'undefined') {
+        set.add(tr);
+      }
+      if (r._account === 'trainers' && r.teams) {
+        set.add(String(r.teams).trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [data]);
 
   // Helper to get Day of Week (e.g., FRI, TUE)
   const getDayOfWeek = (dateStr: string) => {
@@ -1239,6 +1259,16 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         if (!isOwnTrainee) return false;
       }
 
+      // Trainer filter
+      if (selectedTrainer !== 'ALL') {
+        const rowTrainer = String(row.assigned_trainer || '').trim();
+        const rowName = nameVal;
+        const matchesTrainer = 
+          (rowTrainer && (isTrainerMatch(rowTrainer, selectedTrainer) || rowTrainer.toLowerCase().includes(selectedTrainer.toLowerCase()))) ||
+          (rowAccount === 'trainers' && (isTrainerMatch(rowName, selectedTrainer) || rowName.toLowerCase().includes(selectedTrainer.toLowerCase())));
+        if (!matchesTrainer) return false;
+      }
+
       // Team filter
       if (teamsList.length > 0) {
         if (selectedTeam !== 'ALL' && currentTeamName !== selectedTeam) {
@@ -1257,9 +1287,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
         if (!hasMatchingStatus) return false;
       }
 
-      // Search Query
+      // Search Query: Matches Trainee Name, Assigned Trainer, or Account
       if (searchQuery.trim()) {
-        if (!nameVal.toLowerCase().includes(searchQuery.toLowerCase())) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = nameVal.toLowerCase().includes(q);
+        const matchesTrainer = String(row.assigned_trainer || '').toLowerCase().includes(q);
+        const matchesAcc = String(row.accountName || row.acount || row._account || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesTrainer && !matchesAcc) {
           return false;
         }
       }
@@ -1313,7 +1347,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }
 
     return result;
-  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
+  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, selectedTrainer, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
 
   // Pagination State (Display 10 per page as requested)
   const [currentPage, setCurrentPage] = useState(1);
@@ -1322,7 +1356,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [account, quarter, selectedTeam, statusFilter, searchQuery, filterWithRemarksOnly]);
+  }, [account, quarter, selectedTeam, selectedTrainer, statusFilter, searchQuery, filterWithRemarksOnly]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
 
@@ -1843,6 +1877,69 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                       )}
                     >
                       {t.name} ({t.count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Trainer Filter Dropdown */}
+          <div className="relative w-36 shrink-0" data-dropdown>
+            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-[#2F6798]" />
+              <span>TRAINER</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(prev => prev === 'trainer' ? null : 'trainer')}
+              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
+            >
+              <span className="truncate">
+                {selectedTrainer === 'ALL' ? (trainersFilterList.length > 0 ? `All Trainers (${trainersFilterList.length})` : 'All Trainers') : selectedTrainer}
+              </span>
+              {openDropdown === 'trainer' ? (
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              )}
+            </button>
+
+            {openDropdown === 'trainer' && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTrainer('ALL');
+                    setOpenDropdown(null);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
+                    selectedTrainer === 'ALL'
+                      ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  )}
+                >
+                  All Trainers ({trainersFilterList.length})
+                </button>
+                {trainersFilterList.map((trName) => {
+                  const isSelected = selectedTrainer === trName;
+                  return (
+                    <button
+                      key={trName}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTrainer(trName);
+                        setOpenDropdown(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs truncate transition-colors cursor-pointer",
+                        isSelected
+                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      {trName}
                     </button>
                   );
                 })}
@@ -2526,9 +2623,27 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                               <div className="w-7 h-7 rounded-full bg-[#2F6798]/10 dark:bg-[#2F6798]/20 text-[#2F6798] dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0 border border-[#2F6798]/20 shadow-2xs">
                                 {initials}
                               </div>
-                              <span className="truncate text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                                {nameVal}
-                              </span>
+                              <div className="flex flex-col min-w-0">
+                                <span className="truncate text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                                  {nameVal}
+                                </span>
+                                {row._account === 'trainers' ? (
+                                  row.accounts ? (
+                                    <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                                      Accounts: {row.accounts}
+                                    </span>
+                                  ) : null
+                                ) : (
+                                  row.assigned_trainer && row.assigned_trainer !== 'Unassigned' && (
+                                    <span className="text-[9.5px] text-[#2F6798] dark:text-blue-400 font-semibold truncate flex items-center gap-1">
+                                      <span>TR: {row.assigned_trainer}</span>
+                                      {row.accountName && (
+                                        <span className="text-slate-400 dark:text-slate-500 font-normal">({row.accountName})</span>
+                                      )}
+                                    </span>
+                                  )
+                                )}
+                              </div>
                             </div>
                           </td>
 

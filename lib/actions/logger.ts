@@ -116,7 +116,9 @@ async function pruneOldLogs() {
 
 export async function logActivity({ title, description, iconType, author, actionUrl, sendEmail, toEmail }: LogPayload) {
   try {
-    const authorStr = author || 'Authorized Manager';
+    const authorStr = author && author !== 'Admin' && author !== 'System' && author !== 'Authorized Manager' && author !== 'Authorized User'
+      ? author
+      : 'Grachelle Mae Carmelotes';
     const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/history');
 
     // 1. Insert into notifications table

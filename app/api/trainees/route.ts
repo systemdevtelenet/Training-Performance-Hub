@@ -29,7 +29,10 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const actingAdmin = body.actingAdmin || body.author || body.userName || 'Admin';
+    const rawAdmin = (body.actingAdmin || body.author || body.userName || '').trim();
+    const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
+      ? rawAdmin
+      : 'Grachelle Mae Carmelotes';
     
     // Check if bulk addition
     const rawList: any[] = Array.isArray(body)
@@ -164,6 +167,42 @@ export async function POST(req: Request) {
         author: actingAdmin,
         actionUrl: '/trainees'
       });
+
+      // Synchronize assigned account with trainers_profile in Supabase so it immediately reflects in trainer dashboard & traffic lights
+      if (assign.cleanAccount && assign.cleanTrainer && assign.cleanTrainer !== 'Unassigned') {
+        try {
+          const { data: tpList } = await supabase
+            .from('trainers_profile')
+            .select('id, name, accounts');
+
+          const targetTrainer = assign.cleanTrainer.toLowerCase().trim();
+          const matchedProfile = (tpList || []).find((tp: any) => {
+            const trName = (tp.name || '').toLowerCase().trim();
+            return trName === targetTrainer || trName.includes(targetTrainer) || targetTrainer.includes(trName);
+          });
+
+          if (matchedProfile) {
+            const currentAccs = (matchedProfile.accounts || '')
+              .split(/[,/|]/)
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+
+            const alreadyHas = currentAccs.some(
+              (a: string) => a.toLowerCase() === assign.cleanAccount.toLowerCase()
+            );
+
+            if (!alreadyHas) {
+              currentAccs.push(assign.cleanAccount);
+              await supabase
+                .from('trainers_profile')
+                .update({ accounts: currentAccs.join(', ') })
+                .eq('id', matchedProfile.id);
+            }
+          }
+        } catch (tpErr) {
+          console.warn('Error syncing trainer accounts in trainers_profile:', tpErr);
+        }
+      }
     }
 
     const totalCount = inhousePayloads.length + pstPayloads.length;
@@ -207,7 +246,10 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const { id, originalName, name, trainingType, batchName, accountName, assignedTrainer, status, isEndorsed, actingAdmin: reqAdmin } = body;
     const targetName = originalName || name;
-    const actingAdmin = reqAdmin || 'Admin';
+    const rawAdmin = (reqAdmin || body.author || body.userName || '').trim();
+    const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
+      ? rawAdmin
+      : 'Grachelle Mae Carmelotes';
 
     if (!targetName && !id) {
       return NextResponse.json({ error: 'Trainee name or ID is required' }, { status: 400 });
@@ -367,7 +409,7 @@ export async function DELETE(req: Request) {
       .eq('source_table', `trainee_assign::${cleanName.toLowerCase()}`);
 
     const authorParam = searchParams.get('author') || searchParams.get('userName');
-    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' ? authorParam.trim() : 'Admin';
+    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' && authorParam.trim() !== 'Admin' ? authorParam.trim() : 'Grachelle Mae Carmelotes';
 
     await logActivity({
       title: 'Trainee Removed',

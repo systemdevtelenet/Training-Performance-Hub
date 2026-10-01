@@ -458,7 +458,11 @@ export const getTrainersData = async () => {
         role: t.position || 'UNASSIGNED',
         status: t.status || 'ACTIVE',
         startDate: profile.start_date || t.start_date || 'N/A',
-        accounts: profile.accounts || '',
+        accounts: (() => {
+          const traineeAccs = Array.from(new Set(assignedTrainees.map((row: any) => (row.account || row.acount || row.accountName || '').trim()).filter(Boolean)));
+          const profileAccs = (profile.accounts || '').split(/[,/|]/).map((s: string) => s.trim()).filter(Boolean);
+          return Array.from(new Set([...profileAccs, ...traineeAccs])).filter(a => a.toLowerCase() !== 'n/a').join(', ') || profile.accounts || '';
+        })(),
         tasks: t.assigned_task || '',
         attendanceRate: attendanceRate,
         reliabilityRate: calculatedReliabilityRate,

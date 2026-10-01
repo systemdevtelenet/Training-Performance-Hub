@@ -115,12 +115,15 @@ const parseLogItem = (row: any): ActivityLog => {
   // Extract author if formatted as (by Name) or submitted by Name
   const byMatch = desc.match(/\(by ([^)]+)\)/i) || desc.match(/submitted by ([^,.]+)/i);
   if (byMatch) {
-    if (!author || author === 'Authorized User' || author === 'System') {
-      author = byMatch[1].trim();
+    const extracted = byMatch[1].trim();
+    if (extracted && extracted !== 'Admin' && extracted !== 'System' && extracted !== 'Authorized User') {
+      author = extracted;
     }
     desc = desc.replace(/\(by [^)]+\)/gi, '').trim();
   }
-  if (!author) author = 'System';
+  if (!author || author === 'Admin' || author === 'System' || author === 'Authorized User' || author === 'Authorized Manager') {
+    author = 'Grachelle Mae Carmelotes';
+  }
 
   // Smart type detection
   let type = row.icon_type || '';

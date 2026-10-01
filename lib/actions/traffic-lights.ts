@@ -26,24 +26,31 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
     const cleanEmail = (trainerEmail || '').toLowerCase().trim();
     const cleanName = (trainerName || '').toLowerCase().trim();
 
-    const { data: ih } = await supabaseAdmin.from('inhouse').select('name, assigned_trainer, trainer, account, batch');
-    const { data: pst } = await supabaseAdmin.from('product_spec_training').select('name, assigned_trainer, trainer, account, wave, batch');
+    const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
+    const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
+    const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
+    const assignmentMap = await getTraineeTrainerAssignmentMap();
 
     const matchedNames = new Set<string>();
     const matchedAccounts = new Set<string>();
 
     const allTrainees = [...(ih || []), ...(pst || [])];
     allTrainees.forEach(t => {
-      const assigned = (t.assigned_trainer || t.trainer || '').trim();
+      const cleanTName = (t.name || '').trim().toLowerCase();
+      const assigned = (assignmentMap.get(cleanTName) || t.assigned_trainer || t.trainer || '').trim();
+      const rawAcc = (t.account || t.acount || t.accountName || 'General').toString().trim().toLowerCase();
+
       const isMatch = (cleanName && isTrainerMatch(assigned, cleanName)) || 
                       (cleanName && assigned.toLowerCase().includes(cleanName)) ||
                       (cleanName && cleanName.includes(assigned.toLowerCase())) ||
                       (cleanEmail && assigned.toLowerCase().includes(cleanEmail.split('@')[0])) ||
                       (cleanEmail && cleanEmail.includes(assigned.toLowerCase().replace(/\s+/g, '')));
       if (isMatch) {
-        if (t.name) matchedNames.add(t.name.trim().toLowerCase());
-        const acc = (t.account || '').toLowerCase().trim();
-        if (acc) matchedAccounts.add(acc);
+        if (cleanTName) matchedNames.add(cleanTName);
+        if (rawAcc) {
+          matchedAccounts.add(rawAcc);
+          matchedAccounts.add('general');
+        }
       }
     });
 
@@ -95,11 +102,12 @@ export async function getAvailableTrafficLightAccounts() {
     
     const accountMap = new Map<string, string>();
     const labelFormatting: Record<string, string> = {
+      'trainers': 'Trainers',
+      'general': 'General',
       'rm': 'RM',
       'xpn': 'XPN',
       'fleet': 'Fleet',
       'leaders': 'Leaders',
-      'trainers': 'Trainers',
       'dft': 'DFT',
       'js': 'JS',
       'ono': 'ONO',
@@ -122,25 +130,17 @@ export async function getAvailableTrafficLightAccounts() {
       }
     });
 
-    if (accountMap.size === 0) {
-      return [
-        { id: 'rm', name: 'RM' },
-        { id: 'xpn', name: 'XPN' },
-        { id: 'fleet', name: 'Fleet' },
-        { id: 'leaders', name: 'Leaders' },
-        { id: 'trainers', name: 'Trainers' },
-        { id: 'dft', name: 'DFT' },
-        { id: 'js', name: 'JS' },
-        { id: 'ono', name: 'ONO' },
-        { id: 'awd', name: 'AWD' },
-        { id: 'flexar', name: 'FLEXAR' },
-        { id: 'hh', name: 'HH' },
-        { id: 'mm_transpo', name: 'MM Transpo' },
-        { id: 'other_acc', name: 'Other Acc' }
-      ];
-    }
-
-    return Array.from(accountMap.entries()).map(([id, name]) => ({ id, name }));
+    const preferredOrder = ['trainers', 'general', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
+    const resultList: { id: string; name: string }[] = [];
+    preferredOrder.forEach(id => {
+      resultList.push({ id, name: labelFormatting[id] || id.toUpperCase() });
+    });
+    accountMap.forEach((name, id) => {
+      if (!preferredOrder.includes(id)) {
+        resultList.push({ id, name });
+      }
+    });
+    return resultList;
   } catch (e) {
     console.error('Error fetching traffic light accounts:', e);
     return [];
@@ -148,14 +148,15 @@ export async function getAvailableTrafficLightAccounts() {
 }
 
 function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean {
-  if (!accId || !traineeAcc) return false;
+  if (!accId) return false;
   const cleanId = accId.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanTrainee = traineeAcc.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTrainee = (traineeAcc || 'general').toLowerCase().replace(/[^a-z0-9]/g, '');
   
   if (cleanId === cleanTrainee) return true;
   if (cleanTrainee.includes(cleanId) || cleanId.includes(cleanTrainee)) return true;
   
   // Specific alias mappings:
+  if (cleanId === 'general' && (cleanTrainee.includes('general') || cleanTrainee === '' || cleanTrainee.includes('bilingual'))) return true;
   if ((cleanId === 'dft' || cleanId === 'deferit') && (cleanTrainee.includes('deferit') || cleanTrainee.includes('dft'))) return true;
   if (cleanId === 'flexar' && cleanTrainee.includes('flexar')) return true;
   if (cleanId === 'xpn' && cleanTrainee.includes('xpn')) return true;
@@ -166,7 +167,7 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
   if (cleanId === 'ono' && cleanTrainee.includes('ono')) return true;
   if (cleanId === 'awd' && cleanTrainee.includes('awd')) return true;
   if (cleanId === 'rm' && cleanTrainee.includes('rm')) return true;
-  if ((cleanId === 'otheracc' || cleanId === 'other') && ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr'].some(s => cleanTrainee.includes(s))) return true;
+  if ((cleanId === 'otheracc' || cleanId === 'other') && (cleanTrainee.includes('general') || ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr', 'bilingual'].some(s => cleanTrainee.includes(s)))) return true;
 
   return false;
 }
@@ -205,10 +206,11 @@ export async function getTrafficLightData(account: string, quarter: string, acco
     if (account === 'all') {
       const targetAccounts = accountList && accountList.length > 0
         ? accountList.filter(a => a !== 'all')
-        : ['trainers', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
+        : ['trainers', 'general', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
 
       const combined: any[] = [];
       const labelFormatting: Record<string, string> = {
+        'general': 'General',
         'rm': 'RM',
         'xpn': 'XPN',
         'fleet': 'Fleet',
@@ -268,7 +270,8 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
           _account: 'trainers',
           assigned_trainer: tr.name,
           position: tr.position || tr.pos || 'Trainer',
-          startDate: tr.start_date || tr.startDate || tr.start || '-'
+          startDate: tr.start_date || tr.startDate || tr.start || '-',
+          accounts: tr.accounts || ''
         };
         dates.forEach(d => { row[d] = null; });
         result.push(row);
@@ -277,16 +280,21 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
       // 2. For client accounts: Retrieve live trainees from inhouse and product_spec_training (matching Trainees page)
       const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
       const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
+      const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
+      const assignmentMap = await getTraineeTrainerAssignmentMap();
       const allTrainees = [...(ih || []), ...(pst || [])];
 
-      const matched = allTrainees.filter(t => matchesTrafficLightAccount(account, t.account));
+      const matched = allTrainees.filter(t => {
+        const rawAccount = (t.account || t.acount || t.accountName || 'General').toString().trim();
+        return matchesTrafficLightAccount(account, rawAccount);
+      });
 
       if (matched.length > 0) {
         // Group by wave / batch
         const groups: Record<string, any[]> = {};
         matched.forEach(t => {
-          const batchNo = t.batch || t.wave || '1';
-          const gKey = `TEAM BATCH ${batchNo}`;
+          const rawBatch = t.batch ? `Batch ${t.batch}` : (t.wave ? `Wave ${t.wave}` : 'Batch 1');
+          const gKey = `TEAM ${rawBatch.toUpperCase()}`;
           if (!groups[gKey]) groups[gKey] = [];
           groups[gKey].push(t);
         });
@@ -299,12 +307,16 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
             _account: account
           });
           list.forEach(t => {
+            const cleanTName = (t.name || '').trim().toLowerCase();
+            const rawAccount = (t.account || t.acount || t.accountName || 'General').toString().trim();
+            const assignedTrainer = assignmentMap.get(cleanTName) || t.assigned_trainer || t.trainer || '';
+
             const row: any = {
               id: t.name,
               teams: t.name,
               _account: account,
-              assigned_trainer: t.assigned_trainer || t.trainer || '',
-              accountName: t.account,
+              assigned_trainer: assignedTrainer,
+              accountName: rawAccount,
               position: t.position || 'Trainee',
               startDate: t.start_date || t.startDate || t.date_hired || t.start || '-'
             };

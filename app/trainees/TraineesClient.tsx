@@ -566,6 +566,21 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }
   };
 
+  const adminDisplayName = useMemo(() => {
+    if (userName && userName !== 'Admin' && userName !== 'N/A') return userName;
+    if (userMeta?.firstName && userMeta.firstName !== 'N/A') {
+      const full = `${userMeta.firstName} ${userMeta.lastName && userMeta.lastName !== 'N/A' ? userMeta.lastName : ''}`.trim();
+      if (full) return full;
+    }
+    if (email) {
+      if (email.toLowerCase().includes('gcarmelotes')) return 'Grachelle Mae Carmelotes';
+      if (email.toLowerCase().includes('nreguero')) return 'Nissi-Jeh Reguero';
+      const cleanPrefix = email.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      if (cleanPrefix) return cleanPrefix;
+    }
+    return 'Grachelle Mae Carmelotes';
+  }, [userName, userMeta, email]);
+
   // Handle Add Trainee Submit
   const handleAddTrainee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -581,7 +596,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          actingAdmin: userName || 'Admin'
+          actingAdmin: adminDisplayName
         })
       });
       const resData = await res.json();
@@ -647,7 +662,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           accountName: formData.accountName,
           assignedTrainer: formData.assignedTrainer,
           status: formData.status,
-          actingAdmin: userName || 'Admin'
+          actingAdmin: adminDisplayName
         })
       });
       const resData = await res.json();
@@ -1582,7 +1597,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               const res = await fetch('/api/trainees', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify({
+                  ...data,
+                  actingAdmin: adminDisplayName
+                })
               });
               const resData = await res.json();
               if (resData.success) {
