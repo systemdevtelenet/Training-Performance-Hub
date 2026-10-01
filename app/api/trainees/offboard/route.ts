@@ -230,7 +230,7 @@ export async function PUT(req: Request) {
     const rawAdmin = (adminName || body.author || body.userName || '').trim();
     const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
       ? rawAdmin
-      : 'Grachelle Mae Carmelotes';
+      : 'Admin';
 
     if (!traineeName) {
       return NextResponse.json({ error: 'Trainee name is required' }, { status: 400 });

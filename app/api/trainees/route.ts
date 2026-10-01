@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       ? firstItem.assignedTrainer.trim()
       : null;
 
-    // Resolve author: If trainer or trainer request, use trainer's name. Never fallback to Grachelle for trainers.
+    // Resolve author: If trainer or trainer request, use trainer's name dynamically.
     let actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
       ? rawAdmin
       : null;

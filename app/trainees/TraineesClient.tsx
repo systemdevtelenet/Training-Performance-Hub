@@ -571,20 +571,20 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }
   };
 
-  const adminDisplayName = useMemo(() => {
+  const userDisplayName = useMemo(() => {
     if (userName && userName !== 'Admin' && userName !== 'N/A') return userName;
     if (userMeta?.firstName && userMeta.firstName !== 'N/A') {
       const full = `${userMeta.firstName} ${userMeta.lastName && userMeta.lastName !== 'N/A' ? userMeta.lastName : ''}`.trim();
       if (full) return full;
     }
     if (email) {
-      if (email.toLowerCase().includes('gcarmelotes')) return 'Grachelle Mae Carmelotes';
-      if (email.toLowerCase().includes('nreguero')) return 'Nissi-Jeh Reguero';
       const cleanPrefix = email.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
       if (cleanPrefix) return cleanPrefix;
     }
-    return isTrainer ? (userName || 'Trainer') : 'Grachelle Mae Carmelotes';
+    return isTrainer ? 'Trainer' : 'Admin';
   }, [userName, userMeta, email, isTrainer]);
+
+  const adminDisplayName = userDisplayName;
 
   // Handle Add Trainee Submit
   const handleAddTrainee = async (e: React.FormEvent) => {
