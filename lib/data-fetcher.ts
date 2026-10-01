@@ -12,9 +12,34 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
 const supabaseAdmin = createClient(supabaseUrl, supabaseAdminKey);
 
+export async function getTraineeTrainerAssignmentMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const { data } = await supabaseAdmin
+      .from('traffic_light_metrics')
+      .select('source_table, traffic_status')
+      .eq('metric_group', 'trainee_trainer_assignment');
+
+    (data || []).forEach((row: any) => {
+      let traineeName = '';
+      if (row.source_table && row.source_table.includes('::')) {
+        traineeName = row.source_table.split('::')[1]?.trim().toLowerCase();
+      }
+      if (traineeName && row.traffic_status) {
+        map.set(traineeName, row.traffic_status.trim());
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching trainee trainer assignment map:', err);
+  }
+  return map;
+}
+
 // We export direct async functions for real-time live data consistency across all pages
 export const getDashboardData = async () => {
   try {
+    const assignmentMap = await getTraineeTrainerAssignmentMap();
+
     // Fetch live data from Supabase tables
     const { data: inhouseData, error: inhouseError } = await supabaseAdmin
       .from('inhouse')
@@ -71,10 +96,13 @@ export const getDashboardData = async () => {
         if (val === 'A') aCount++;
       }
 
+      const cleanName = (item.name || '').trim().toLowerCase();
+      const resolvedTrainer = assignmentMap.get(cleanName) || item.assigned_trainer || item.assignedTrainer || item.trainer || undefined;
+
       inhouseGroups[accountName][batchName].members.push({
         id: item.id || item.name,
         name: item.name,
-        assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
+        assignedTrainer: resolvedTrainer,
         status: item.status || 'ACTIVE',
         accountName,
         batchName,
@@ -108,10 +136,13 @@ export const getDashboardData = async () => {
         if (val === 'A') aCount++;
       }
 
+      const cleanName = (item.name || '').trim().toLowerCase();
+      const resolvedTrainer = assignmentMap.get(cleanName) || item.assigned_trainer || item.assignedTrainer || item.trainer || undefined;
+
       pstGroups[accountName][batchName].members.push({
         id: item.id || item.name,
         name: item.name,
-        assignedTrainer: item.assigned_trainer || item.assignedTrainer || item.trainer || undefined,
+        assignedTrainer: resolvedTrainer,
         status: item.status || 'ACTIVE',
         accountName,
         batchName,
@@ -274,6 +305,8 @@ export const getTrainersData = async () => {
       .from('product_spec_training')
       .select('*');
 
+    const assignmentMap = await getTraineeTrainerAssignmentMap();
+
     if (!trainers) return [];
 
     const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'REPROFILED'];
@@ -338,9 +371,11 @@ export const getTrainersData = async () => {
       
       // Calculate handled batches
       const allTrainees = [...(pstData || []), ...(inhouseData || [])];
-      const assignedTrainees = allTrainees.filter(row => 
-        isTrainerMatch(row.assigned_trainer || row.assignedTrainer || row.trainer, trainerName)
-      );
+      const assignedTrainees = allTrainees.filter(row => {
+        const cleanName = (row.name || '').trim().toLowerCase();
+        const assigned = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer;
+        return isTrainerMatch(assigned, trainerName);
+      });
 
       const batchMap: Record<string, { batch: string; account: string; headcount: number; passed: number; losses: number; successRate?: string; attritionRate?: string; attrition?: string; trainees: any[] }> = {};
       let totalHeadcount = 0;
@@ -379,10 +414,13 @@ export const getTrainersData = async () => {
           if (val === 'A') aCount++;
         }
 
+        const cleanTraineeName = (row.name || '').trim().toLowerCase();
+        const resolvedTrainer = assignmentMap.get(cleanTraineeName) || row.assigned_trainer || row.assignedTrainer || row.trainer || trainerName;
+
         batchMap[fullKey].trainees.push({
           id: row.id || row.name,
           name: row.name,
-          assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || trainerName,
+          assignedTrainer: resolvedTrainer,
           p: pCount,
           a: aCount,
           status: row.status || 'ACTIVE'
@@ -479,6 +517,8 @@ export const getTraineesData = async () => {
       .select('*')
       .order('name', { ascending: true });
 
+    const assignmentMap = await getTraineeTrainerAssignmentMap();
+
     if (err1) console.error('Error fetching INHOUSE:', err1);
     if (err2) console.error('Error fetching PST:', err2);
 
@@ -501,6 +541,8 @@ export const getTraineesData = async () => {
       }
 
       const isLoss = isLossStatus(row.status);
+      const cleanName = (row.name || '').trim().toLowerCase();
+      const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
 
       return {
         id: row.name || Math.random().toString(),
@@ -512,7 +554,7 @@ export const getTraineesData = async () => {
         a: aCount,
         isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
         isLoss,
-        assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+        assignedTrainer: resolvedTrainer,
         batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
         accountName: row.account || row.acount || 'General',
         trainingType: 'INHOUSE' as const
@@ -533,6 +575,8 @@ export const getTraineesData = async () => {
       const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
       const batchName = `${acct} -${rawWave || '1'}`;
       const isLoss = isLossStatus(row.status);
+      const cleanName = (row.name || '').trim().toLowerCase();
+      const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
 
       return {
         id: row.name || Math.random().toString(),
@@ -544,7 +588,7 @@ export const getTraineesData = async () => {
         a: aCount,
         isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
         isLoss,
-        assignedTrainer: row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned',
+        assignedTrainer: resolvedTrainer,
         batchName: batchName,
         accountName: acct,
         trainingType: 'PST' as const

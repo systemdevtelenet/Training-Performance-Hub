@@ -100,8 +100,8 @@ async function pruneOldLogs() {
 
     const trainingNotifs = (allNotifs || []).filter(isTrainingLog);
 
-    if (trainingNotifs.length > 10) {
-      const excessIds = trainingNotifs.slice(10).map(r => r.notification_id);
+    if (trainingNotifs.length > 50) {
+      const excessIds = trainingNotifs.slice(50).map(r => r.notification_id);
       if (excessIds.length > 0) {
         await supabaseAdmin
           .from('notifications')
@@ -177,7 +177,7 @@ export async function getActivityLogs(limit = 10) {
     }
 
     // 3. Strictly filter to Training Performance Hub activities only (never QA evaluations/logs)
-    const trainingLogs = (data || []).filter(isTrainingLog).slice(0, Math.min(limit, 10));
+    const trainingLogs = (data || []).filter(isTrainingLog).slice(0, Math.min(limit, 50));
 
     return { data: trainingLogs, error: null };
   } catch (e: any) {

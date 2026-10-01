@@ -42,6 +42,7 @@ import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import PageLoading from '@/components/PageLoading';
+import { createClient } from '@/utils/supabase/client';
 
 export type Trainee = {
   id: string;
@@ -142,6 +143,33 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       fetchPendingApprovalsCount();
     }
   }, [isAdmin]);
+
+  // Real-time synchronization for trainees and assignments from Supabase
+  useEffect(() => {
+    const supabase = createClient();
+    const fetchFreshTrainees = async () => {
+      try {
+        const res = await fetch('/api/trainees');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setTrainees(data.data);
+        }
+      } catch (e) {
+        console.warn('Realtime trainees refresh error:', e);
+      }
+    };
+
+    const channel = supabase
+      .channel('trainees_realtime_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inhouse' }, fetchFreshTrainees)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_spec_training' }, fetchFreshTrainees)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, fetchFreshTrainees)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Sync search and tab params from URL if navigated from Topbar / Sidebar
   useEffect(() => {
@@ -551,7 +579,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       const res = await fetch('/api/trainees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          actingAdmin: userName || 'Admin'
+        })
       });
       const resData = await res.json();
       if (resData.success) {
@@ -615,7 +646,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           batchName: formData.batchName,
           accountName: formData.accountName,
           assignedTrainer: formData.assignedTrainer,
-          status: formData.status
+          status: formData.status,
+          actingAdmin: userName || 'Admin'
         })
       });
       const resData = await res.json();

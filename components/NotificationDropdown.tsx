@@ -234,13 +234,18 @@ export default function NotificationDropdown() {
           }
 
           if (isTrainer) {
-            // Trainers see their own actions, their own logins, and training/trainee/batch alerts
+            // Check if notification explicitly assigns a trainee to this trainer or mentions this trainer
+            const nameTokens = cleanName.replace(/^(tr|trainer)\s+/i, '').split(' ').filter(tok => tok.length > 2);
+            const matchesName = (cleanName && descLow.includes(cleanName)) || (nameTokens.length > 0 && nameTokens.some(tok => descLow.includes(tok)));
+            const matchesEmail = cleanEmail && (descLow.includes(cleanEmail) || (emailPrefix && descLow.includes(emailPrefix)));
+            const isAssigned = (titleLow.includes('assigned') || descLow.includes('assigned to trainer')) && (matchesName || matchesEmail);
+
             const isOwnOrUnder = 
+              isAssigned ||
+              matchesName ||
+              matchesEmail ||
               authorLow.includes(cleanEmail) || 
               authorLow.includes(cleanName) ||
-              descLow.includes(cleanEmail) ||
-              (cleanName && descLow.includes(cleanName)) ||
-              titleLow.includes('trainee') ||
               titleLow.includes('traffic light') ||
               titleLow.includes('attendance');
             return isOwnOrUnder;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -43,6 +43,42 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
   const [rosterPage, setRosterPage] = useState<number>(1);
   const [rosterPageSize, setRosterPageSize] = useState<number>(10);
   
+  // Real-time live trainee list synced from Supabase
+  const [liveTraineesList, setLiveTraineesList] = useState<any[] | null>(null);
+
+  const fetchLiveTrainees = useCallback(async () => {
+    try {
+      const res = await fetch('/api/trainees');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setLiveTraineesList(data.data);
+      }
+    } catch (e) {
+      console.warn('Live trainees fetch error:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveTrainees();
+
+    const channel = supabase
+      .channel('trainer_dashboard_realtime_trainees')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inhouse' }, () => {
+        fetchLiveTrainees();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_spec_training' }, () => {
+        fetchLiveTrainees();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, () => {
+        fetchLiveTrainees();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchLiveTrainees, supabase]);
+
   // Trainer's own reliability data
   const [trainerReliability, setTrainerReliability] = useState<{
     rate: string;
@@ -62,8 +98,6 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
 
   // 1. Filter Trainees specifically assigned to this trainer
   const trainerData = useMemo(() => {
-    if (!initialData) return { trainees: [], batches: [], accounts: [] };
-
     const cleanUser = (userName || '').toLowerCase().trim();
     const cleanEmail = (email || '').toLowerCase().trim();
     const userHandle = cleanEmail.split('@')[0].replace(/[._-]/g, ' ');
@@ -71,6 +105,61 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
     const traineeList: any[] = [];
     const batchMap = new Map<string, { type: string; account: string; batch: string; count: number; active: number; losses: number; p: number; a: number }>();
     const accountSet = new Set<string>();
+
+    // When live data is available from Supabase, build dynamic trainer view
+    if (liveTraineesList && liveTraineesList.length > 0) {
+      liveTraineesList.forEach((m: any) => {
+        const assigned = m.assignedTrainer || '';
+        const matchesTrainer =
+          isTrainerMatch(assigned, userName || '') ||
+          (cleanUser && assigned.toLowerCase().includes(cleanUser)) ||
+          (userHandle && assigned.toLowerCase().includes(userHandle));
+
+        if (matchesTrainer) {
+          const type = (m.trainingType || 'INHOUSE').toUpperCase();
+          const acc = m.accountName || 'General';
+          const batch = m.batchName || 'General -1';
+
+          const traineeObj = {
+            ...m,
+            trainingType: type === 'PST' ? 'Product Specific Training (PST)' : 'Inhouse Training',
+            typeKey: type.toLowerCase(),
+            accountName: acc,
+            batchName: batch
+          };
+          traineeList.push(traineeObj);
+          accountSet.add(acc);
+
+          const batchKey = `${type}-${acc}-${batch}`;
+          if (!batchMap.has(batchKey)) {
+            batchMap.set(batchKey, {
+              type: type === 'PST' ? 'PST' : 'Inhouse',
+              account: acc,
+              batch: batch,
+              count: 0,
+              active: 0,
+              losses: 0,
+              p: 0,
+              a: 0
+            });
+          }
+          const bInfo = batchMap.get(batchKey)!;
+          bInfo.count += 1;
+          if (m.isLoss) bInfo.losses += 1;
+          else bInfo.active += 1;
+          bInfo.p += (m.p || 0);
+          bInfo.a += (m.a || 0);
+        }
+      });
+
+      return {
+        trainees: traineeList,
+        batches: Array.from(batchMap.values()),
+        accounts: Array.from(accountSet)
+      };
+    }
+
+    if (!initialData) return { trainees: [], batches: [], accounts: [] };
 
     ['inhouse', 'pst'].forEach(type => {
       if (!initialData[type]?.groups) return;
@@ -131,7 +220,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       batches: Array.from(batchMap.values()),
       accounts: Array.from(accountSet)
     };
-  }, [initialData, userName, email]);
+  }, [liveTraineesList, initialData, userName, email]);
 
   // 2. Fetch Trainer's own reliability from trainer_attendance_strat
   useEffect(() => {

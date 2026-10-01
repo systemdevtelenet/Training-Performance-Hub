@@ -2,15 +2,34 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { getTraineesData } from '@/lib/data-fetcher';
+
+export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// GET: Retrieve fresh trainee records across Inhouse and PST with trainer assignments
+export async function GET() {
+  try {
+    const trainees = await getTraineesData();
+    return NextResponse.json({
+      success: true,
+      count: trainees.length,
+      data: trainees
+    });
+  } catch (err: any) {
+    console.error('Error fetching trainees:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 // POST: Add new trainee (supports both single & bulk entries)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const actingAdmin = body.actingAdmin || body.author || body.userName || 'Admin';
     
     // Check if bulk addition
     const rawList: any[] = Array.isArray(body)
@@ -26,6 +45,13 @@ export async function POST(req: Request) {
     const inhousePayloads: any[] = [];
     const pstPayloads: any[] = [];
     const insertedRecords: any[] = [];
+    const assignmentsToPersist: Array<{
+      cleanName: string;
+      cleanTrainer: string;
+      cleanAccount: string;
+      cleanBatch: string;
+      isPst: boolean;
+    }> = [];
 
     for (const item of rawList) {
       const { name, trainingType, batchName, accountName, assignedTrainer, status, month, quarter } = item;
@@ -36,8 +62,9 @@ export async function POST(req: Request) {
       const cleanStatus = status || 'ACTIVE';
       const cleanMonth = month || 'September';
       const cleanQuarter = quarter || 'Q3';
-      const cleanTrainer = assignedTrainer || 'Unassigned';
-      const cleanAccount = accountName || 'General';
+      const cleanTrainer = (assignedTrainer || '').trim() || 'Unassigned';
+      const cleanAccount = (accountName || '').trim() || 'General';
+      const cleanBatch = (batchName || '').trim() || (isPst ? 'Wave 1' : 'General -1');
 
       if (isPst) {
         const rawWave = batchName ? `${batchName}`.replace(/Wave\s*/i, '').replace(/.*-\s*/, '').replace(/[^0-9]/g, '').trim() : '1';
@@ -61,6 +88,16 @@ export async function POST(req: Request) {
           quarter: cleanQuarter,
           batch: parsedBatch,
           acount: cleanAccount
+        });
+      }
+
+      if (cleanTrainer && cleanTrainer !== 'Unassigned') {
+        assignmentsToPersist.push({
+          cleanName,
+          cleanTrainer,
+          cleanAccount,
+          cleanBatch,
+          isPst
         });
       }
     }
@@ -89,24 +126,65 @@ export async function POST(req: Request) {
       if (data) insertedRecords.push(...data);
     }
 
+    // Persist Trainee-Trainer Assignments to Supabase traffic_light_metrics & Notify Trainers
+    for (const assign of assignmentsToPersist) {
+      const sourceTable = `trainee_assign::${assign.cleanName.toLowerCase()}`;
+      
+      // Remove any existing assignment record for this trainee
+      await supabase
+        .from('traffic_light_metrics')
+        .delete()
+        .eq('metric_group', 'trainee_trainer_assignment')
+        .eq('source_table', sourceTable);
+
+      // Insert fresh assignment record
+      await supabase
+        .from('traffic_light_metrics')
+        .insert({
+          metric_group: 'trainee_trainer_assignment',
+          source_table: sourceTable,
+          traffic_status: assign.cleanTrainer,
+          remarks: JSON.stringify({
+            traineeName: assign.cleanName,
+            trainerName: assign.cleanTrainer,
+            trainingType: assign.isPst ? 'PST' : 'INHOUSE',
+            batchName: assign.cleanBatch,
+            accountName: assign.cleanAccount,
+            assignedBy: actingAdmin,
+            assignedAt: new Date().toISOString()
+          }),
+          metric_date: new Date().toISOString().split('T')[0]
+        });
+
+      // NOTIFY THE ASSIGNED TRAINER IN-APP
+      await logActivity({
+        title: `New Trainee Assigned: ${assign.cleanName}`,
+        description: `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) and assigned to Trainer ${assign.cleanTrainer}.`,
+        iconType: 'user',
+        author: actingAdmin,
+        actionUrl: '/trainees'
+      });
+    }
+
     const totalCount = inhousePayloads.length + pstPayloads.length;
     const isSingle = totalCount === 1;
     const firstItem = rawList[0];
 
+    // General Enrollment Log for Audit / History
     await logActivity({
       title: isSingle ? 'Trainee Enrolled' : `Bulk Trainees Enrolled (${totalCount})`,
       description: isSingle
         ? `Enrolled new trainee ${firstItem.name} into ${firstItem.batchName || firstItem.trainingType || 'Training'} (${firstItem.accountName || 'General'}).`
         : `Bulk enrolled ${totalCount} trainees across training cohorts with assigned trainers.`,
       iconType: 'user',
-      author: isSingle && firstItem.assignedTrainer && firstItem.assignedTrainer !== 'Unassigned'
-        ? firstItem.assignedTrainer
-        : 'Training Team'
+      author: actingAdmin
     });
 
     try {
       revalidateTag('trainees');
+      revalidateTag('dashboard');
       revalidatePath('/trainees');
+      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Ignore in static/non-edge context
@@ -118,6 +196,7 @@ export async function POST(req: Request) {
       data: isSingle ? insertedRecords[0] : insertedRecords
     });
   } catch (err: any) {
+    console.error('Error in trainee POST route:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -126,8 +205,9 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, originalName, name, trainingType, batchName, accountName, assignedTrainer, status, isEndorsed } = body;
+    const { id, originalName, name, trainingType, batchName, accountName, assignedTrainer, status, isEndorsed, actingAdmin: reqAdmin } = body;
     const targetName = originalName || name;
+    const actingAdmin = reqAdmin || 'Admin';
 
     if (!targetName && !id) {
       return NextResponse.json({ error: 'Trainee name or ID is required' }, { status: 400 });
@@ -159,8 +239,50 @@ export async function PUT(req: Request) {
     const { data, error } = await query.select();
 
     if (error) {
-      console.error('Error updating trainee:', error);
+      console.error('Error updating trainee in DB:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Persist / update trainee trainer assignment in traffic_light_metrics
+    if (assignedTrainer) {
+      const cleanTrainer = assignedTrainer.trim();
+      const cleanTraineeName = (name || targetName).trim();
+      const sourceTable = `trainee_assign::${cleanTraineeName.toLowerCase()}`;
+
+      await supabase
+        .from('traffic_light_metrics')
+        .delete()
+        .eq('metric_group', 'trainee_trainer_assignment')
+        .eq('source_table', sourceTable);
+
+      if (cleanTrainer && cleanTrainer !== 'Unassigned') {
+        await supabase
+          .from('traffic_light_metrics')
+          .insert({
+            metric_group: 'trainee_trainer_assignment',
+            source_table: sourceTable,
+            traffic_status: cleanTrainer,
+            remarks: JSON.stringify({
+              traineeName: cleanTraineeName,
+              trainerName: cleanTrainer,
+              trainingType: isPst ? 'PST' : 'INHOUSE',
+              batchName: batchName || '',
+              accountName: accountName || '',
+              assignedBy: actingAdmin,
+              assignedAt: new Date().toISOString()
+            }),
+            metric_date: new Date().toISOString().split('T')[0]
+          });
+
+        // NOTIFY THE ASSIGNED TRAINER
+        await logActivity({
+          title: `Trainee Assigned to You: ${cleanTraineeName}`,
+          description: `Trainee ${cleanTraineeName} has been assigned to Trainer ${cleanTrainer}.`,
+          iconType: 'user',
+          author: actingAdmin,
+          actionUrl: '/trainees'
+        });
+      }
     }
 
     const logTitle = isNowEndorsed ? 'Trainee Endorsed' : 'Trainee Record Updated';
@@ -172,12 +294,14 @@ export async function PUT(req: Request) {
       title: logTitle,
       description: logDesc,
       iconType: isNowEndorsed ? 'success' : 'user',
-      author: assignedTrainer && assignedTrainer !== 'Unassigned' ? assignedTrainer : 'Training Team'
+      author: actingAdmin
     });
 
     try {
       revalidateTag('trainees');
+      revalidateTag('dashboard');
       revalidatePath('/trainees');
+      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Ignore in static/non-edge context
@@ -185,6 +309,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ success: true, data: data?.[0] });
   } catch (err: any) {
+    console.error('Error in trainee PUT route:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -230,12 +355,19 @@ export async function DELETE(req: Request) {
     const { error } = await query;
 
     if (error) {
-      console.error('Error deleting trainee:', error);
+      console.error('Error deleting trainee from table:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Also remove from assignment records
+    await supabase
+      .from('traffic_light_metrics')
+      .delete()
+      .eq('metric_group', 'trainee_trainer_assignment')
+      .eq('source_table', `trainee_assign::${cleanName.toLowerCase()}`);
+
     const authorParam = searchParams.get('author') || searchParams.get('userName');
-    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' ? authorParam.trim() : 'Nissi';
+    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' ? authorParam.trim() : 'Admin';
 
     await logActivity({
       title: 'Trainee Removed',
@@ -248,6 +380,7 @@ export async function DELETE(req: Request) {
       revalidateTag('trainees');
       revalidateTag('dashboard');
       revalidatePath('/trainees');
+      revalidatePath('/trainers');
       revalidatePath('/');
     } catch (e) {
       // Non-blocking in static generation
@@ -255,6 +388,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true, name: cleanName });
   } catch (err: any) {
+    console.error('Error in trainee DELETE route:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
