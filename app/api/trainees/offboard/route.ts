@@ -227,6 +227,7 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json();
     const { action, traineeName, adminName, requestData } = body;
+    const actingAdmin = adminName || 'Admin';
 
     if (!traineeName) {
       return NextResponse.json({ error: 'Trainee name is required' }, { status: 400 });
