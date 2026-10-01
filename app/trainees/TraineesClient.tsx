@@ -651,6 +651,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }
     if (!deletingTrainee) return;
     setIsSubmitting(true);
+    try {
       const author = (userName && userName !== 'Super Admin' && !userName.toLowerCase().includes('admin')) ? userName : 'Nissi';
       const url = `/api/trainees?name=${encodeURIComponent(deletingTrainee.name)}&type=${deletingTrainee.trainingType || 'INHOUSE'}&batch=${encodeURIComponent(deletingTrainee.batchName || '')}&account=${encodeURIComponent(deletingTrainee.accountName || '')}&author=${encodeURIComponent(author)}`;
       const res = await fetch(url, {
@@ -716,14 +717,14 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   };
 
   const renderStatusBadge = (status?: string, isEndorsed?: boolean, isLoss?: boolean) => {
-    const rawStatus = (status || (isEndorsed ? 'ENDORSED' : isLoss ? 'LOSS' : 'ONGOING')).trim();
+    const rawStatus = (status || (isLoss ? 'RESIGNED' : isEndorsed ? 'ENDORSED' : 'ONGOING')).trim();
     const upperStatus = rawStatus.toUpperCase();
 
-    if (upperStatus === 'ENDORSED' || isEndorsed) {
-      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
-    }
     if (isLoss || isLossStatus(upperStatus)) {
       return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-red-300 text-red-700 bg-red-50 shadow-sm">{upperStatus || 'ATTRITION'}</span>;
+    }
+    if (upperStatus === 'ENDORSED' || isEndorsed) {
+      return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
     }
     return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{upperStatus}</span>;
   };
@@ -1308,7 +1309,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  <UserMinus className="w-3 h-3 text-rose-500" /> Offboarded &amp; Attrition ({offboardedTraineesCount})
+                  <UserMinus className="w-3 h-3 text-rose-500" /> Offboarded Staff ({offboardedTraineesCount})
                 </button>
                 <button
                   type="button"
