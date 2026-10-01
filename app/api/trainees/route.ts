@@ -235,11 +235,10 @@ export async function POST(req: Request) {
 
     const totalCount = inhousePayloads.length + pstPayloads.length;
     const isSingle = totalCount === 1;
-    const firstItem = rawList[0];
 
     const enrollmentAuthor = isTrainerRequest
-      ? (firstItem.assignedTrainer && firstItem.assignedTrainer !== 'Unassigned' ? firstItem.assignedTrainer : actingAdmin)
-      : (actingAdmin || firstItem.assignedTrainer || 'Admin');
+      ? (firstItem?.assignedTrainer && firstItem.assignedTrainer !== 'Unassigned' ? firstItem.assignedTrainer : actingAdmin)
+      : (actingAdmin || firstItem?.assignedTrainer || 'Admin');
 
     // General Enrollment Log for Audit / History
     await logActivity({
