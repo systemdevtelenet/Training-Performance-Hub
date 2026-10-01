@@ -121,8 +121,17 @@ const parseLogItem = (row: any): ActivityLog => {
     }
     desc = desc.replace(/\(by [^)]+\)/gi, '').trim();
   }
+
+  // If author matches assigned trainer in description, or if activity is about a trainee assigned to a trainer
+  const trainerAssignedMatch = desc.match(/assigned to Trainer\s+([^,.]+)/i) || desc.match(/under Trainer\s+([^,.]+)/i);
+  if (trainerAssignedMatch && (title.includes('New Trainee Assigned') || title.includes('Trainee Enrolled') || title.includes('Assigned'))) {
+    if (!author || author === 'Admin' || author === 'System' || author === 'Grachelle Mae Carmelotes') {
+      author = trainerAssignedMatch[1].trim();
+    }
+  }
+
   if (!author || author === 'Admin' || author === 'System' || author === 'Authorized User' || author === 'Authorized Manager') {
-    author = 'Grachelle Mae Carmelotes';
+    author = 'Admin';
   }
 
   // Smart type detection

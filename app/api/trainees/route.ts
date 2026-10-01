@@ -29,10 +29,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const rawAdmin = (body.actingAdmin || body.author || body.userName || '').trim();
-    const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
-      ? rawAdmin
-      : 'Grachelle Mae Carmelotes';
+    const reqRole = (body.role || body.userRole || '').toUpperCase();
+    const isTrainerRequest = reqRole === 'TRAINER' || body.isTrainer === true;
+    const rawAdmin = (body.actingAdmin || body.author || body.userName || body.trainerName || '').trim();
     
     // Check if bulk addition
     const rawList: any[] = Array.isArray(body)
@@ -43,6 +42,26 @@ export async function POST(req: Request) {
 
     if (!rawList || rawList.length === 0) {
       return NextResponse.json({ error: 'No trainee data provided' }, { status: 400 });
+    }
+
+    const firstItem = rawList[0];
+    const firstTrainer = firstItem?.assignedTrainer && firstItem?.assignedTrainer !== 'Unassigned'
+      ? firstItem.assignedTrainer.trim()
+      : null;
+
+    // Resolve author: If trainer or trainer request, use trainer's name. Never fallback to Grachelle for trainers.
+    let actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
+      ? rawAdmin
+      : null;
+
+    if (!actingAdmin) {
+      if (isTrainerRequest && firstTrainer) {
+        actingAdmin = firstTrainer;
+      } else if (firstTrainer && (isTrainerRequest || !rawAdmin)) {
+        actingAdmin = firstTrainer;
+      } else {
+        actingAdmin = isTrainerRequest ? (firstTrainer || 'Trainer') : 'Admin';
+      }
     }
 
     const inhousePayloads: any[] = [];
@@ -133,6 +152,11 @@ export async function POST(req: Request) {
     for (const assign of assignmentsToPersist) {
       const sourceTable = `trainee_assign::${assign.cleanName.toLowerCase()}`;
       
+      // Determine assignment author for this specific trainee
+      const assignAuthor = isTrainerRequest
+        ? (assign.cleanTrainer && assign.cleanTrainer !== 'Unassigned' ? assign.cleanTrainer : actingAdmin)
+        : (actingAdmin || assign.cleanTrainer || 'Admin');
+
       // Remove any existing assignment record for this trainee
       await supabase
         .from('traffic_light_metrics')
@@ -153,18 +177,22 @@ export async function POST(req: Request) {
             trainingType: assign.isPst ? 'PST' : 'INHOUSE',
             batchName: assign.cleanBatch,
             accountName: assign.cleanAccount,
-            assignedBy: actingAdmin,
+            assignedBy: assignAuthor,
             assignedAt: new Date().toISOString()
           }),
           metric_date: new Date().toISOString().split('T')[0]
         });
 
       // NOTIFY THE ASSIGNED TRAINER IN-APP
+      const notifyDesc = (isTrainerRequest || assignAuthor.toLowerCase() === assign.cleanTrainer.toLowerCase())
+        ? `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) under Trainer ${assign.cleanTrainer}.`
+        : `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) and assigned to Trainer ${assign.cleanTrainer}.`;
+
       await logActivity({
         title: `New Trainee Assigned: ${assign.cleanName}`,
-        description: `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) and assigned to Trainer ${assign.cleanTrainer}.`,
+        description: notifyDesc,
         iconType: 'user',
-        author: actingAdmin,
+        author: assignAuthor,
         actionUrl: '/trainees'
       });
 
@@ -209,6 +237,10 @@ export async function POST(req: Request) {
     const isSingle = totalCount === 1;
     const firstItem = rawList[0];
 
+    const enrollmentAuthor = isTrainerRequest
+      ? (firstItem.assignedTrainer && firstItem.assignedTrainer !== 'Unassigned' ? firstItem.assignedTrainer : actingAdmin)
+      : (actingAdmin || firstItem.assignedTrainer || 'Admin');
+
     // General Enrollment Log for Audit / History
     await logActivity({
       title: isSingle ? 'Trainee Enrolled' : `Bulk Trainees Enrolled (${totalCount})`,
@@ -216,7 +248,7 @@ export async function POST(req: Request) {
         ? `Enrolled new trainee ${firstItem.name} into ${firstItem.batchName || firstItem.trainingType || 'Training'} (${firstItem.accountName || 'General'}).`
         : `Bulk enrolled ${totalCount} trainees across training cohorts with assigned trainers.`,
       iconType: 'user',
-      author: actingAdmin
+      author: enrollmentAuthor
     });
 
     try {
@@ -246,10 +278,13 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const { id, originalName, name, trainingType, batchName, accountName, assignedTrainer, status, isEndorsed, actingAdmin: reqAdmin } = body;
     const targetName = originalName || name;
-    const rawAdmin = (reqAdmin || body.author || body.userName || '').trim();
+    const reqRole = (body.role || body.userRole || '').toUpperCase();
+    const isTrainerRequest = reqRole === 'TRAINER' || body.isTrainer === true;
+    const rawAdmin = (reqAdmin || body.author || body.userName || body.trainerName || '').trim();
+    const cleanAssignedTrainer = (assignedTrainer || '').trim();
     const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
       ? rawAdmin
-      : 'Grachelle Mae Carmelotes';
+      : (isTrainerRequest && cleanAssignedTrainer && cleanAssignedTrainer !== 'Unassigned' ? cleanAssignedTrainer : (isTrainerRequest ? 'Trainer' : 'Admin'));
 
     if (!targetName && !id) {
       return NextResponse.json({ error: 'Trainee name or ID is required' }, { status: 400 });
@@ -409,7 +444,7 @@ export async function DELETE(req: Request) {
       .eq('source_table', `trainee_assign::${cleanName.toLowerCase()}`);
 
     const authorParam = searchParams.get('author') || searchParams.get('userName');
-    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' && authorParam.trim() !== 'Admin' ? authorParam.trim() : 'Grachelle Mae Carmelotes';
+    const authorName = authorParam && authorParam.trim() && authorParam.trim() !== 'Training Team' && authorParam.trim() !== 'Admin' ? authorParam.trim() : 'Admin';
 
     await logActivity({
       title: 'Trainee Removed',

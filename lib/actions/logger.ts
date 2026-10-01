@@ -118,7 +118,7 @@ export async function logActivity({ title, description, iconType, author, action
   try {
     const authorStr = author && author !== 'Admin' && author !== 'System' && author !== 'Authorized Manager' && author !== 'Authorized User'
       ? author
-      : 'Grachelle Mae Carmelotes';
+      : 'Admin';
     const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/history');
 
     // 1. Insert into notifications table

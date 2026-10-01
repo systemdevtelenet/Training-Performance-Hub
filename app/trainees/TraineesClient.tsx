@@ -529,6 +529,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       return;
     }
     try {
+      const authorToUse = isTrainer ? (userName || t.assignedTrainer || 'Trainer') : adminDisplayName;
       const res = await fetch('/api/trainees', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -540,7 +541,11 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           accountName: t.accountName,
           assignedTrainer: t.assignedTrainer,
           status: 'ENDORSED',
-          isEndorsed: true
+          isEndorsed: true,
+          actingAdmin: authorToUse,
+          author: authorToUse,
+          role: currentRole,
+          isTrainer: isTrainer
         })
       });
       const resData = await res.json();
@@ -578,8 +583,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       const cleanPrefix = email.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
       if (cleanPrefix) return cleanPrefix;
     }
-    return 'Grachelle Mae Carmelotes';
-  }, [userName, userMeta, email]);
+    return isTrainer ? (userName || 'Trainer') : 'Grachelle Mae Carmelotes';
+  }, [userName, userMeta, email, isTrainer]);
 
   // Handle Add Trainee Submit
   const handleAddTrainee = async (e: React.FormEvent) => {
@@ -591,12 +596,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     if (!validateTraineeForm()) return;
     setIsSubmitting(true);
     try {
+      const authorToUse = isTrainer ? (userName || formData.assignedTrainer || 'Trainer') : adminDisplayName;
       const res = await fetch('/api/trainees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          actingAdmin: adminDisplayName
+          actingAdmin: authorToUse,
+          author: authorToUse,
+          role: currentRole,
+          isTrainer: isTrainer
         })
       });
       const resData = await res.json();
@@ -651,6 +660,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     if (!validateTraineeForm()) return;
     setIsSubmitting(true);
     try {
+      const authorToUse = isTrainer ? (userName || formData.assignedTrainer || 'Trainer') : adminDisplayName;
       const res = await fetch('/api/trainees', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -662,7 +672,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           accountName: formData.accountName,
           assignedTrainer: formData.assignedTrainer,
           status: formData.status,
-          actingAdmin: adminDisplayName
+          actingAdmin: authorToUse,
+          author: authorToUse,
+          role: currentRole,
+          isTrainer: isTrainer
         })
       });
       const resData = await res.json();
@@ -1594,12 +1607,18 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           onSubmit={async (data) => {
             setIsSubmitting(true);
             try {
+              const authorToUse = isTrainer 
+                ? (userName || data.assignedTrainer || data.trainees?.[0]?.assignedTrainer || 'Trainer') 
+                : adminDisplayName;
               const res = await fetch('/api/trainees', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   ...data,
-                  actingAdmin: adminDisplayName
+                  actingAdmin: authorToUse,
+                  author: authorToUse,
+                  role: currentRole,
+                  isTrainer: isTrainer
                 })
               });
               const resData = await res.json();
