@@ -22,6 +22,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker';
 
 const DEFAULT_ROLE_OPTIONS = [
+  { value: 10, label: 'Trainer' },
   { value: 3, label: 'Account Manager' },
   { value: 1, label: 'Agent' },
   { value: 2, label: 'QA' },

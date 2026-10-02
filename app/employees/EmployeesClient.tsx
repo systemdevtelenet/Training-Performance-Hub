@@ -33,6 +33,7 @@ import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmployeeDetailDrawer } from '@/components/EmployeeDetailDrawer';
+import { TrainerOffboardDrawer } from '@/components/TrainerOffboardDrawer';
 import { EmployeeFormDrawer } from '@/components/EmployeeFormDrawer';
 import PageLoading from '@/components/PageLoading';
 import { cn } from '@/lib/utils';
@@ -103,6 +104,7 @@ export default function EmployeesClient({
   const [editingEmp, setEditingEmp] = useState<EmployeeRecord | null>(null);
   const [deletingEmp, setDeletingEmp] = useState<EmployeeRecord | null>(null);
   const [viewingEmp, setViewingEmp] = useState<EmployeeRecord | null>(null);
+  const [offboardingTrainerName, setOffboardingTrainerName] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -788,16 +790,27 @@ export default function EmployeesClient({
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => setDeletingEmp(emp)}
-                                title="Delete Employee"
-                                className="text-[#ED1C25] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                              {!(emp.category === 'TRAINER' || (emp.role_name || '').toUpperCase().includes('TRAIN')) && (
+                                <button
+                                  onClick={() => setDeletingEmp(emp)}
+                                  title="Delete Employee"
+                                  className="text-[#ED1C25] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {(emp.category === 'TRAINER' || (emp.role_name || '').toUpperCase().includes('TRAIN')) && emp.status_id !== 3 && (
+                                <button
+                                  onClick={() => setOffboardingTrainerName(emp.employee_name)}
+                                  title="Offboard / Resign Trainer"
+                                  className="text-[#ED1C25] hover:opacity-80 transition-opacity p-0 bg-transparent border-0 cursor-pointer"
+                                >
+                                  <UserX className="w-4 h-4" />
+                                </button>
+                              )}
+                              </>
+                            )}
+                          </div>
                       </td>
                     </tr>
                   );
@@ -996,7 +1009,22 @@ export default function EmployeesClient({
       )}
 
       {/* VIEW DETAILS SIDE RIGHT DRAWER */}
-      <EmployeeDetailDrawer employee={viewingEmp} onClose={() => setViewingEmp(null)} />
+      <EmployeeDetailDrawer
+        employee={viewingEmp}
+        onClose={() => setViewingEmp(null)}
+        onTrainerOffboarded={handleRefresh}
+      />
+
+      {/* TRAINER OFFBOARDING & BATCH HANDOVER DRAWER */}
+      <TrainerOffboardDrawer
+        isOpen={Boolean(offboardingTrainerName)}
+        initialTrainerName={offboardingTrainerName || undefined}
+        onClose={() => setOffboardingTrainerName(null)}
+        onSuccess={() => {
+          setOffboardingTrainerName(null);
+          handleRefresh();
+        }}
+      />
     </div>
   );
 }

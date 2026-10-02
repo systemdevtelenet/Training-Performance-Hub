@@ -7,7 +7,9 @@ export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false }
+});
 
 interface DailyAttendanceEntry {
   date: string; // YYYY-MM-DD
@@ -112,7 +114,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { date, records, updatedBy } = body;
+    const { date, records, updatedBy, actionType } = body;
 
     const rawList: DailyAttendanceEntry[] = Array.isArray(records)
       ? records
@@ -129,8 +131,10 @@ export async function POST(req: Request) {
     const author = updatedBy || 'Trainer';
     const updatedEntries: DailyAttendanceEntry[] = [];
     const statusUpdatesToSync: Array<{ name: string; status: string; isPst: boolean; isEndorsed: boolean }> = [];
+    const noteUpdatesToSync: Array<{ name: string; notes: string; isPst: boolean }> = [];
 
     const dbRowsToInsert: any[] = [];
+    let initialExistingRecord: DailyAttendanceEntry | null = null;
 
     for (const item of rawList) {
       const itemDate = item.date || date || new Date().toISOString().split('T')[0];
@@ -140,6 +144,7 @@ export async function POST(req: Request) {
       const cleanName = traineeName.trim();
       const key = getRecordKey(itemDate, cleanName);
       const existing = currentRecords[key] || {};
+      if (!initialExistingRecord) initialExistingRecord = existing;
 
       const updatedEntry: DailyAttendanceEntry = {
         ...existing,
@@ -157,12 +162,12 @@ export async function POST(req: Request) {
       dbRowsToInsert.push({
         metric_group: 'daily_attendance',
         source_table: sourceTable,
-        traffic_status: updatedEntry.attCode || 'P',
+        traffic_status: updatedEntry.attCode || '',
         remarks: JSON.stringify(updatedEntry),
         metric_date: itemDate
       });
 
-      // If status changed to a lifecycle status, queue DB sync
+      // Track lifecycle status updates
       if (item.status && item.status !== existing.status) {
         const isPst = (item.trainingType || '').toUpperCase() === 'PST';
         const isEndorsed = (item.status || '').toUpperCase() === 'ENDORSED';
@@ -171,6 +176,16 @@ export async function POST(req: Request) {
           status: item.status,
           isPst,
           isEndorsed
+        });
+      }
+
+      // Track reason note additions or updates
+      if (item.notes !== undefined && item.notes !== existing.notes) {
+        const isPst = (item.trainingType || '').toUpperCase() === 'PST';
+        noteUpdatesToSync.push({
+          name: cleanName,
+          notes: item.notes,
+          isPst
         });
       }
     }
@@ -194,7 +209,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Sync status updates to Supabase (inhouse & product_spec_training)
+    // Sync status updates to Supabase (inhouse, product_spec_training, and trainees)
     if (statusUpdatesToSync.length > 0) {
       for (const update of statusUpdatesToSync) {
         const targetTable = update.isPst ? 'product_spec_training' : 'inhouse';
@@ -207,20 +222,77 @@ export async function POST(req: Request) {
           .from(targetTable)
           .update(payload)
           .eq('name', update.name);
+
+        // Also update standard trainees table
+        try {
+          await supabase
+            .from('trainees')
+            .update({
+              status: update.status,
+              isEndorsed: update.isEndorsed,
+              isLoss: ['AWOL', 'EOC', 'RESIGNED', 'TERMINATED', 'FAIL', 'LOSS'].some(s => update.status.toUpperCase().includes(s))
+            })
+            .ilike('name', update.name);
+        } catch (e) {
+          // Gracefully continue
+        }
       }
     }
 
-    // Log Activity
+    // Sync notes to Supabase tables if remarks/notes column is available
+    if (noteUpdatesToSync.length > 0) {
+      for (const noteUpdate of noteUpdatesToSync) {
+        const targetTable = noteUpdate.isPst ? 'product_spec_training' : 'inhouse';
+        try {
+          await supabase
+            .from(targetTable)
+            .update({ remarks: noteUpdate.notes })
+            .eq('name', noteUpdate.name);
+        } catch (e) {
+          // Non-fatal if column differs
+        }
+      }
+    }
+
+    // Log Activity & Dispatch Notification to Admins
+    const TAG_LABELS: Record<string, string> = {
+      P: 'Present (P)',
+      L: 'Late (L)',
+      U: 'Undertime (U)',
+      A: 'Absent (A)',
+      '': 'Untagged'
+    };
+
     const count = updatedEntries.length;
     const first = updatedEntries[0];
-    const logDesc = count === 1
-      ? `Updated attendance for ${first.traineeName} on ${first.date} (Tag: ${first.attCode || 'N/A'}, Status: ${first.status || 'Ongoing'}${first.notes ? `, Note: "${first.notes}"` : ''}).`
-      : `Marked daily attendance for ${count} trainees on ${first?.date || date}.`;
+    const tagLabel = TAG_LABELS[first?.attCode || ''] || 'Untagged';
+
+    let notifTitle = 'Trainee Attendance Updated';
+    let notifDesc = '';
+    let notifIcon: 'attendance' | 'remark' | 'user' | 'alert' = 'attendance';
+
+    if (actionType === 'note' || (count === 1 && first.notes && (!initialExistingRecord || initialExistingRecord.notes !== first.notes) && initialExistingRecord?.attCode === first.attCode)) {
+      notifTitle = 'Trainee Reason Note Added';
+      notifIcon = 'remark';
+      notifDesc = `Reason note logged for ${first.traineeName} on ${first.date}: "${first.notes}" (Status: ${first.status || 'Ongoing'}, Tag: ${tagLabel})`;
+    } else if (actionType === 'status' || (count === 1 && first.status && (!initialExistingRecord || initialExistingRecord.status !== first.status))) {
+      notifTitle = 'Trainee Lifecycle Status Updated';
+      notifIcon = 'user';
+      notifDesc = `Status for ${first.traineeName} updated to ${first.status} on ${first.date}${first.notes ? ` (Note: "${first.notes}")` : ''}`;
+    } else if (count === 1) {
+      notifTitle = 'Trainee Attendance Tagged';
+      notifIcon = 'attendance';
+      notifDesc = `Marked ${first.traineeName} as ${tagLabel} for ${first.date}${first.notes ? ` (Note: "${first.notes}")` : ''}`;
+    } else {
+      notifTitle = `Daily Attendance Saved (${count})`;
+      notifIcon = 'attendance';
+      notifDesc = `Marked daily attendance for ${count} trainees on ${first?.date || date}.`;
+    }
 
     await logActivity({
-      title: count === 1 ? 'Trainee Attendance Tagged' : `Daily Attendance Saved (${count})`,
-      description: logDesc,
-      iconType: 'user',
+      title: notifTitle,
+      description: notifDesc,
+      iconType: notifIcon,
       author: author,
       actionUrl: '/trainers?tab=calendar'
     });

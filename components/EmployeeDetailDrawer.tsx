@@ -13,22 +13,27 @@ import {
   CheckCircle2,
   Hash,
   Link as LinkIcon,
-  Shield
+  Shield,
+  UserX
 } from 'lucide-react';
 import { EmployeeRecord } from '@/app/employees/EmployeesClient';
 import { useRole } from '@/components/providers/RoleProvider';
+import { TrainerOffboardDrawer } from '@/components/TrainerOffboardDrawer';
 
 export function EmployeeDetailDrawer({
   employee,
-  onClose
+  onClose,
+  onTrainerOffboarded
 }: {
   employee: EmployeeRecord | null;
   onClose: () => void;
+  onTrainerOffboarded?: () => void;
 }) {
-  const { avatarUrl, userName, email } = useRole();
+  const { avatarUrl, userName, email, role, actualRole } = useRole();
   const [rendered, setRendered] = useState(Boolean(employee));
   const [open, setOpen] = useState(Boolean(employee));
   const [displayedEmp, setDisplayedEmp] = useState<EmployeeRecord | null>(employee);
+  const [isTrainerOffboardOpen, setIsTrainerOffboardOpen] = useState(false);
 
   useEffect(() => {
     if (employee) {
@@ -228,16 +233,45 @@ export function EmployeeDetailDrawer({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex justify-end shrink-0">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
+          <div>
+            {(role === 'SUPER_ADMIN' || role === 'HOT_ADMIN' || actualRole === 'SUPER_ADMIN' || actualRole === 'HOT_ADMIN') &&
+              displayedEmp &&
+              (displayedEmp.category === 'TRAINER' || (displayedEmp.role_name || '').toUpperCase().includes('TRAIN')) &&
+              displayedEmp.status_id !== 3 && (
+                <button
+                  type="button"
+                  onClick={() => setIsTrainerOffboardOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer border border-rose-700/20"
+                >
+                  <UserX className="w-4 h-4 text-white" />
+                  Offboard / Resign Trainer
+                </button>
+              )}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+            className="px-5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer"
           >
             Close
           </button>
         </div>
       </aside>
+
+      {/* Embedded Trainer Offboard Drawer */}
+      {displayedEmp && (
+        <TrainerOffboardDrawer
+          isOpen={isTrainerOffboardOpen}
+          initialTrainerName={displayedEmp.employee_name}
+          onClose={() => setIsTrainerOffboardOpen(false)}
+          onSuccess={() => {
+            setIsTrainerOffboardOpen(false);
+            if (onTrainerOffboarded) onTrainerOffboarded();
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 

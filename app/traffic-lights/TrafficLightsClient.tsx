@@ -486,16 +486,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     ];
   }, [accounts, isTrainer, trainerAccounts]);
 
-  const [account, setAccount] = useState<string>(() => {
-    if (isTrainer) return 'trainers';
-    return accounts[0]?.id || 'rm';
-  });
+  const [account, setAccount] = useState<string>('all');
 
   useEffect(() => {
     if (visibleAccounts.length > 0 && !visibleAccounts.some(a => a.id === account)) {
-      setAccount(visibleAccounts[0].id);
+      setAccount('all');
     }
-  }, [visibleAccounts]);
+  }, [visibleAccounts, account]);
   const [quarter, setQuarter] = useState('q2');
   const [selectedTeam, setSelectedTeam] = useState<string>('ALL');
   const [selectedTrainer, setSelectedTrainer] = useState<string>('ALL');

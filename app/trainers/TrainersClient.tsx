@@ -28,11 +28,15 @@ import {
   TrendingDown,
   LayoutGrid,
   Table as TableIcon,
-  Eye
+  Eye,
+  UserX,
+  UserPlus
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
+import { TrainerOffboardDrawer } from '@/components/TrainerOffboardDrawer';
+import { TrainerFormDrawer } from '@/components/TrainerFormDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
@@ -48,11 +52,13 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   const { role, actualRole, email, avatarUrl, userName } = useRole();
   const currentRole = role || actualRole;
   const isTrainer = currentRole === 'TRAINER';
+  const isAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'HOT_ADMIN' || role === 'SUPER_ADMIN' || role === 'HOT_ADMIN';
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
 
   const getTrainerAvatar = useCallback((t: any) => {
     if (!t) return null;
@@ -133,10 +139,11 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    router.refresh();
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  if (isLoading || isRefreshing) {
+  if (isLoading) {
     return (
       <PageLoading
         title={activeTab === 'directory' ? "Loading Trainers Directory..." : activeTab === 'calendar' ? "Loading Trainee Calendar Attendance..." : "Loading Attendance & Reliability..."}
@@ -205,6 +212,15 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
         </div>
 
         <div className="flex items-center gap-2.5">
+          {isAdmin && (
+            <button
+              onClick={() => setIsAddTrainerOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Add Trainer
+            </button>
+          )}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
@@ -306,18 +322,33 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
           </div>
         </div>
       </div>
+
+      {/* Add Trainer Drawer */}
+      <TrainerFormDrawer
+        isOpen={isAddTrainerOpen}
+        onClose={() => setIsAddTrainerOpen(false)}
+        onSuccess={() => {
+          setIsAddTrainerOpen(false);
+          router.refresh();
+        }}
+        availableAccounts={availableAccounts.filter(a => a !== 'All')}
+      />
     </div>
   );
 }
 
 {/* Master-Detail Directory Component */ }
 function DirectoryView({ trainers }: { trainers: any[] }) {
-  const { avatarUrl, userName, email } = useRole();
+  const router = useRouter();
+  const { avatarUrl, userName, email, role, actualRole } = useRole();
+  const currentRole = role || actualRole;
+  const isAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'HOT_ADMIN' || role === 'SUPER_ADMIN' || role === 'HOT_ADMIN';
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedLeave, setSelectedLeave] = useState<{ type: string, dates: string[] } | null>(null);
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
+  const [isTrainerOffboardOpen, setIsTrainerOffboardOpen] = useState(false);
 
   const getTrainerAvatar = useCallback((t: any) => {
     if (!t) return null;
@@ -593,6 +624,17 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                         <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-sm ${getStatusBadge(active.status || '')}`}>
                           {active.status || 'N/A'}
                         </span>
+                        {isAdmin &&
+                          (active.status || '').toUpperCase() !== 'RESIGNED' && (
+                            <button
+                              type="button"
+                              onClick={() => setIsTrainerOffboardOpen(true)}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-sm hover:shadow transition-all cursor-pointer ml-auto border border-rose-700/20"
+                            >
+                              <UserX className="w-3.5 h-3.5 text-white" />
+                              Offboard / Resign Trainer
+                            </button>
+                          )}
                       </div>
                       
                       <div className="mb-2.5">
@@ -968,6 +1010,17 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
           )}
         </div>
       </div>
+
+      {/* Trainer Offboarding & Handover Drawer */}
+      <TrainerOffboardDrawer
+        isOpen={isTrainerOffboardOpen}
+        initialTrainerName={active?.name}
+        onClose={() => setIsTrainerOffboardOpen(false)}
+        onSuccess={() => {
+          setIsTrainerOffboardOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

@@ -307,12 +307,34 @@ export const getTrainersData = async () => {
 
     const assignmentMap = await getTraineeTrainerAssignmentMap();
 
-    if (!trainers) return [];
+    const trainersList = trainers || [];
+    const existingNums = new Set(trainersList.map((t: any) => String(t.employee_num || '').trim().toLowerCase()));
+
+    // Merge any trainers from trainers_profile that aren't in trainers table
+    const consolidatedTrainers = [...trainersList];
+    (trainersProfile || []).forEach((tp: any) => {
+      const num = String(tp.employee_num || '').trim().toLowerCase();
+      if (!existingNums.has(num)) {
+        if (num) existingNums.add(num);
+        consolidatedTrainers.push({
+          trainer_id: tp.employee_num,
+          employee_num: tp.employee_num,
+          position: tp.position || 'Trainer',
+          status: tp.status || 'ACTIVE',
+          start_date: tp.start_date,
+          profile_pic: tp.profile_pic,
+          assigned_task: tp.assigned_task,
+          name: tp.name
+        });
+      }
+    });
+
+    if (consolidatedTrainers.length === 0) return [];
 
     const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'REPROFILED'];
 
     // Map DB rows to standard format
-    const mapped = trainers.map(t => {
+    const mapped = consolidatedTrainers.map(t => {
       const profile = profileMap.get(t.employee_num) || {};
       const trainerName = profile.name || t.name || 'Unknown';
       const attRow = attendanceMap.get(t.trainer_id);

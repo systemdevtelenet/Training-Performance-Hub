@@ -238,6 +238,22 @@ export async function POST(req: Request) {
       }
     }
 
+    // If Trainer (10), synchronize into trainers_profile
+    if (Number(payload.role_id) === 10) {
+      try {
+        await supabase.from('trainers_profile').upsert([{
+          name: employee_name.trim(),
+          position: 'Trainer',
+          status: 'ACTIVE',
+          start_date: hire_date || new Date().toISOString().split('T')[0],
+          employee_num: employee_code || String(newEmp.id),
+          gmail_account: employee_email ? employee_email.trim().toLowerCase() : null
+        }], { onConflict: 'name' });
+      } catch (tpErr) {
+        console.warn('Could not sync trainers_profile in employee POST:', tpErr);
+      }
+    }
+
     await logActivity({
       title: 'Employee Profile Created',
       description: `Created new employee record for ${employee_name} (${employee_code || 'No Code'}).`,

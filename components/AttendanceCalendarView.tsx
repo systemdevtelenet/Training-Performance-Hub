@@ -60,40 +60,40 @@ const ATTENDANCE_TAGS = [
     code: 'P', 
     label: 'Present', 
     short: 'P', 
-    defaultStyle: 'bg-[#D1FAE5]/70 text-[#065F46] border-[#A7F3D0] hover:bg-[#D1FAE5] dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/80',
-    activeStyle: 'bg-[#D1FAE5] text-[#065F46] border-[#10B981] ring-2 ring-[#10B981]/40 shadow-xs scale-105 font-black dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-500',
-    color: 'bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]', 
-    lightColor: 'bg-[#D1FAE5]/60 text-[#065F46] border-[#A7F3D0] dark:bg-emerald-950/40 dark:text-emerald-300', 
+    defaultStyle: 'bg-white dark:bg-slate-800/80 text-emerald-600 dark:text-emerald-400 border-emerald-200/90 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-300',
+    activeStyle: 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/40 shadow-sm scale-105 font-black dark:bg-emerald-600 dark:text-white dark:border-emerald-500',
+    color: 'bg-emerald-600 text-white border-emerald-600', 
+    lightColor: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300', 
     dot: 'bg-emerald-500' 
   },
   { 
     code: 'L', 
     label: 'Late', 
     short: 'L', 
-    defaultStyle: 'bg-[#FEF3C7]/70 text-[#92400E] border-[#FDE68A] hover:bg-[#FEF3C7] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/80',
-    activeStyle: 'bg-[#FEF3C7] text-[#92400E] border-[#F59E0B] ring-2 ring-[#F59E0B]/40 shadow-xs scale-105 font-black dark:bg-amber-950 dark:text-amber-200 dark:border-amber-500',
-    color: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]', 
-    lightColor: 'bg-[#FEF3C7]/60 text-[#92400E] border-[#FDE68A] dark:bg-amber-950/40 dark:text-amber-300', 
+    defaultStyle: 'bg-white dark:bg-slate-800/80 text-amber-600 dark:text-amber-400 border-amber-200/90 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:border-amber-300',
+    activeStyle: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-400/40 shadow-sm scale-105 font-black dark:bg-amber-500 dark:text-white dark:border-amber-400',
+    color: 'bg-amber-500 text-white border-amber-500', 
+    lightColor: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300', 
     dot: 'bg-amber-500' 
   },
   { 
     code: 'U', 
     label: 'Undertime', 
     short: 'U', 
-    defaultStyle: 'bg-[#FFEDD5]/70 text-[#9A3412] border-[#FED7AA] hover:bg-[#FFEDD5] dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/80',
-    activeStyle: 'bg-[#FFEDD5] text-[#9A3412] border-[#F97316] ring-2 ring-[#F97316]/40 shadow-xs scale-105 font-black dark:bg-orange-950 dark:text-orange-200 dark:border-orange-500',
-    color: 'bg-[#FFEDD5] text-[#9A3412] border-[#FED7AA]', 
-    lightColor: 'bg-[#FFEDD5]/60 text-[#9A3412] border-[#FED7AA] dark:bg-orange-950/40 dark:text-orange-300', 
+    defaultStyle: 'bg-white dark:bg-slate-800/80 text-orange-600 dark:text-orange-400 border-orange-200/90 dark:border-orange-800/60 hover:bg-orange-50 dark:hover:bg-orange-950/40 hover:border-orange-300',
+    activeStyle: 'bg-orange-500 text-white border-orange-500 ring-2 ring-orange-400/40 shadow-sm scale-105 font-black dark:bg-orange-500 dark:text-white dark:border-orange-400',
+    color: 'bg-orange-500 text-white border-orange-500', 
+    lightColor: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300', 
     dot: 'bg-orange-500' 
   },
   { 
     code: 'A', 
     label: 'Absent', 
     short: 'A', 
-    defaultStyle: 'bg-[#FFE4E6]/70 text-[#9F1239] border-[#FECDD3] hover:bg-[#FFE4E6] dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/80',
-    activeStyle: 'bg-[#FFE4E6] text-[#9F1239] border-[#F43F5E] ring-2 ring-[#F43F5E]/40 shadow-xs scale-105 font-black dark:bg-rose-950 dark:text-rose-200 dark:border-rose-500',
-    color: 'bg-[#FFE4E6] text-[#9F1239] border-[#FECDD3]', 
-    lightColor: 'bg-[#FFE4E6]/60 text-[#9F1239] border-[#FECDD3] dark:bg-rose-950/40 dark:text-rose-300', 
+    defaultStyle: 'bg-white dark:bg-slate-800/80 text-rose-600 dark:text-rose-400 border-rose-200/90 dark:border-rose-800/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300',
+    activeStyle: 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/40 shadow-sm scale-105 font-black dark:bg-rose-600 dark:text-white dark:border-rose-500',
+    color: 'bg-rose-600 text-white border-rose-600', 
+    lightColor: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300', 
     dot: 'bg-rose-500' 
   },
 ] as const;
@@ -808,7 +808,8 @@ export function AttendanceCalendarView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: effDate,
-          updatedBy: userName || 'Trainer',
+          updatedBy: userName || email || 'Trainer',
+          actionType: 'attendance',
           records: [
             {
               date: effDate,
@@ -903,7 +904,8 @@ export function AttendanceCalendarView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: selectedDate,
-          updatedBy: userName || 'Trainer',
+          updatedBy: userName || email || 'Trainer',
+          actionType: 'status',
           records: [
             {
               date: selectedDate,
@@ -978,7 +980,8 @@ export function AttendanceCalendarView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: effDate,
-          updatedBy: userName || 'Trainer',
+          updatedBy: userName || email || 'Trainer',
+          actionType: 'note',
           records: [
             {
               date: effDate,
@@ -1061,7 +1064,8 @@ export function AttendanceCalendarView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: selectedDate,
-          updatedBy: userName || 'Trainer',
+          updatedBy: userName || email || 'Trainer',
+          actionType: 'bulk_attendance',
           records: payload
         })
       });
@@ -1777,7 +1781,7 @@ export function AttendanceCalendarView({
                                         ? `Admin View-Only: Tagged as ${tag.label}`
                                         : `Mark as ${tag.label} (${tag.short})`
                                     }
-                                    className={`w-7 h-7 rounded-[7px] text-[11px] font-black border transition-all flex items-center justify-center ${
+                                    className={`w-7 h-7 rounded-[7px] text-[11px] font-black border transition-all duration-150 active:scale-95 flex items-center justify-center ${
                                       isSelected
                                         ? tag.activeStyle
                                         : isReadOnly
@@ -1996,16 +2000,16 @@ export function AttendanceCalendarView({
               {/* Legend with Hint Below the Pills */}
               <div className="flex flex-col items-end gap-1 shrink-0 ml-auto">
                 <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-[#D1FAE5] text-[#065F46] border border-[#A7F3D0]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-emerald-600 text-white border border-emerald-600 shadow-2xs">
                     P - Present
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-amber-500 text-white border border-amber-500 shadow-2xs">
                     L - Late
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-[#FFEDD5] text-[#9A3412] border border-[#FED7AA]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-orange-500 text-white border border-orange-500 shadow-2xs">
                     U - Undertime
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-[#FFE4E6] text-[#9F1239] border border-[#FECDD3]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[7px] text-[10px] font-extrabold bg-rose-600 text-white border border-rose-600 shadow-2xs">
                     A - Absent
                   </span>
                 </div>
@@ -2433,10 +2437,10 @@ export function AttendanceCalendarView({
             {/* Tag Selection Options */}
             <div className="space-y-1">
               {[
-                { code: 'P', label: 'P - Present', hover: 'hover:bg-[#D1FAE5]/60 hover:text-[#065F46]', badge: 'bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]' },
-                { code: 'L', label: 'L - Late', hover: 'hover:bg-[#FEF3C7]/60 hover:text-[#92400E]', badge: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]' },
-                { code: 'U', label: 'U - Undertime', hover: 'hover:bg-[#FFEDD5]/60 hover:text-[#9A3412]', badge: 'bg-[#FFEDD5] text-[#9A3412] border-[#FED7AA]' },
-                { code: 'A', label: 'A - Absent', hover: 'hover:bg-[#FFE4E6]/60 hover:text-[#9F1239]', badge: 'bg-[#FFE4E6] text-[#9F1239] border-[#FECDD3]' },
+                { code: 'P', label: 'P - Present', hover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40', badge: 'bg-emerald-600 text-white border-emerald-600' },
+                { code: 'L', label: 'L - Late', hover: 'hover:bg-amber-50 dark:hover:bg-amber-950/40', badge: 'bg-amber-500 text-white border-amber-500' },
+                { code: 'U', label: 'U - Undertime', hover: 'hover:bg-orange-50 dark:hover:bg-orange-950/40', badge: 'bg-orange-500 text-white border-orange-500' },
+                { code: 'A', label: 'A - Absent', hover: 'hover:bg-rose-50 dark:hover:bg-rose-950/40', badge: 'bg-rose-600 text-white border-rose-600' },
               ].map(opt => {
                 const key = `${popoverAnchor.date}___${popoverAnchor.trainee.name.trim().toLowerCase()}`;
                 const currentCode = dailyRecordsMap[key]?.attCode || '';

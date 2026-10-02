@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
 
 import { sendEmailNotification } from './email-notifier';
 
-type IconType = 'alert' | 'export' | 'user' | 'success' | 'system' | 'trainer';
+type IconType = 'alert' | 'export' | 'user' | 'success' | 'system' | 'trainer' | 'remark' | 'attendance' | 'traffic' | 'login' | 'activity';
 
 interface LogPayload {
   title: string;
@@ -77,19 +77,24 @@ function isTrainingLog(row: any): boolean {
     title.includes('offboard') ||
     title.includes('approval') ||
     title.includes('remark') ||
+    title.includes('note') ||
+    title.includes('reason') ||
     title.includes('attendance') ||
     title.includes('reliability') ||
     title.includes('export') ||
     title.includes('hub') ||
     title.includes('training') ||
-    title.includes('employee profile');
+    title.includes('employee profile') ||
+    desc.includes('attendance') ||
+    desc.includes('note') ||
+    desc.includes('reason');
 
   return isTrainingUrl || isTrainingContent;
 }
 
 /**
  * Automatically purges older Training Performance Hub notifications from the database
- * keeping only the latest 10 rows to prevent database bloat.
+ * keeping latest logs to prevent database bloat.
  */
 async function pruneOldLogs() {
   try {
@@ -119,27 +124,116 @@ export async function logActivity({ title, description, iconType, author, action
     const authorStr = author && author !== 'Admin' && author !== 'System' && author !== 'Authorized Manager' && author !== 'Authorized User'
       ? author
       : 'Admin';
-    const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/history');
+    const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/trainers?tab=calendar');
 
-    // 1. Insert into notifications table
+    // Dynamically resolve all Admin recipient employee IDs without hardcoding
+    let recipientIds: number[] = [];
     try {
-      const { error: notifError } = await supabaseAdmin.from('notifications').insert([
-        {
-          recipient_employee_id: 516,
-          title,
-          description: description.includes(authorStr) ? description : `${description} (by ${authorStr})`,
-          action_url: computedActionUrl
-        }
-      ]);
-      if (notifError) console.warn('Notification log insert warning:', notifError.message);
-    } catch (e: any) {
-      console.warn('Notification log error:', e.message);
+      // 1. Fetch admin emails from user_roles
+      const { data: adminRoles } = await supabaseAdmin
+        .from('user_roles')
+        .select('email, role')
+        .in('role', ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN']);
+
+      const adminEmails = (adminRoles || [])
+        .map(r => r.email?.toLowerCase().trim())
+        .filter(Boolean);
+
+      if (adminEmails.length > 0) {
+        const { data: emps } = await supabaseAdmin
+          .from('employees')
+          .select('employee_id, employee_email')
+          .in('employee_email', adminEmails);
+
+        (emps || []).forEach(e => {
+          const id = Number(e.employee_id);
+          if (!isNaN(id) && id > 0 && !recipientIds.includes(id)) {
+            recipientIds.push(id);
+          }
+        });
+      }
+
+      // 2. Also check employees table directly for admin role_ids (e.g. 5, 9)
+      const { data: directAdmins } = await supabaseAdmin
+        .from('employees')
+        .select('employee_id')
+        .in('role_id', [5, 9]);
+
+      if (directAdmins && directAdmins.length > 0) {
+        directAdmins.forEach(e => {
+          const id = Number(e.employee_id);
+          if (!isNaN(id) && id > 0 && !recipientIds.includes(id)) {
+            recipientIds.push(id);
+          }
+        });
+      }
+    } catch (adminFetchErr) {
+      console.warn('Dynamic admin lookup warning:', adminFetchErr);
     }
 
-    // 2. AUTO-PRUNE: Immediately enforce 10-log maximum limit in the database
+    // 3. Fallback: dynamically pick existing recipient_employee_id from notifications or employees table
+    if (recipientIds.length === 0) {
+      try {
+        const { data: fallbackNotif } = await supabaseAdmin
+          .from('notifications')
+          .select('recipient_employee_id')
+          .not('recipient_employee_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (fallbackNotif && fallbackNotif.length > 0 && fallbackNotif[0].recipient_employee_id) {
+          recipientIds.push(Number(fallbackNotif[0].recipient_employee_id));
+        } else {
+          const { data: anyEmp } = await supabaseAdmin
+            .from('employees')
+            .select('employee_id')
+            .limit(1);
+          if (anyEmp && anyEmp[0]?.employee_id) {
+            recipientIds.push(Number(anyEmp[0].employee_id));
+          }
+        }
+      } catch (fbErr) {}
+    }
+
+    const finalDescription = description.includes(authorStr)
+      ? description
+      : `${description} (by ${authorStr})`;
+
+    // 1. Insert into notifications table for each resolved admin
+    if (recipientIds.length > 0) {
+      const notifRows = recipientIds.map(rId => ({
+        recipient_employee_id: rId,
+        title,
+        description: finalDescription,
+        action_url: computedActionUrl
+      }));
+
+      try {
+        const { error: notifError } = await supabaseAdmin.from('notifications').insert(notifRows);
+        if (notifError) console.warn('Notification log insert warning:', notifError.message);
+      } catch (e: any) {
+        console.warn('Notification log error:', e.message);
+      }
+    }
+
+    // 2. Also insert into activity_logs table for realtime event subscribers and history log
+    try {
+      await supabaseAdmin.from('activity_logs').insert([
+        {
+          title,
+          description: finalDescription,
+          icon_type: iconType || 'attendance',
+          author: authorStr
+        }
+      ]);
+    } catch (actErr: any) {
+      // Non-fatal if table schema differs
+    }
+
+    // 3. AUTO-PRUNE: Keep database clean
     await pruneOldLogs();
 
-    // 3. Automatically send email notification to Gmail if marked as alert or explicitly requested
+    // 4. Automatically send email notification if alert or explicitly requested
     if (sendEmail || iconType === 'alert') {
       try {
         await sendEmailNotification({

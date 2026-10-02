@@ -16,9 +16,11 @@ import {
   AlertTriangle,
   Loader2,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  UserX
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
+import { TrainerOffboardDrawer } from '@/components/TrainerOffboardDrawer';
 
 export interface PendingOffboardRequest {
   id: string | number;
@@ -57,6 +59,7 @@ export function AdminOffboardApprovalsDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | number | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'decline' | null>(null);
+  const [isTrainerDrawerOpen, setIsTrainerDrawerOpen] = useState(false);
 
   const fetchRequests = async () => {
     setIsLoading(true);
@@ -158,13 +161,23 @@ export function AdminOffboardApprovalsDrawer({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsTrainerDrawerOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition-all shadow-xs cursor-pointer border border-rose-700/20"
+            >
+              <UserX className="w-3.5 h-3.5 text-white" />
+              Offboard / Resign Trainer
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Requests List Body */}
@@ -317,6 +330,16 @@ export function AdminOffboardApprovalsDrawer({
           </button>
         </div>
       </div>
+
+      {/* Trainer Offboarding & Handover Drawer */}
+      <TrainerOffboardDrawer
+        isOpen={isTrainerDrawerOpen}
+        onClose={() => setIsTrainerDrawerOpen(false)}
+        onSuccess={() => {
+          fetchRequests();
+          onApprovedOrDeclined();
+        }}
+      />
     </div>,
     document.body
   );
