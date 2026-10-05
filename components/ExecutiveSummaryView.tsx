@@ -220,7 +220,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
             <span className="font-mono font-black text-[#C8A54B] dark:text-amber-400 text-sm">{dataPoint.attritionRate || `${dataPoint.attritionNum || 0}%`}</span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Active Headcount:</span>
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Ongoing Headcount:</span>
             <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{dataPoint.activeHC || dataPoint.headcount || 0}</span>
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -542,7 +542,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                     <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-4 py-2.5">{overallView === 'quarterly' ? 'QUARTER PERIOD' : 'MONTH PERIOD'}</th>
-                        <th className="px-4 py-2.5 text-center">Active HC</th>
+                        <th className="px-4 py-2.5 text-center">Ongoing HC</th>
                         <th className="px-4 py-2.5 text-center text-rose-600 dark:text-rose-400">Losses</th>
                         <th className="px-4 py-2.5 text-center">Attrition Rate</th>
                         <th className="px-4 py-2.5 text-center">Attendance Rate</th>
@@ -854,7 +854,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                       <div className="w-1/2 font-bold text-[#2F6798] dark:text-[#5a9fd4]">{trainerModalBatch.trainer || 'Unassigned'}</div>
                     </div>
                     <div className="flex px-6 py-3.5 items-center">
-                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Active Headcount</div>
+                      <div className="w-1/2 font-medium text-slate-600 dark:text-slate-300">Ongoing Headcount</div>
                       <div className="w-1/2 font-bold text-slate-800 dark:text-slate-100">{trainerModalBatch.headcount} Trainees</div>
                     </div>
                   </div>

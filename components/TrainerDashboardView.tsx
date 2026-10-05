@@ -476,7 +476,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
               </div>
             </div>
             <div className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400">
-              {metrics.activeTrainees} Active
+              {metrics.activeTrainees} Ongoing
             </div>
           </div>
         </div>

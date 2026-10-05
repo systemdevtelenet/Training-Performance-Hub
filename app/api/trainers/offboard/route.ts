@@ -94,7 +94,7 @@ export async function GET() {
       const trainer = asgMap.get(cleanTrainee) || (p.assigned_trainer || '').trim();
       if (!trainer) return;
 
-      for (const [tKey, tObj] of trainersMap.entries()) {
+      for (const [tKey, tObj] of Array.from(trainersMap.entries())) {
         if (isTrainerMatch(trainer, tObj.name)) {
           tObj.activeTraineeCount++;
           if (p.wave) tObj.activeBatches.add(`PST Wave ${p.wave} (${p.account || 'Gen'})`);
@@ -110,7 +110,7 @@ export async function GET() {
       const trainer = asgMap.get(cleanTrainee);
       if (!trainer) return;
 
-      for (const [tKey, tObj] of trainersMap.entries()) {
+      for (const [tKey, tObj] of Array.from(trainersMap.entries())) {
         if (isTrainerMatch(trainer, tObj.name)) {
           tObj.activeTraineeCount++;
           if (inh.batch) tObj.activeBatches.add(`In-House Batch ${inh.batch} (${inh.account || inh.acount || 'Gen'})`);

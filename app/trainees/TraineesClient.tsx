@@ -116,7 +116,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [selectedCard, setSelectedCard] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [breakdownTab, setBreakdownTab] = useState<'all' | 'inhouse' | 'pst' | 'accounts'>('all');
-  const [rosterFilter, setRosterFilter] = useState<'active' | 'offboarded' | 'all'>('active');
+  const [rosterFilter, setRosterFilter] = useState<'ongoing' | 'offboarded' | 'all'>('ongoing');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('All');
   const [selectedQuarter, setSelectedQuarter] = useState('All');
@@ -189,6 +189,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       } else if (t === 'offboarded') {
         setRosterFilter('offboarded');
         setViewMode('table');
+      } else if (t === 'ongoing' || t === 'active') {
+        setRosterFilter('ongoing');
       }
     }
   }, []);
@@ -213,7 +215,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     batchName: 'General -1',
     accountName: 'General',
     assignedTrainer: 'Unassigned',
-    status: 'ACTIVE',
+    status: 'ONGOING',
     quarter: 'Q1',
     month: 'January'
   });
@@ -279,7 +281,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     return Array.from(set).sort();
   }, [trainees]);
 
-  const activeTraineesCount = useMemo(() => {
+  const ongoingTraineesCount = useMemo(() => {
     return trainees.filter(t => !t.isLoss && !isLossStatus(t.status)).length;
   }, [trainees]);
 
@@ -293,7 +295,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const filteredTrainees = useMemo(() => {
     return trainees.filter(t => {
       const isLoss = Boolean(t.isLoss || isLossStatus(t.status));
-      if (rosterFilter === 'active' && isLoss) return false;
+      if (rosterFilter === 'ongoing' && isLoss) return false;
       if (rosterFilter === 'offboarded' && !isLoss) return false;
 
       if (selectedAccount !== 'All' && t.accountName !== selectedAccount) return false;
@@ -635,7 +637,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           batchName: 'General -1',
           accountName: 'General',
           assignedTrainer: 'Unassigned',
-          status: 'ACTIVE',
+          status: 'ONGOING',
           quarter: 'Q1',
           month: 'January'
         });
@@ -786,7 +788,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     if (upperStatus === 'ENDORSED' || isEndorsed) {
       return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 shadow-sm">ENDORSED</span>;
     }
-    return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{upperStatus}</span>;
+    const displayStatus = upperStatus === 'ACTIVE' ? 'ONGOING' : upperStatus;
+    return <span className="px-3 py-1 rounded-full text-[10px] font-bold border border-blue-300 text-blue-700 bg-blue-50 shadow-sm">{displayStatus}</span>;
   };
 
   if (isLoading) {
@@ -829,7 +832,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     batchName: '',
                     accountName: availableAccounts.length > 1 ? availableAccounts[1] : 'General',
                     assignedTrainer: isTrainer ? (userName || 'Trainer') : 'Unassigned',
-                    status: 'ACTIVE',
+                    status: 'ONGOING',
                     quarter: 'Q1',
                     month: 'January'
                   });
@@ -920,13 +923,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       {/* TOP SUMMARY KPI BOXES - PROPERLY ARRANGED & RESPONSIVE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Box 1: Total Active Headcount */}
+        {/* Box 1: Ongoing Headcount */}
         <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
           <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
             <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
           <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">TOTAL HEADCOUNT</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING HEADCOUNT</p>
             <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{totalHC.toLocaleString()}</h4>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2 relative z-10">
@@ -940,7 +943,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
           <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">INHOUSE TRAINEES</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING INHOUSE</p>
             <h4 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{inhouseHC.toLocaleString()}</h4>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 ml-2 relative z-10">
@@ -954,7 +957,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
           </div>
           <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">PST TRAINEES</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING PST</p>
             <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{pstHC.toLocaleString()}</h4>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2 relative z-10">
@@ -1351,14 +1354,14 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               <div className="inline-flex bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-300/80 dark:border-slate-700 shadow-2xs">
                 <button
                   type="button"
-                  onClick={() => setRosterFilter('active')}
+                  onClick={() => setRosterFilter('ongoing')}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    rosterFilter === 'active'
+                    rosterFilter === 'ongoing'
                       ? 'bg-white dark:bg-slate-700 text-[#2F6798] dark:text-blue-300 shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Active ({activeTraineesCount})
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Ongoing ({ongoingTraineesCount})
                 </button>
                 <button
                   type="button"
@@ -1510,7 +1513,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                                       batchName: t.batchName,
                                       accountName: t.accountName,
                                       assignedTrainer: t.assignedTrainer || 'Unassigned',
-                                      status: t.status || 'ACTIVE',
+                                      status: t.status || 'ONGOING',
                                       quarter: t.quarter || 'Q1',
                                       month: t.month || 'January'
                                     });
@@ -1631,7 +1634,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                     return {
                       id: matchedRecord?.id || matchedRecord?.name || `bulk-${Date.now()}-${idx}`,
                       name: t.name,
-                      status: t.status || 'ACTIVE',
+                      status: t.status || 'ONGOING',
                       month: t.month || curMonth,
                       quarter: t.quarter || curQuarter,
                       p: 0,
