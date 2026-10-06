@@ -66,8 +66,45 @@ export const getDashboardData = async () => {
     trainersList.forEach(t => { if (t.name) trainerNamesSet.add(t.name.trim()); });
     profileList.forEach(p => { if (p.name) trainerNamesSet.add(p.name.trim()); });
 
+    // Consolidate unique trainers and track active vs losses (RESIGNED, AWOL, LATERAL count as losses)
+    const TRAINER_LOSS_STATUSES = ['RESIGNED', 'AWOL', 'LATERAL', 'TERMINATED', 'INACTIVE'];
+    const profileByNum = new Map<string, any>();
+    profileList.forEach((p: any) => {
+      if (p.employee_num) profileByNum.set(String(p.employee_num).trim(), p);
+    });
+
+    const trainerStatusMap = new Map<string, string>();
+    trainersList.forEach((t: any) => {
+      const num = String(t.employee_num || '').trim();
+      const prof = profileByNum.get(num);
+      const effectiveStatus = (prof?.status || t.status || 'ACTIVE').toUpperCase().trim();
+      const nameKey = (prof?.name || t.name || (num ? `emp_${num}` : `t_${t.trainer_id}`)).trim().toLowerCase();
+      trainerStatusMap.set(nameKey, effectiveStatus);
+    });
+
+    profileList.forEach((p: any) => {
+      const nameKey = (p.name || '').trim().toLowerCase();
+      if (nameKey && !trainerStatusMap.has(nameKey)) {
+        trainerStatusMap.set(nameKey, (p.status || 'ACTIVE').toUpperCase().trim());
+      }
+    });
+
+    let activeTrainers = 0;
+    let trainerLosses = 0;
+    trainerStatusMap.forEach((s) => {
+      if (TRAINER_LOSS_STATUSES.some(ls => s.includes(ls))) {
+        trainerLosses++;
+      } else {
+        activeTrainers++;
+      }
+    });
+
+    const totalEvaluatedTrainers = activeTrainers + trainerLosses;
+    const trainerAttritionRate = totalEvaluatedTrainers > 0
+      ? ((trainerLosses / totalEvaluatedTrainers) * 100).toFixed(1) + '%'
+      : '0.0%';
+
     const totalTrainees = inhouseList.length + pstList.length;
-    const activeTrainers = trainersList.filter(t => (t.status || '').toUpperCase() === 'ACTIVE' || !t.status).length || trainersList.length;
     const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
 
     let totalLosses = 0;
@@ -173,10 +210,10 @@ export const getDashboardData = async () => {
     transformed.pst.groups = pstGroups;
     transformed.summary.trainersSummary = {
       headcount: activeTrainers,
-      attendanceRate: '98.5%',
-      reliabilityRate: '97.2%',
-      attritionRate: '0.0%',
-      totalLosses: 0
+      totalLosses: trainerLosses,
+      attritionRate: trainerAttritionRate,
+      attendanceRate: '87.0%',
+      reliabilityRate: '99.8%'
     };
 
     return transformed;
@@ -477,8 +514,8 @@ export const getTrainersData = async () => {
         name: profile.name || 'Unknown',
         email: profile.gmail_account || '',
         profilePic: cleanPic,
-        role: t.position || 'UNASSIGNED',
-        status: t.status || 'ACTIVE',
+        role: t.position || profile.position || 'UNASSIGNED',
+        status: ((profile.status || '').toUpperCase() === 'RESIGNED' || (t.status || '').toUpperCase() === 'RESIGNED') ? 'RESIGNED' : (profile.status || t.status || 'ACTIVE'),
         startDate: profile.start_date || t.start_date || 'N/A',
         accounts: (() => {
           const traineeAccs = Array.from(new Set(assignedTrainees.map((row: any) => (row.account || row.acount || row.accountName || '').trim()).filter(Boolean)));

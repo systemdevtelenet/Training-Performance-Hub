@@ -285,16 +285,22 @@ export async function POST(req: Request) {
       console.warn('Error updating employees status:', e);
     }
 
-    // 4. Update in trainers table (if present)
+    // 4. Update in trainers table (matches on employee_num, not name column)
     try {
-      await supabase
-        .from('trainers')
-        .update({
-          status: 'RESIGNED'
-        })
-        .ilike('name', `%${cleanTrainer}%`);
+      const { data: tpRow } = await supabase
+        .from('trainers_profile')
+        .select('employee_num')
+        .ilike('name', `%${cleanTrainer}%`)
+        .maybeSingle();
+
+      if (tpRow?.employee_num) {
+        await supabase
+          .from('trainers')
+          .update({ status: 'RESIGNED' })
+          .eq('employee_num', String(tpRow.employee_num));
+      }
     } catch (e) {
-      // Ignore if trainers table not populated
+      console.warn('Error updating trainers table status:', e);
     }
 
     // 5. Revoke / Demote Role Access if requested
@@ -352,6 +358,7 @@ export async function POST(req: Request) {
     try {
       revalidateTag('employees');
       revalidateTag('trainees');
+      revalidateTag('trainers');
       revalidatePath('/employees');
       revalidatePath('/trainers');
       revalidatePath('/trainees');

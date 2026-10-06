@@ -70,6 +70,16 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
             headcount: updatedMembers.length
           });
         }
+        if (trainerModalBatch) {
+          const updatedMembers = (trainerModalBatch.members || []).filter(
+            (m: any) => m.name !== name
+          );
+          setTrainerModalBatch({
+            ...trainerModalBatch,
+            members: updatedMembers,
+            headcount: updatedMembers.length
+          });
+        }
         if (selectedTrainee?.name === name) {
           setSelectedTrainee(null);
         }
@@ -90,6 +100,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
   const availableTrainers = useMemo(() => {
     const set = new Set<string>();
     const defaultTrainers = [
+      'Unassigned',
       'Mitch', 'TR Niña', 'TR JL', 'HOT NISSI', 'TR Carlo', 'TR Ian', 
       'TR Joshua', 'TR Kevin', 'TR Princess', 'TR Sarah', 'TR Mark', 'TR Bryan'
     ];
@@ -860,6 +871,120 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                   </div>
                 </div>
 
+                {/* Trainee List with Delete Actions (Matching Trainees Cohort Drawer) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-[#2F6798] dark:text-[#5a9fd4]">
+                      TRAINEE LIST
+                    </h4>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {trainerModalBatch.members?.length || 0} Total
+                    </span>
+                  </div>
+
+                  {/* Trainer Group Header Bar */}
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#2F6798] text-white shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-md bg-white/20 text-white flex items-center justify-center font-bold">
+                        <UserCheck className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <span className="text-xs font-bold text-white tracking-wide">
+                        {trainerModalBatch.trainer || 'Unassigned'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                      {trainerModalBatch.members?.length || 0} {trainerModalBatch.members?.length === 1 ? 'Trainee' : 'Trainees'}
+                    </span>
+                  </div>
+
+                  {/* Trainees Cards List */}
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                    {(!trainerModalBatch.members || trainerModalBatch.members.length === 0) ? (
+                      <div className="text-center py-5 px-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40">
+                        <p className="text-xs font-semibold text-slate-400">
+                          No active trainees in this cohort.
+                        </p>
+                      </div>
+                    ) : (
+                      trainerModalBatch.members.map((member: any, mIdx: number) => {
+                        const statusStr = (member.status || (member.isEndorsed ? 'ENDORSED' : member.isLoss ? 'EOC' : 'ACTIVE')).toUpperCase();
+                        const badgeClass = statusStr === 'ENDORSED'
+                          ? 'border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40'
+                          : statusStr === 'EOC' || statusStr === 'LOSS' || statusStr === 'ATTRITION'
+                          ? 'border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+                          : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40';
+
+                        const nameStr = (member.name || 'Trainee').trim();
+                        const parts = nameStr.split(/\s+/);
+                        const initials = parts.length >= 2 
+                          ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+                          : nameStr.slice(0, 2).toUpperCase();
+
+                        return (
+                          <div
+                            key={mIdx}
+                            className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-[#2F6798] dark:hover:border-blue-400 hover:shadow-xs transition-all group"
+                          >
+                            <div 
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setSelectedTrainee({
+                                ...member,
+                                accountName: trainerModalBatch.accountName,
+                                batchName: trainerModalBatch.batchName,
+                                trainingType: trainerModalBatch.trainingType
+                              })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setSelectedTrainee({
+                                    ...member,
+                                    accountName: trainerModalBatch.accountName,
+                                    batchName: trainerModalBatch.batchName,
+                                    trainingType: trainerModalBatch.trainingType
+                                  });
+                                }
+                              }}
+                              className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+                            >
+                              <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-[11px] text-[#2F6798] dark:text-[#5a9fd4] shrink-0">
+                                {initials}
+                              </div>
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#2F6798] dark:group-hover:text-[#5a9fd4] transition-colors truncate">
+                                {member.name}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
+                                {statusStr}
+                              </span>
+                              {canManageTrainers && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTraineeToDelete({
+                                      name: member.name,
+                                      accountName: trainerModalBatch.accountName,
+                                      batchName: trainerModalBatch.batchName,
+                                      trainingType: trainerModalBatch.trainingType
+                                    });
+                                  }}
+                                  title={`Delete ${member.name}`}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
                 {/* Search & Trainer Selection List */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
@@ -964,27 +1089,37 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
             onClick={() => !isDeletingTrainee && setTraineeToDelete(null)}
           />
-          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 z-10 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/60 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Trainee Record</h3>
-                <p className="text-xs text-slate-500">This action cannot be undone.</p>
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 p-6 z-10 animate-in zoom-in-95 duration-200 flex flex-col items-center text-center space-y-4">
+            <button
+              onClick={() => !isDeletingTrainee && setTraineeToDelete(null)}
+              disabled={isDeletingTrainee}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="w-16 h-16 bg-[#ED1C25] rounded-full flex items-center justify-center mx-auto shadow-md shadow-red-200 dark:shadow-red-900/30">
+              <Trash2 className="h-8 w-8 text-white stroke-[2.5]" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Delete Trainee Record</h3>
+              <div className="flex flex-col gap-1 text-center text-slate-500 dark:text-slate-400">
+                <span className="text-sm font-medium">
+                  Are you sure you want to delete <strong className="text-slate-800 dark:text-slate-200">{traineeToDelete.name}</strong> from <strong className="text-slate-800 dark:text-slate-200">{traineeToDelete.batchName} ({traineeToDelete.accountName})</strong>?
+                </span>
+                <span className="text-xs font-normal leading-relaxed">
+                  This action cannot be undone and will permanently remove this record.
+                </span>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
-              Are you sure you want to permanently remove <strong className="text-slate-900 dark:text-white font-bold">{traineeToDelete.name}</strong> from <strong className="text-slate-900 dark:text-white font-bold">{traineeToDelete.batchName} ({traineeToDelete.accountName})</strong>?
-            </p>
-
-            <div className="flex items-center justify-end gap-2.5">
+            <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setTraineeToDelete(null)}
                 disabled={isDeletingTrainee}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                className="px-6 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -992,16 +1127,14 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
                 type="button"
                 onClick={handleDeleteTraineeConfirm}
                 disabled={isDeletingTrainee}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+                className="px-6 py-2.5 rounded-full bg-[#ED1C25] hover:bg-[#c8161e] text-white font-bold text-sm transition-colors shadow-md shadow-red-200 dark:shadow-red-900/30 disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {isDeletingTrainee ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Deleting...
                   </>
                 ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Trainee
-                  </>
+                  'Yes, Delete'
                 )}
               </button>
             </div>

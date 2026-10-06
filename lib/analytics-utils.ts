@@ -280,9 +280,9 @@ export function getFilteredData(
       totalLosses: summaryStats.global.losses,
       globalRate: totalOperationalHeadcount > 0 ? ((summaryStats.global.losses / totalOperationalHeadcount) * 100).toFixed(1) + '%' : '0.0%',
       trainersSummary: {
-        headcount: data.summary?.trainersSummary?.headcount || (data.trainers ? Object.keys(data.trainers).length : uniqueTrainersSet.size) || 16,
-        totalLosses: data.summary?.trainersSummary?.totalLosses || 0,
-        attritionRate: data.summary?.trainersSummary?.attritionRate || '0.0%',
+        headcount: data.summary?.trainersSummary?.headcount ?? (data.trainers ? Object.keys(data.trainers).length : uniqueTrainersSet.size) ?? 14,
+        totalLosses: data.summary?.trainersSummary?.totalLosses ?? 0,
+        attritionRate: data.summary?.trainersSummary?.attritionRate ?? '0.0%',
         attendanceRate: tAttRate,
         reliabilityRate: tRelRate
       }
