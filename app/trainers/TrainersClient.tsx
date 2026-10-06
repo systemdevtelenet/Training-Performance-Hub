@@ -51,8 +51,10 @@ type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-relia
 export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
   const { role, actualRole, email, avatarUrl, userName } = useRole();
   const currentRole = role || actualRole;
-  const isTrainer = currentRole === 'TRAINER';
-  const isAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'HOT_ADMIN' || role === 'SUPER_ADMIN' || role === 'HOT_ADMIN';
+  const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(role as any);
+  const isTrainer = currentRole === 'TRAINER' || (!isPrivilegedAdmin && currentRole !== 'TRAINEE' && currentRole !== 'GUEST');
+  const isAdmin = isPrivilegedAdmin;
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
@@ -85,22 +87,26 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
   }, [searchParams]);
 
   const scopedInitialTrainers = useMemo(() => {
-    if (!isTrainer) return initialTrainers;
+    if (isPrivilegedAdmin) return initialTrainers;
     if (userName || email) {
-      const qName = (userName || '').toLowerCase();
-      const qEmail = (email || '').toLowerCase().split('@')[0];
-      return initialTrainers.filter((t: any) => {
-        const tName = (t.name || '').toLowerCase();
-        const tEmail = (t.email || '').toLowerCase();
+      const qEmail = (email || '').toLowerCase().split('@')[0].trim();
+      const cleanEmail = (email || '').toLowerCase().trim();
+
+      const filtered = initialTrainers.filter((t: any) => {
+        const tEmail = (t.email || '').toLowerCase().trim();
         return (
           (userName && isTrainerMatch(t.name, userName)) ||
-          (qName && (tName.includes(qName) || qName.includes(tName))) ||
-          (qEmail && (tEmail.includes(qEmail) || tName.includes(qEmail)))
+          (t.name && userName && isTrainerMatch(userName, t.name)) ||
+          (cleanEmail && tEmail === cleanEmail) ||
+          (cleanEmail && qEmail.length >= 3 && tEmail.startsWith(qEmail))
         );
       });
+
+      if (filtered.length > 0) return filtered;
+      return [];
     }
-    return initialTrainers;
-  }, [initialTrainers, isTrainer, userName, email]);
+    return isPrivilegedAdmin ? initialTrainers : [];
+  }, [initialTrainers, isPrivilegedAdmin, userName, email]);
 
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
@@ -1035,7 +1041,33 @@ function AttendanceReliabilityView({
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }) {
-  const { avatarUrl, userName, email } = useRole();
+  const { role, actualRole, avatarUrl, userName, email } = useRole();
+  const currentRole = role || actualRole;
+  const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(role as any);
+
+  // Scoped trainers for Attendance & Reliability: ensure non-admin trainers cannot see other trainers' records
+  const effectiveTrainers = useMemo(() => {
+    if (isPrivilegedAdmin) return initialTrainers;
+    if (userName || email) {
+      const qEmail = (email || '').toLowerCase().split('@')[0].trim();
+      const cleanEmail = (email || '').toLowerCase().trim();
+
+      const matched = initialTrainers.filter((t: any) => {
+        const tEmail = (t.email || '').toLowerCase().trim();
+        return (
+          (userName && isTrainerMatch(t.name, userName)) ||
+          (t.name && userName && isTrainerMatch(userName, t.name)) ||
+          (cleanEmail && tEmail === cleanEmail) ||
+          (cleanEmail && qEmail.length >= 3 && tEmail.startsWith(qEmail))
+        );
+      });
+      if (matched.length > 0) return matched;
+      return [];
+    }
+    return isPrivilegedAdmin ? initialTrainers : [];
+  }, [initialTrainers, isPrivilegedAdmin, userName, email]);
+
   const [selectedQuarter, setSelectedQuarter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [selectedAccount, setSelectedAccount] = useState('All');
@@ -1067,16 +1099,16 @@ function AttendanceReliabilityView({
 
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
-    initialTrainers.forEach((t: any) => {
+    effectiveTrainers.forEach((t: any) => {
       if (t.accounts) {
         t.accounts.split(',').forEach((a: string) => set.add(a.trim()));
       }
     });
     return ['All', ...Array.from(set).sort()];
-  }, [initialTrainers]);
+  }, [effectiveTrainers]);
 
   const data = useMemo(() => {
-    return initialTrainers.map(t => {
+    return effectiveTrainers.map(t => {
       const sl = t.leaves?.sl || 0;
       const vl = t.leaves?.vl || 0;
       const med = t.leaves?.med || 0;

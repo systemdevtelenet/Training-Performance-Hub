@@ -23,8 +23,10 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
 
 export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?: string) {
   try {
+    const normalizeStr = (s?: string) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     const cleanEmail = (trainerEmail || '').toLowerCase().trim();
     const cleanName = (trainerName || '').toLowerCase().trim();
+    const normName = normalizeStr(trainerName);
 
     const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
     const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
@@ -37,19 +39,19 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
     const allTrainees = [...(ih || []), ...(pst || [])];
     allTrainees.forEach(t => {
       const cleanTName = (t.name || '').trim().toLowerCase();
+      const normTName = normalizeStr(t.name);
       const assigned = (assignmentMap.get(cleanTName) || t.assigned_trainer || t.trainer || '').trim();
+      const normAssigned = normalizeStr(assigned);
       const rawAcc = (t.account || t.acount || t.accountName || 'General').toString().trim().toLowerCase();
 
       const isMatch = (cleanName && isTrainerMatch(assigned, cleanName)) || 
-                      (cleanName && assigned.toLowerCase().includes(cleanName)) ||
-                      (cleanName && cleanName.includes(assigned.toLowerCase())) ||
-                      (cleanEmail && assigned.toLowerCase().includes(cleanEmail.split('@')[0])) ||
-                      (cleanEmail && cleanEmail.includes(assigned.toLowerCase().replace(/\s+/g, '')));
+                      (cleanName && isTrainerMatch(cleanName, assigned)) ||
+                      (cleanEmail && cleanEmail.includes('@') && assigned.toLowerCase() === cleanEmail.split('@')[0]);
       if (isMatch) {
         if (cleanTName) matchedNames.add(cleanTName);
-        if (rawAcc) {
+        if (normTName) matchedNames.add(normTName);
+        if (rawAcc && rawAcc !== 'trainers' && rawAcc !== 'leaders') {
           matchedAccounts.add(rawAcc);
-          matchedAccounts.add('general');
         }
       }
     });
@@ -69,7 +71,11 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
         (trTbird && trTbird.includes('@') && (trTbird === cleanEmail || trTbird.split('@')[0] === cleanEmail.split('@')[0]))
       ));
 
-      const isNameMatch = Boolean(cleanName && isTrainerMatch(trName, cleanName));
+      const isNameMatch = Boolean(
+        (cleanName && isTrainerMatch(trName, cleanName)) ||
+        (cleanName && isTrainerMatch(cleanName, trName)) ||
+        (normName && normalizeStr(trName) === normName)
+      );
 
       if ((isEmailMatch || isNameMatch) && tr.accounts) {
         tr.accounts.split(/[,/|&;\n]/).forEach((accStr: string) => {

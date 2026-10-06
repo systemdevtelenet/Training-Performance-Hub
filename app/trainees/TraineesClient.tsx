@@ -75,10 +75,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const { role, actualRole, userName, email, isLoading, userMeta } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
-  const isTrainer = currentRole === 'TRAINER';
+  const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(role as any);
+  const isTrainer = currentRole === 'TRAINER' || (!isPrivilegedAdmin && currentRole !== 'TRAINEE' && currentRole !== 'GUEST');
   const isTrainee = currentRole === 'TRAINEE';
-  const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
-  const canManageTrainees = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'].includes(currentRole);
+  const isAdmin = isPrivilegedAdmin;
+  const canManageTrainees = isPrivilegedAdmin || isTrainer;
 
   const scopedInitialTrainees = useMemo(() => {
     if (!isTrainer && !isTrainee) return initialTrainees;
@@ -89,8 +91,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         if (!t.assignedTrainer || t.assignedTrainer === 'Unassigned') return false;
         return (
           isTrainerMatch(t.assignedTrainer, qTrainer) ||
-          (qTrainer && t.assignedTrainer.toLowerCase().includes(qTrainer.toLowerCase())) ||
-          (qEmail && t.assignedTrainer.toLowerCase().includes(qEmail))
+          isTrainerMatch(qTrainer, t.assignedTrainer) ||
+          (email && qEmail.length >= 3 && t.assignedTrainer.toLowerCase() === qEmail)
         );
       });
     }
@@ -100,7 +102,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       return initialTrainees.filter(t => {
         const tName = (t.name || '').toLowerCase();
         return (
-          (qName && (tName.includes(qName) || qName.includes(tName))) ||
+          (qName && (tName === qName || isTrainerMatch(tName, qName))) ||
           (qEmail && tName.includes(qEmail))
         );
       });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Loader2,
@@ -425,8 +425,25 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
 export default function TrafficLightsClient({ initialAccounts }: { initialAccounts?: { id: string; name: string }[] }) {
   const { actualRole, role: simulatedRole, email, userName, userMeta } = useRole();
   const currentRole = simulatedRole || actualRole;
-  const isTrainer = currentRole === 'TRAINER';
+  const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(simulatedRole as any) ||
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(actualRole as any);
+  const isTrainer = currentRole === 'TRAINER' || (!isPrivilegedAdmin && currentRole !== 'TRAINEE' && currentRole !== 'GUEST');
   const isTrainee = currentRole === 'TRAINEE';
+
+  // Helper to test if a row's name belongs to the currently logged in trainer
+  const checkIsOwnTrainerRow = useCallback((staffName: string) => {
+    if (!staffName) return false;
+    const cleanEmail = (email || '').toLowerCase().trim();
+    const qEmail = (email || '').toLowerCase().split('@')[0].trim();
+    const lowerName = staffName.toLowerCase().trim();
+    return Boolean(
+      (userName && isTrainerMatch(staffName, userName || undefined)) ||
+      (userName && isTrainerMatch(userName || undefined, staffName)) ||
+      (cleanEmail && lowerName === cleanEmail) ||
+      (cleanEmail && qEmail.length >= 3 && lowerName === qEmail)
+    );
+  }, [userName, email]);
 
   const accounts = (initialAccounts && initialAccounts.length > 0) ? initialAccounts : [
     { id: 'trainers', name: 'Trainers' },
@@ -473,10 +490,11 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     if (isTrainer) {
       const filtered = accounts.filter(acc => {
         const accId = acc.id.toLowerCase();
-        if (accId === 'trainers' || accId === 'general') return true;
-        return trainerAccounts.some(ta => matchesTrafficLightAccount(acc.id, ta));
+        if (accId === 'trainers') return true;
+        // Only include client accounts if the trainer actually has assigned trainees in them
+        return trainerTraineeNames.length > 0 && trainerAccounts.some(ta => matchesTrafficLightAccount(acc.id, ta));
       });
-      list = filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers' || a.id.toLowerCase() === 'general');
+      list = filtered.length > 0 ? filtered : accounts.filter(a => a.id.toLowerCase() === 'trainers');
     } else {
       list = accounts;
     }
@@ -484,7 +502,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       { id: 'all', name: 'All Accounts' },
       ...list.filter(a => a.id !== 'all')
     ];
-  }, [accounts, isTrainer, trainerAccounts]);
+  }, [accounts, isTrainer, trainerAccounts, trainerTraineeNames]);
 
   const [account, setAccount] = useState<string>('all');
 
@@ -843,6 +861,9 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // Discover all distinct trainers present in active traffic light data
   const trainersFilterList = useMemo(() => {
+    if (isTrainer && userName) {
+      return [userName];
+    }
     const set = new Set<string>();
     data.forEach(r => {
       if (r.isAccountHeader || r.isTeamHeader) return;
@@ -855,7 +876,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       }
     });
     return Array.from(set).sort();
-  }, [data]);
+  }, [data, isTrainer, userName]);
 
   // Helper to get Day of Week (e.g., FRI, TUE)
   const getDayOfWeek = (dateStr: string) => {
@@ -890,32 +911,31 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // Check if current user is authorized to edit a specific row
   const checkCanEditRow = (rowStaffName: string, rowAccount?: string) => {
-    const canEditAll = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole);
-    if (canEditAll) return true;
+    if (isPrivilegedAdmin && currentRole !== 'VIEW_ADMIN') return true;
 
     const targetAccount = rowAccount || account;
 
     if (isTrainer) {
-      // In 'trainers' account: Trainers CANNOT edit their own or any trainer traffic lights (Admin only!)
-      if (targetAccount === 'trainers') {
+      // 1. Trainer's own traffic light record is strictly VIEW-ONLY!
+      if (targetAccount === 'trainers' || targetAccount === 'leaders' || checkIsOwnTrainerRow(rowStaffName)) {
         return false;
       }
 
-      // In trainee/client accounts (e.g. DFT, FLEXAR, RM, etc.): Trainers CAN edit their assigned trainees!
+      // 2. In trainee/client accounts: Trainers CAN edit their strictly assigned trainees!
       const cleanStaff = rowStaffName.toLowerCase().trim();
-      const isAssignedTrainee = (
-        trainerTraineeNames.length > 0 &&
+      const isAssignedTrainee = Boolean(
+        (trainerTraineeNames.length > 0 &&
         trainerTraineeNames.some(tn => {
           const cleanTn = tn.toLowerCase().trim();
           return cleanTn === cleanStaff || cleanStaff.includes(cleanTn) || cleanTn.includes(cleanStaff) || isTrainerMatch(cleanStaff, cleanTn);
+        })) ||
+        data.some(r => {
+          const rName = String(r[nameColumnKey] || '').toLowerCase().trim();
+          return (rName === cleanStaff || isTrainerMatch(cleanStaff, rName)) && isTrainerMatch(r.assigned_trainer, userName || undefined);
         })
       );
-      const isAssignedAccount = (
-        trainerAccounts.some(ta => matchesTrafficLightAccount(targetAccount, ta)) ||
-        visibleAccounts.some(va => va.id === targetAccount || va.id === 'all')
-      );
 
-      return isAssignedTrainee || isAssignedAccount;
+      return isAssignedTrainee;
     }
 
     return false;
@@ -974,11 +994,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   // Add a new Remark to Supabase
   const handleAddRemark = async () => {
     if (!activeRemarkModal || !newRemarkDraft.trim()) return;
-    setIsPostingRemark(true);
 
     const { staffName, columnKey, currentStatus } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
     const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+
+    if (isTrainer && (targetAccount === 'trainers' || targetAccount === 'leaders' || checkIsOwnTrainerRow(staffName))) {
+      alert('Your own traffic light record is view-only. Only administrators can add or edit remarks on trainer records.');
+      return;
+    }
+
+    setIsPostingRemark(true);
 
     const res = await addTrafficLightRemark({
       account: targetAccount,
@@ -1030,11 +1056,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   // Update an existing Remark item
   const handleUpdateRemark = async (metric_id: number) => {
     if (!activeRemarkModal || !editingDraft.trim()) return;
-    setIsPostingRemark(true);
 
     const { staffName, columnKey } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
     const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+
+    if (isTrainer && (targetAccount === 'trainers' || targetAccount === 'leaders' || checkIsOwnTrainerRow(staffName))) {
+      alert('Your own traffic light record is view-only. Only administrators can modify remarks on trainer records.');
+      return;
+    }
+
+    setIsPostingRemark(true);
 
     const res = await updateTrafficLightRemark({
       metric_id,
@@ -1079,11 +1111,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   // Delete a specific Remark item from Supabase
   const handleDeleteRemarkItem = async (metric_id: number) => {
     if (!activeRemarkModal) return;
-    setIsDeletingRemarkId(metric_id);
 
     const { staffName, columnKey } = activeRemarkModal;
     const authorName = email || 'Authorized Manager';
     const targetAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
+
+    if (isTrainer && (targetAccount === 'trainers' || targetAccount === 'leaders' || checkIsOwnTrainerRow(staffName))) {
+      alert('Your own traffic light record is view-only. Only administrators can delete remarks on trainer records.');
+      return;
+    }
+
+    setIsDeletingRemarkId(metric_id);
 
     const res = await deleteTrafficLightRemarkItem({
       metric_id,
@@ -1145,6 +1183,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       const staffName = row[nameColumnKey];
 
       const targetAccount = row._account || (account === 'all' ? 'trainers' : account);
+
+      if (!checkCanEditRow(staffName, targetAccount)) continue;
 
       const res = await updateTrafficLightCell({
         account: targetAccount,
@@ -1208,30 +1248,30 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       const rowAccount = row._account || account;
 
-      // 1. In Trainers account: Trainers can ONLY see their own record (they cannot see other trainers)
-      if (rowAccount === 'trainers' && isTrainer && (userName || email)) {
-        const qName = (userName || '').toLowerCase().trim();
-        const qEmail = (email || '').toLowerCase().split('@')[0].trim();
-        const lowerName = nameVal.toLowerCase().trim();
-        const isOwnTrainerRow = (
-          (userName && isTrainerMatch(nameVal, userName)) ||
-          (qName && (lowerName.includes(qName) || qName.includes(lowerName))) ||
-          (qEmail && (lowerName.includes(qEmail) || qEmail.includes(lowerName)))
-        );
-        if (!isOwnTrainerRow) return false;
+      // 1. In Trainers / Leaders account: Trainers can ONLY see their own record (they cannot see other trainers)
+      if (rowAccount === 'trainers' || rowAccount === 'leaders') {
+        if (isTrainer) {
+          const isOwnTrainerRow = checkIsOwnTrainerRow(nameVal);
+          if (!isOwnTrainerRow) return false;
+        }
       }
 
-      // 2. In Client/Trainee Accounts (e.g. DFT, FLEXAR): Trainers only see their specific assigned trainees from the database
-      if (isTrainer && rowAccount !== 'trainers') {
+      // 2. In Client/Trainee Accounts (e.g. DFT, FLEXAR, RM, etc.):
+      // Only the trainer's own row (if present) and their strictly assigned trainees reflect.
+      // Other trainers and other trainers' trainees must NEVER reflect!
+      if (isTrainer && rowAccount !== 'trainers' && rowAccount !== 'leaders') {
+        // If this row happens to be the trainer's own profile, show it (view-only)
+        if (checkIsOwnTrainerRow(nameVal)) {
+          return true;
+        }
+
         const rowTrainer = String(row.assigned_trainer || '').trim();
-        const qName = (userName || '').toLowerCase().trim();
-        const qEmail = (email || '').toLowerCase().split('@')[0].trim();
         const cleanTraineeName = nameVal.toLowerCase().trim();
 
         const isDirectTrainerMatch = Boolean(
-          (rowTrainer && userName && isTrainerMatch(rowTrainer, userName)) ||
-          (rowTrainer && qName && (rowTrainer.toLowerCase().includes(qName) || qName.includes(rowTrainer.toLowerCase()))) ||
-          (rowTrainer && qEmail && (rowTrainer.toLowerCase().includes(qEmail) || qEmail.includes(rowTrainer.toLowerCase().replace(/\s+/g, ''))))
+          (rowTrainer && userName && isTrainerMatch(rowTrainer, userName || undefined)) ||
+          (rowTrainer && userName && isTrainerMatch(userName || undefined, rowTrainer)) ||
+          (rowTrainer && email && email.includes('@') && rowTrainer.toLowerCase() === email.toLowerCase().split('@')[0])
         );
 
         const isNameAssigned = trainerTraineeNames.length > 0 && trainerTraineeNames.some(tn => {
@@ -1242,6 +1282,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                  isTrainerMatch(cleanTraineeName, cleanTn);
         });
 
+        // A trainer only sees trainees who are strictly assigned to them
         if (!isDirectTrainerMatch && !isNameAssigned) {
           return false;
         }
@@ -1344,7 +1385,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }
 
     return result;
-  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, selectedTrainer, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames]);
+  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, selectedTrainer, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames, trainerAccounts, checkIsOwnTrainerRow]);
 
   // Pagination State (Display 10 per page as requested)
   const [currentPage, setCurrentPage] = useState(1);
@@ -1881,68 +1922,70 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
             )}
           </div>
 
-          {/* Trainer Filter Dropdown */}
-          <div className="relative w-36 shrink-0" data-dropdown>
-            <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#2F6798]" />
-              <span>TRAINER</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpenDropdown(prev => prev === 'trainer' ? null : 'trainer')}
-              className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
-            >
-              <span className="truncate">
-                {selectedTrainer === 'ALL' ? (trainersFilterList.length > 0 ? `All Trainers (${trainersFilterList.length})` : 'All Trainers') : selectedTrainer}
-              </span>
-              {openDropdown === 'trainer' ? (
-                <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
-              )}
-            </button>
-
-            {openDropdown === 'trainer' && (
-              <div className="absolute top-[calc(100%+6px)] left-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTrainer('ALL');
-                    setOpenDropdown(null);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
-                    selectedTrainer === 'ALL'
-                      ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                      : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                  )}
-                >
-                  All Trainers ({trainersFilterList.length})
-                </button>
-                {trainersFilterList.map((trName) => {
-                  const isSelected = selectedTrainer === trName;
-                  return (
-                    <button
-                      key={trName}
-                      type="button"
-                      onClick={() => {
-                        setSelectedTrainer(trName);
-                        setOpenDropdown(null);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-1.5 rounded-lg text-xs truncate transition-colors cursor-pointer",
-                        isSelected
-                          ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
-                          : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                      )}
-                    >
-                      {trName}
-                    </button>
-                  );
-                })}
+          {/* Trainer Filter Dropdown (Admins Only) */}
+          {isPrivilegedAdmin && (
+            <div className="relative w-36 shrink-0" data-dropdown>
+              <div className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#2F6798]" />
+                <span>TRAINER</span>
               </div>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => setOpenDropdown(prev => prev === 'trainer' ? null : 'trainer')}
+                className="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#2F6798]/10 focus:border-[#2F6798] cursor-pointer"
+              >
+                <span className="truncate">
+                  {selectedTrainer === 'ALL' ? (trainersFilterList.length > 0 ? `All Trainers (${trainersFilterList.length})` : 'All Trainers') : selectedTrainer}
+                </span>
+                {openDropdown === 'trainer' ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                )}
+              </button>
+
+              {openDropdown === 'trainer' && (
+                <div className="absolute top-[calc(100%+6px)] left-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTrainer('ALL');
+                      setOpenDropdown(null);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
+                      selectedTrainer === 'ALL'
+                        ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                        : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    )}
+                  >
+                    All Trainers ({trainersFilterList.length})
+                  </button>
+                  {trainersFilterList.map((trName) => {
+                    const isSelected = selectedTrainer === trName;
+                    return (
+                      <button
+                        key={trName}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTrainer(trName);
+                          setOpenDropdown(null);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-1.5 rounded-lg text-xs truncate transition-colors cursor-pointer",
+                          isSelected
+                            ? "font-bold text-[#2F6798] bg-blue-50/80 dark:bg-blue-950/40"
+                            : "font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                        )}
+                      >
+                        {trName}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 4. Status Filter Dropdown */}
           <div className="relative w-36 shrink-0" data-dropdown>
@@ -2913,9 +2956,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
                 const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
                 const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const isOwnModalRow = checkIsOwnTrainerRow(activeRemarkModal.staffName);
                 const canManageActiveRemarks = Boolean(
-                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
-                  (isTrainer && !isTrainerAccountModal)
+                  (isPrivilegedAdmin && currentRole !== 'VIEW_ADMIN') ||
+                  (isTrainer && !isTrainerAccountModal && !isOwnModalRow)
                 );
 
                 // Associate each note with its original 1-based chronological index
@@ -3241,9 +3285,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
               {(() => {
                 const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
                 const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const isOwnModalRow = checkIsOwnTrainerRow(activeRemarkModal.staffName);
                 const canManageActiveRemarks = Boolean(
-                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
-                  (isTrainer && !isTrainerAccountModal)
+                  (isPrivilegedAdmin && currentRole !== 'VIEW_ADMIN') ||
+                  (isTrainer && !isTrainerAccountModal && !isOwnModalRow)
                 );
 
                 if (!canManageActiveRemarks) {
@@ -3371,9 +3416,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
                 const targetModalAccount = activeRemarkModal.account || (account === 'all' ? 'trainers' : account);
                 const isTrainerAccountModal = targetModalAccount === 'trainers' || targetModalAccount === 'leaders';
+                const isOwnModalRow = checkIsOwnTrainerRow(activeRemarkModal.staffName);
                 const canManageActiveRemarks = Boolean(
-                  ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN'].includes(currentRole) ||
-                  (isTrainer && !isTrainerAccountModal)
+                  (isPrivilegedAdmin && currentRole !== 'VIEW_ADMIN') ||
+                  (isTrainer && !isTrainerAccountModal && !isOwnModalRow)
                 );
 
                 const indexedList = rawList.map((item, idx) => ({

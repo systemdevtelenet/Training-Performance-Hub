@@ -63,24 +63,63 @@ export const TRAINER_NAME_MAP: Record<string, string[]> = {
   "charles espinosa": ["tr charles", "charles"]
 };
 
+export function normalizeTrainerWord(s?: string): string {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function hasTrainerWholePhrase(text?: string, phrase?: string): boolean {
+  if (!text || !phrase) return false;
+  const normText = ` ${normalizeTrainerWord(text)} `;
+  const normPhrase = ` ${normalizeTrainerWord(phrase)} `;
+  return normText.includes(normPhrase);
+}
+
 export function isTrainerMatch(assignedStr?: string, trainerFullName?: string): boolean {
   if (!assignedStr || !trainerFullName) return false;
-  const cleanAssigned = String(assignedStr).trim().toLowerCase();
-  const cleanFull = String(trainerFullName).trim().toLowerCase();
+  const normAssigned = normalizeTrainerWord(assignedStr);
+  const normFull = normalizeTrainerWord(trainerFullName);
+  if (!normAssigned || !normFull) return false;
 
-  if (cleanAssigned === cleanFull || cleanAssigned.includes(cleanFull) || cleanFull.includes(cleanAssigned)) {
+  // 1. Exact match after normalization
+  if (normAssigned === normFull) return true;
+
+  // 2. Whole phrase containment (e.g. "nino elijah r reyes" contains "nino elijah")
+  if (hasTrainerWholePhrase(assignedStr, trainerFullName) || hasTrainerWholePhrase(trainerFullName, assignedStr)) {
     return true;
   }
 
-  const aliases = TRAINER_NAME_MAP[cleanFull];
-  if (aliases?.some(alias => cleanAssigned === alias || cleanAssigned.includes(alias) || alias.includes(cleanAssigned))) {
-    return true;
-  }
-
-  for (const [fullNameKey, aliasList] of Object.entries(TRAINER_NAME_MAP)) {
-    if (cleanFull.includes(fullNameKey) || fullNameKey.includes(cleanFull)) {
-      if (aliasList.some(alias => cleanAssigned.includes(alias))) return true;
+  // 3. Helper to get all aliases for a name from TRAINER_NAME_MAP
+  const getAliasesFor = (name: string): string[] => {
+    const list: string[] = [];
+    for (const [fullNameKey, aliasList] of Object.entries(TRAINER_NAME_MAP)) {
+      const normKey = normalizeTrainerWord(fullNameKey);
+      if (normKey === name || hasTrainerWholePhrase(name, normKey) || hasTrainerWholePhrase(normKey, name)) {
+        list.push(...aliasList);
+      }
     }
+    return list;
+  };
+
+  const fullAliases = getAliasesFor(normFull);
+  if (fullAliases.some(alias => {
+    const normAlias = normalizeTrainerWord(alias);
+    return normAssigned === normAlias || hasTrainerWholePhrase(assignedStr, alias) || hasTrainerWholePhrase(alias, assignedStr);
+  })) {
+    return true;
+  }
+
+  const assignedAliases = getAliasesFor(normAssigned);
+  if (assignedAliases.some(alias => {
+    const normAlias = normalizeTrainerWord(alias);
+    return normFull === normAlias || hasTrainerWholePhrase(trainerFullName, alias) || hasTrainerWholePhrase(alias, trainerFullName);
+  })) {
+    return true;
   }
 
   return false;
