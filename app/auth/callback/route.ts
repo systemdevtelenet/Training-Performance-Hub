@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
       const { data: trainerRow } = await supabaseAdmin
         .from('trainers_profile')
-        .select('trainer_id')
+        .select('name')
         .or(`gmail_account.ilike."${email}",thunderbird_account.ilike."${email}"`)
         .maybeSingle();
 
