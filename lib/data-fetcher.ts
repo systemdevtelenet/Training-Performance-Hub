@@ -105,7 +105,7 @@ export const getDashboardData = async () => {
       : '0.0%';
 
     const totalTrainees = inhouseList.length + pstList.length;
-    const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
+    const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'LATERAL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
 
     let totalLosses = 0;
     const accountsSet = new Set<string>();
@@ -368,7 +368,7 @@ export const getTrainersData = async () => {
 
     if (consolidatedTrainers.length === 0) return [];
 
-    const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'REPROFILED'];
+    const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'LATERAL', 'REPROFILED'];
 
     // Map DB rows to standard format
     const mapped = consolidatedTrainers.map(t => {
@@ -588,7 +588,7 @@ export const getTraineesData = async () => {
     const isLossStatus = (st?: string) => {
       if (!st) return false;
       const s = st.toUpperCase().trim();
-      return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+      return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
     };
 
     const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
@@ -804,7 +804,7 @@ export const getEmployeesData = async () => {
       if (!tName || traineeNames.has(tName.toLowerCase())) return;
       traineeNames.add(tName.toLowerCase());
 
-      const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
+      const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
       const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
 
       resultList.push({

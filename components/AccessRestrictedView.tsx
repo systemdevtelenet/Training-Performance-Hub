@@ -72,7 +72,7 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
             Authorization Required
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-normal leading-relaxed">
-            The <span className="font-semibold text-slate-900 dark:text-white">Training Performance Hub</span> is dedicated exclusively to Training, QA, Trainer, Trainee, and Administrative personnel.
+            The <span className="font-semibold text-slate-900 dark:text-white">Training Performance Hub</span> is dedicated exclusively to trainers and Head of Training access.
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
         <div className="flex items-start gap-2.5 bg-[#C8A54B]/10 border border-[#C8A54B]/35 rounded-2xl p-3.5 text-left">
           <HelpCircle className="w-4 h-4 text-[#C8A54B] shrink-0 mt-0.5" />
           <p className="text-[11.5px] text-[#7a5c1a] dark:text-[#E8D196] leading-relaxed">
-            If you are a trainer, trainee, QA, or need access for your operations, please contact your <span className="font-bold text-[#5c4310] dark:text-[#F7E7C4]">Head of Training</span> or <span className="font-bold text-[#5c4310] dark:text-[#F7E7C4]">Administrator</span> to grant you system access under <span className="underline font-semibold">Employee Management</span>.
+            If you are a trainer or need Training Hub access for your operations, please contact your <span className="font-bold text-[#5c4310] dark:text-[#F7E7C4]">Head of Training</span> to grant you system access.
           </p>
         </div>
 

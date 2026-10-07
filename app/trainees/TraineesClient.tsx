@@ -66,7 +66,7 @@ export type Trainee = {
 const isLossStatus = (status?: string) => {
   if (!status) return false;
   const s = status.toUpperCase().trim();
-  return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
+  return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
 };
 
 import { isTrainerMatch } from '@/lib/analytics-utils';

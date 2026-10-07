@@ -48,8 +48,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Access Restriction Guard: Block regular employees who have not been granted explicit role access
-  if (!isLoading && (role === 'UNAUTHORIZED' || role === 'EMPLOYEE')) {
+  // Access Restriction Guard: Training Hub is restricted to Training personnel only.
+  const isTrainingHubUser = role === 'TRAINER' || role === 'HOT_ADMIN';
+  if (!isLoading && !isTrainingHubUser) {
     return (
       <AccessRestrictedView
         email={email}

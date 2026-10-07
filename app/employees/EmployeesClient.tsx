@@ -572,27 +572,28 @@ export default function EmployeesClient({
         </div>
       </div>
 
-      {/* GLOBAL FILTER BAR WITH ROLE / DEPARTMENT FILTER */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-20">
-        {/* Role / Category Filter */}
-        <div>
-          <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-            <UserCog className="w-3.5 h-3.5 text-[#2F6798]" /> Role / Department Filter
-          </label>
-          <CustomSelect
-            value={selectedCategory}
-            onChange={val => setSelectedCategory(val)}
-            options={[
-              { value: 'All', label: 'All Roles / Departments' },
-              { value: 'TRAINER', label: 'Trainers' },
-              { value: 'TRAINEE', label: 'Trainees' },
-              { value: 'ADMIN', label: 'Admin' },
-              { value: 'QA', label: 'QA' },
-              { value: 'TL', label: 'Team Leaders (TL)' },
-              { value: 'AGENT', label: 'Agents' },
-            ]}
-          />
-        </div>
+      {/* DIRECTORY FILTERS & TABLE */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 relative z-20">
+          {/* Role / Category Filter */}
+          <div>
+            <label className="text-[0.6rem] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+              <UserCog className="w-3.5 h-3.5 text-[#2F6798]" /> Role / Department Filter
+            </label>
+            <CustomSelect
+              value={selectedCategory}
+              onChange={val => setSelectedCategory(val)}
+              options={[
+                { value: 'All', label: 'All Roles / Departments' },
+                { value: 'TRAINER', label: 'Trainers' },
+                { value: 'TRAINEE', label: 'Trainees' },
+                { value: 'ADMIN', label: 'Admin' },
+                { value: 'QA', label: 'QA' },
+                { value: 'TL', label: 'Team Leaders (TL)' },
+                { value: 'AGENT', label: 'Agents' },
+              ]}
+            />
+          </div>
 
         {/* Status Filter */}
         <div>
@@ -643,10 +644,10 @@ export default function EmployeesClient({
             />
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* ALL EMPLOYEES TABLE WITH PAGINATION & MATCHING TRAINEES DIRECTORY DESIGN */}
-      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col">
+        {/* ALL EMPLOYEES TABLE WITH PAGINATION & MATCHING TRAINEES DIRECTORY DESIGN */}
+        <div className="border-t border-slate-200 dark:border-slate-700 flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <TableIcon className="w-4 h-4 text-[#2F6798] dark:text-[#5a9fd4]" />
@@ -870,6 +871,7 @@ export default function EmployeesClient({
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* ADD EMPLOYEE DRAWER */}

@@ -53,6 +53,21 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
       };
     }
 
+    const allowedTrainingRole = userRoleRecord?.role === 'HOT_ADMIN' || userRoleRecord?.role === 'TRAINER';
+    const trainerPosition = String(trainerProfile?.position || trainerProfile?.assigned_task || '').toUpperCase();
+    const isHeadOfTraining =
+      trainerPosition.includes('HEAD OF TRAINING') ||
+      trainerPosition.includes('HOT') ||
+      cleanEmail.includes('nreguero') ||
+      cleanEmail.includes('nissi');
+
+    if (!trainerProfile && !allowedTrainingRole && !isHeadOfTraining) {
+      return {
+        success: false,
+        message: 'Access denied: Training Performance Hub is restricted to trainers and Head of Training only.'
+      };
+    }
+
     // If regular employee, verify that employment status is ACTIVE (status_id === 1)
     if (empRecord && !trainerProfile && !userRoleRecord) {
       if (empRecord.status_id !== 1) {
@@ -101,14 +116,10 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
 
       if (position.includes('HEAD OF TRAINING') || position.includes('HOT')) {
         resolvedRole = 'HOT_ADMIN';
-      } else if (roleId === 5 || position.includes('ADMIN')) {
-        resolvedRole = 'SUPER_ADMIN';
-      } else if (roleId === 9 || position.includes('QA SUPERVISOR') || position.includes('QAS')) {
-        resolvedRole = 'QAS_ADMIN';
       } else if (trainerProfile || position.includes('TRAINER') || position.includes('TR')) {
         resolvedRole = 'TRAINER';
       } else {
-        resolvedRole = 'EMPLOYEE';
+        resolvedRole = 'UNAUTHORIZED';
       }
     }
 

@@ -131,7 +131,9 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     // 1. Explicit role assigned by admin in user_roles
     if (roleData?.role) {
-      effRole = roleData.role;
+      effRole = ['HOT_ADMIN', 'TRAINER'].includes(roleData.role)
+        ? roleData.role
+        : 'UNAUTHORIZED';
     }
     // 2. Head of Training (Ray and Nissi or HOT designation)
     else if (
@@ -145,7 +147,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
     ) {
       effRole = 'HOT_ADMIN';
     }
-    // 3. QA Team (QA Supervisor, QA Coach, QAC, Quality Assurance, QA staff)
+    // 3. QA Team belongs to the QA Tool, not the Training Performance Hub.
     else if (
       roleId === 9 || 
       pos.includes('QA') || 
@@ -164,7 +166,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       cleanName.startsWith('qa') ||
       cleanName.includes('quality assurance')
     ) {
-      effRole = 'QAS_ADMIN';
+      effRole = 'UNAUTHORIZED';
     }
     // 4. Admins
     else if (roleId === 5 || pos.includes('ADMIN') || pos.includes('SUPER ADMIN') || authUserMeta?.role === 'SUPER_ADMIN') {
