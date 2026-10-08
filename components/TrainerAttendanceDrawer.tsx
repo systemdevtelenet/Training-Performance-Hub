@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
-import { MONTH_ORDER } from '@/lib/analytics-utils';
+import { getTrainerStatusCode, isTrainerAttendanceLoss, MONTH_ORDER } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
 import { useRouter } from 'next/navigation';
 
@@ -15,6 +15,10 @@ export interface TrainerAttendanceRecord {
   day: number;
   weekday: string;
   status: string;
+  source?: 'WORKFORCE_PORTAL';
+  clockIn?: string | null;
+  clockOut?: string | null;
+  punchCount?: number;
 }
 
 export interface TrainerAttendanceData {
@@ -40,6 +44,19 @@ function getRateColor(rate: number) {
   return 'text-[#2F6798]';
 }
 
+function formatWorkforcePunchTime(rawValue?: string | null) {
+  if (!rawValue) return '--';
+  const raw = String(rawValue).trim();
+  const match = raw.match(/\s(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return raw;
+
+  const hour = Number(match[1]);
+  const minute = match[2];
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${period}`;
+}
+
 function getStatusPill(status: string) {
   const s = (status || '').trim().toUpperCase();
   switch (s) {
@@ -50,6 +67,16 @@ function getStatusPill(status: string) {
     case 'ABS':
     case 'ABSENT':
       return { label: 'A - Absent', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50' };
+    case 'L':
+    case 'LATE':
+      return { label: 'L - Late', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50' };
+    case 'U':
+    case 'UT':
+    case 'UND':
+    case 'UNDERTIME':
+      return { label: 'U - Undertime', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/50' };
+    case 'L/UND':
+      return { label: 'Late / Undertime', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/50' };
     case 'RD':
     case 'REST DAY':
       return { label: 'RD - Rest Day', color: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
@@ -281,9 +308,9 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
               <div className="space-y-2">
                 {grouped.map(({ month, records }) => {
                   const isExpanded = expandedQuarters.has(month);
-                  const mP = records.filter(r => r.status?.toUpperCase() === 'P').length;
-                  const mWorking = records.filter(r => !['RD', 'HOL'].includes(r.status?.toUpperCase())).length;
-                  const mRate = mWorking > 0 ? ((mP / mWorking) * 100).toFixed(1) : '100.0';
+                  const mWorking = records.filter(r => !['RD', 'HOL'].includes(getTrainerStatusCode(r.status))).length;
+                  const mLosses = records.filter(r => isTrainerAttendanceLoss(r.status)).length;
+                  const mRate = mWorking > 0 ? ((Math.max(0, mWorking - mLosses) / mWorking) * 100).toFixed(1) : '100.0';
 
                   return (
                     <div key={month} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
@@ -306,11 +333,12 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
                       </button>
                       {isExpanded && (
                         <div className="border-t border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
-                          <table className="w-full text-sm min-w-[320px]">
+                          <table className="w-full text-sm min-w-[520px]">
                             <thead className="bg-slate-100/50 dark:bg-slate-900/30 sticky top-0 z-10 backdrop-blur-sm">
                               <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                 <th className="text-left px-4 py-3 border-b border-slate-200 dark:border-slate-700">Date</th>
                                 <th className="text-left px-3 py-3 border-b border-slate-200 dark:border-slate-700">Day</th>
+                                <th className="text-left px-3 py-3 border-b border-slate-200 dark:border-slate-700">Workforce Punches</th>
                                 <th className="text-right px-4 py-3 border-b border-slate-200 dark:border-slate-700">Status</th>
                               </tr>
                             </thead>
@@ -321,6 +349,20 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
                                   <tr key={r.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
                                     <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{new Date(r.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
                                     <td className="px-3 py-3 font-medium text-slate-500 dark:text-slate-400">{r.weekday}</td>
+                                    <td className="px-3 py-3">
+                                      {r.source === 'WORKFORCE_PORTAL' ? (
+                                        <div className="space-y-0.5 whitespace-nowrap">
+                                          <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                            In {formatWorkforcePunchTime(r.clockIn)} &middot; Out {formatWorkforcePunchTime(r.clockOut)}
+                                          </p>
+                                          <p className="text-[9px] font-bold uppercase text-[#2F6798] dark:text-blue-400">
+                                            Workforce Portal &middot; {r.punchCount || 0} punches
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] font-semibold text-slate-400">Manual attendance</span>
+                                      )}
+                                    </td>
                                     <td className="px-4 py-3 text-right">
                                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs whitespace-nowrap ${pill.color}`}>
                                         {pill.label}

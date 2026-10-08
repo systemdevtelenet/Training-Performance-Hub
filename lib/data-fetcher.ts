@@ -1,7 +1,15 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import dummyPayload from '@/data/dashboard-mock.json'; // Fallback
-import { isTrainerMatch } from '@/lib/analytics-utils';
+import {
+  calculateAttrition,
+  calculateRosterAttrition,
+  getTrainerStatusCode,
+  isTrainerAttendanceLoss,
+  isTrainerMatch,
+  isTrainerReliabilityLoss,
+} from '@/lib/analytics-utils';
+import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
 
 // Create a standard client that doesn't access Next.js cookies
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -100,9 +108,12 @@ export const getDashboardData = async () => {
     });
 
     const totalEvaluatedTrainers = activeTrainers + trainerLosses;
-    const trainerAttritionRate = totalEvaluatedTrainers > 0
-      ? ((trainerLosses / totalEvaluatedTrainers) * 100).toFixed(1) + '%'
-      : '0.0%';
+    const trainerAttrition = calculateAttrition(
+      trainerLosses,
+      totalEvaluatedTrainers,
+      activeTrainers,
+    );
+    const trainerAttritionRate = trainerAttrition.formattedRate;
 
     const totalTrainees = inhouseList.length + pstList.length;
     const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'LATERAL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
@@ -195,7 +206,74 @@ export const getDashboardData = async () => {
     Object.keys(inhouseGroups).forEach(acc => Object.keys(inhouseGroups[acc]).forEach(b => batchSet.add(`IH-${acc}-${b}`)));
     Object.keys(pstGroups).forEach(acc => Object.keys(pstGroups[acc]).forEach(b => batchSet.add(`PST-${acc}-${b}`)));
 
-    const overallAttrition = totalTrainees > 0 ? ((totalLosses / totalTrainees) * 100).toFixed(1) + '%' : '0.0%';
+    const overallAttrition = calculateRosterAttrition(totalLosses, totalTrainees).formattedRate;
+
+    const trainerPerformance = await getTrainersData();
+    const trainerAttendanceGroups: Record<string, { members: any[] }> = {};
+    const trainerReliabilityGroups: Record<string, { members: any[] }> = {};
+    let totalTrainerAttendanceDays = 0;
+    let totalTrainerAttendanceLosses = 0;
+    let totalTrainerReliabilityPresent = 0;
+    let totalTrainerReliabilityLosses = 0;
+
+    const getQuarterFromMonth = (month: string) => {
+      const monthIndex = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ].findIndex(item => item.toLowerCase() === String(month || '').toLowerCase());
+      return monthIndex >= 0 ? `Q${Math.floor(monthIndex / 3) + 1}` : 'Unknown';
+    };
+
+    trainerPerformance.forEach((trainer: any) => {
+      const attendanceMembers: any[] = [];
+      const reliabilityMembers: any[] = [];
+
+      (trainer.timeline || []).forEach((record: any) => {
+        const statusCode = getTrainerStatusCode(record.status);
+        const month = record.month || 'Unknown';
+        const quarter = getQuarterFromMonth(month);
+
+        if (!['RD', 'HOL'].includes(statusCode)) {
+          const isAttendanceLoss = isTrainerAttendanceLoss(statusCode);
+          totalTrainerAttendanceDays++;
+          if (isAttendanceLoss) totalTrainerAttendanceLosses++;
+          attendanceMembers.push({
+            month,
+            quarter,
+            p: isAttendanceLoss ? 0 : 1,
+            a: isAttendanceLoss ? 1 : 0,
+          });
+        }
+
+        if (statusCode === 'P' || isTrainerReliabilityLoss(statusCode)) {
+          const isReliabilityLoss = isTrainerReliabilityLoss(statusCode);
+          if (statusCode === 'P') totalTrainerReliabilityPresent++;
+          if (isReliabilityLoss) totalTrainerReliabilityLosses++;
+          reliabilityMembers.push({
+            month,
+            quarter,
+            p: statusCode === 'P' ? 1 : 0,
+            a: 0,
+            losses: isReliabilityLoss ? 1 : 0,
+          });
+        }
+      });
+
+      if (attendanceMembers.length > 0) {
+        trainerAttendanceGroups[trainer.name] = { members: attendanceMembers };
+      }
+      if (reliabilityMembers.length > 0) {
+        trainerReliabilityGroups[trainer.name] = { members: reliabilityMembers };
+      }
+    });
+
+    const trainerAttendanceRate = totalTrainerAttendanceDays > 0
+      ? `${(((totalTrainerAttendanceDays - totalTrainerAttendanceLosses) / totalTrainerAttendanceDays) * 100).toFixed(1)}%`
+      : '100.0%';
+    const trainerReliabilityEvaluated = totalTrainerReliabilityPresent + totalTrainerReliabilityLosses;
+    const trainerReliabilityRate = trainerReliabilityEvaluated > 0
+      ? `${((totalTrainerReliabilityPresent / trainerReliabilityEvaluated) * 100).toFixed(1)}%`
+      : '100.0%';
 
     const transformed = JSON.parse(JSON.stringify(dummyPayload));
     transformed.metrics = {
@@ -208,12 +286,17 @@ export const getDashboardData = async () => {
     transformed.allTrainers = Array.from(trainerNamesSet).sort();
     transformed.inhouse.groups = inhouseGroups;
     transformed.pst.groups = pstGroups;
+    transformed.trainerAttendance.groups = trainerAttendanceGroups;
+    transformed.trainerReliability.groups = trainerReliabilityGroups;
     transformed.summary.trainersSummary = {
       headcount: activeTrainers,
+      startingHeadcount: trainerAttrition.startingHeadcount,
+      endingHeadcount: trainerAttrition.endingHeadcount,
+      averageHeadcount: trainerAttrition.averageHeadcount,
       totalLosses: trainerLosses,
       attritionRate: trainerAttritionRate,
-      attendanceRate: '87.0%',
-      reliabilityRate: '99.8%'
+      attendanceRate: trainerAttendanceRate,
+      reliabilityRate: trainerReliabilityRate
     };
 
     return transformed;
@@ -240,6 +323,35 @@ export const getTrainersData = async () => {
 
     if (profileError) {
       console.error('Error fetching trainers_profile:', profileError);
+    }
+
+    // Primary tasks belong to employees. Keep the legacy assigned_task fields
+    // only as a compatibility fallback while the database migration is applied.
+    const primaryTaskByEmployeeCode = new Map<string, string>();
+    const { data: trainerEmployees, error: employeesError } = await supabaseAdmin
+      .from('employees')
+      .select('id, employee_code');
+
+    if (employeesError) {
+      console.error('Error fetching employees for primary tasks:', employeesError);
+    } else {
+      const { data: primaryTasks, error: primaryTasksError } = await supabaseAdmin
+        .from('primary_tasks')
+        .select('employee_id, task_name');
+
+      if (primaryTasksError) {
+        console.warn('primary_tasks is not available yet; using legacy trainer task values.');
+      } else {
+        const taskByEmployeeId = new Map(
+          (primaryTasks || []).map((task: any) => [String(task.employee_id), task.task_name]),
+        );
+
+        (trainerEmployees || []).forEach((employee: any) => {
+          const task = taskByEmployeeId.get(String(employee.id));
+          const employeeCode = String(employee.employee_code || '').trim().toLowerCase();
+          if (task && employeeCode) primaryTaskByEmployeeCode.set(employeeCode, task);
+        });
+      }
     }
     
     // Map employee_num to trainers_profile row to get name, etc.
@@ -317,19 +429,19 @@ export const getTrainersData = async () => {
         });
 
         if (row.status && typeof row.status === 'string') {
-          const s = row.status.trim().toUpperCase();
+          const s = getTrainerStatusCode(row.status);
           const dText = row.attendance_date;
           
-          if (s === 'A' || s.includes('ABS')) current.records.ABS.push(dText);
-          else if (s.includes('SL')) current.records.SL.push(dText);
-          else if (s.includes('VL')) current.records.VL.push(dText);
-          else if (s.includes('BL')) current.records.BL.push(dText);
-          else if (s.includes('MED')) current.records.MED.push(dText);
-          else if (s.includes('SUS')) current.records.SUS.push(dText);
-          else if (s.includes('HOL')) current.records.HOL.push(dText);
-          else if (s.includes('ML')) current.records.ML.push(dText);
-          else if (s.includes('PL')) current.records.PL.push(dText);
-          else if (s.includes('UND') || s.includes('UT')) current.records.UND.push(dText);
+          if (s === 'ABS') current.records.ABS.push(dText);
+          else if (s === 'SL') current.records.SL.push(dText);
+          else if (s === 'VL') current.records.VL.push(dText);
+          else if (s === 'BL') current.records.BL.push(dText);
+          else if (s === 'MED') current.records.MED.push(dText);
+          else if (s === 'SUS') current.records.SUS.push(dText);
+          else if (s === 'HOL') current.records.HOL.push(dText);
+          else if (s === 'ML') current.records.ML.push(dText);
+          else if (s === 'PL') current.records.PL.push(dText);
+          else if (s === 'UND' || s === 'UT') current.records.UND.push(dText);
         }
       }
     }
@@ -368,13 +480,48 @@ export const getTrainersData = async () => {
 
     if (consolidatedTrainers.length === 0) return [];
 
+    const workforceAttendanceMap = await fetchWorkforceAttendance(
+      supabaseAdmin,
+      consolidatedTrainers.map((trainer: any) => String(trainer.employee_num || trainer.trainer_id || '')),
+    );
+
     const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'LATERAL', 'REPROFILED'];
 
     // Map DB rows to standard format
     const mapped = consolidatedTrainers.map(t => {
       const profile = profileMap.get(t.employee_num) || {};
       const trainerName = profile.name || t.name || 'Unknown';
-      const attRow = attendanceMap.get(t.trainer_id);
+      const legacyAttRow = attendanceMap.get(t.trainer_id) || attendanceMap.get(String(t.trainer_id));
+      const workforceTimeline = workforceAttendanceMap.get(String(t.employee_num || t.trainer_id || '').trim()) || [];
+      const timelineByDate = new Map<string, any>();
+
+      (legacyAttRow?.timeline || []).forEach((record: any) => {
+        if (record.date) timelineByDate.set(record.date, record);
+      });
+      workforceTimeline.forEach(record => timelineByDate.set(record.date, record));
+
+      const mergedTimeline = Array.from(timelineByDate.values())
+        .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+      const mergedRecords = { ABS: [] as string[], SL: [] as string[], VL: [] as string[], BL: [] as string[], MED: [] as string[], SUS: [] as string[], HOL: [] as string[], ML: [] as string[], PL: [] as string[], UND: [] as string[] };
+
+      mergedTimeline.forEach((record: any) => {
+        const status = getTrainerStatusCode(record.status);
+        const date = String(record.date || '');
+        if (status === 'ABS') mergedRecords.ABS.push(date);
+        else if (status === 'SL') mergedRecords.SL.push(date);
+        else if (status === 'VL') mergedRecords.VL.push(date);
+        else if (status === 'BL') mergedRecords.BL.push(date);
+        else if (status === 'MED') mergedRecords.MED.push(date);
+        else if (status === 'SUS') mergedRecords.SUS.push(date);
+        else if (status === 'HOL') mergedRecords.HOL.push(date);
+        else if (status === 'ML') mergedRecords.ML.push(date);
+        else if (status === 'PL') mergedRecords.PL.push(date);
+        else if (status === 'UND' || status === 'UT') mergedRecords.UND.push(date);
+      });
+
+      const attRow = mergedTimeline.length > 0
+        ? { timeline: mergedTimeline, records: mergedRecords }
+        : legacyAttRow;
       
       let leaves = { absence: 0, sl: 0, vl: 0, bl: 0, med: 0, sus: 0, hol: 0, ml: 0, pl: 0, und: 0, records: {} };
       let attendanceRate = '0.0%';
@@ -405,21 +552,17 @@ export const getTrainersData = async () => {
 
       if (attRow) {
         timeline = attRow.timeline;
-        totalPresent = attRow.timeline.filter((r: any) => (r.status || '').toUpperCase() === 'P').length;
-        
-        const lossCodes = ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'];
-        totalLosses = attRow.timeline.filter((r: any) => {
-          const s = (r.status || '').toUpperCase();
-          return lossCodes.some(lc => s.includes(lc));
-        }).length;
+        totalPresent = attRow.timeline.filter((r: any) => getTrainerStatusCode(r.status) === 'P').length;
+        totalLosses = attRow.timeline.filter((r: any) => isTrainerReliabilityLoss(r.status)).length;
 
         totalAbsent = leaves.absence;
         totalSus = leaves.sus;
         
-        // Calculate true attendance rate (Excused leaves like VL, SL, HOL do NOT penalize Attendance Rate)
-        const workingDays = attRow.timeline.filter((r: any) => !['RD', 'HOL'].includes((r.status || '').toUpperCase())).length;
+        // Attendance losses are ABS and SUS. Rest days and holidays are not scheduled attendance days.
+        const workingDays = attRow.timeline.filter((r: any) => !['RD', 'HOL'].includes(getTrainerStatusCode(r.status))).length;
+        const attendanceLosses = attRow.timeline.filter((r: any) => isTrainerAttendanceLoss(r.status)).length;
         if (workingDays > 0) {
-           attendanceRate = `${(((workingDays - leaves.absence) / workingDays) * 100).toFixed(1)}%`;
+           attendanceRate = `${((Math.max(0, workingDays - attendanceLosses) / workingDays) * 100).toFixed(1)}%`;
         }
 
         const totalEvaluated = totalPresent + totalLosses;
@@ -488,8 +631,8 @@ export const getTrainersData = async () => {
 
       const computedBatches = Object.values(batchMap).map(b => ({
         ...b,
-        attrition: b.headcount > 0 ? `${((b.losses / b.headcount) * 100).toFixed(1)}%` : '0.0%',
-        attritionRate: b.headcount > 0 ? `${((b.losses / b.headcount) * 100).toFixed(1)}%` : '0.0%',
+        attrition: calculateRosterAttrition(b.losses, b.headcount).formattedRate,
+        attritionRate: calculateRosterAttrition(b.losses, b.headcount).formattedRate,
         successRate: b.headcount > 0 ? `${((b.passed / b.headcount) * 100).toFixed(1)}%` : '0.0%',
       }));
 
@@ -500,7 +643,7 @@ export const getTrainersData = async () => {
       let avgAttrition = 'N/A';
       if (totalHeadcount > 0) {
         overallSuccess = `${((totalPassed / totalHeadcount) * 100).toFixed(1)}%`;
-        avgAttrition = `${((totalTraineeLosses / totalHeadcount) * 100).toFixed(1)}%`;
+        avgAttrition = calculateRosterAttrition(totalTraineeLosses, totalHeadcount).formattedRate;
       } else if (finalBatches && finalBatches.length > 0 && profile.success_rate !== undefined && profile.success_rate !== null) {
         overallSuccess = `${profile.success_rate}%`;
       }
@@ -522,7 +665,7 @@ export const getTrainersData = async () => {
           const profileAccs = (profile.accounts || '').split(/[,/|]/).map((s: string) => s.trim()).filter(Boolean);
           return Array.from(new Set([...profileAccs, ...traineeAccs])).filter(a => a.toLowerCase() !== 'n/a').join(', ') || profile.accounts || '';
         })(),
-        tasks: t.assigned_task || '',
+        tasks: primaryTaskByEmployeeCode.get(String(t.employee_num || '').trim().toLowerCase()) || t.assigned_task || profile.assigned_task || '',
         attendanceRate: attendanceRate,
         reliabilityRate: calculatedReliabilityRate,
         overallSuccess: overallSuccess,

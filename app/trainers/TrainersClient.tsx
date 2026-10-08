@@ -35,14 +35,18 @@ import {
 import { useSearchParams, useRouter } from 'next/navigation';
 import { TrainerAttendanceDrawer, type TrainerAttendanceData } from '@/components/TrainerAttendanceDrawer';
 import { TrainerReliabilityDrawer, type TrainerReliabilityData, getReliabilityStatus, getReliabilityRateColor } from '@/components/TrainerReliabilityDrawer';
+import {
+  calculateRosterAttrition,
+  getTrainerStatusCode,
+  isTrainerMatch,
+  isTrainerReliabilityLoss,
+} from '@/lib/analytics-utils';
 import { TrainerOffboardDrawer } from '@/components/TrainerOffboardDrawer';
 import { TrainerFormDrawer } from '@/components/TrainerFormDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
 import PageLoading from '@/components/PageLoading';
-
-import { isTrainerMatch } from '@/lib/analytics-utils';
 
 import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 
@@ -803,7 +807,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                   <div className="space-y-2.5">
                     {active.batches.map((b: any, idx: number) => {
                       const succRate = b.successRate || (b.headcount ? `${(((b.passed || 0) / b.headcount) * 100).toFixed(1)}%` : 'N/A');
-                      const attrRate = b.attritionRate || b.attrition || (b.headcount ? `${(((b.losses || 0) / b.headcount) * 100).toFixed(1)}%` : '0.0%');
+                      const attrRate = b.attritionRate || b.attrition || calculateRosterAttrition(b.losses || 0, b.headcount || 0).formattedRate;
                       const cleanBatchNum = b.batch ? `${b.batch}`.replace(/^(batch\s*|wave\s*)/i, '').trim() : `${idx + 1}`;
                       const trainerDisplay = b.trainees?.[0]?.assignedTrainer || active.name;
                       const batchKey = `${b.account || 'GENERAL'}-${b.batch || idx}`;
@@ -1095,8 +1099,6 @@ function AttendanceReliabilityView({
     return null;
   }, [userName, email, avatarUrl]);
 
-  const lossCodes = useMemo(() => ['SL', 'VL', 'ML', 'PL', 'SUS', 'MED', 'BL', 'ABS', 'A', 'UND', 'UT'], []);
-
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
     effectiveTrainers.forEach((t: any) => {
@@ -1120,7 +1122,7 @@ function AttendanceReliabilityView({
       const absence = t.leaves?.absence || 0;
       const und = t.leaves?.und || 0;
 
-      const losses = t.losses ?? (sl + vl + med + sus + ml + pl + bl + absence + und);
+      const losses = t.losses ?? (sl + vl + med + sus + hol + ml + pl + bl);
       const present = t.present || 0;
 
       // Group timeline by month
@@ -1144,10 +1146,10 @@ function AttendanceReliabilityView({
           });
         }
         const m = monthMap.get(r.month);
-        const s = (r.status || '').toUpperCase();
+        const s = getTrainerStatusCode(r.status);
         if (s === 'P') {
           m.p++;
-        } else if (lossCodes.some(lc => s.includes(lc))) {
+        } else if (isTrainerReliabilityLoss(s)) {
           m.a++;
           m.losses++;
         }
@@ -1167,12 +1169,12 @@ function AttendanceReliabilityView({
         attendanceRate: t.attendanceRate || '0.0%',
         reliabilityRate: t.reliabilityRate || '100.0%',
         timeline: t.timeline || [],
-        lossBreakdown: { sl, vl, other: med + sus + ml + pl + bl + und },
+        lossBreakdown: { sl, vl, other: med + sus + hol + ml + pl + bl },
         monthlyTimeline: Array.from(monthMap.values()),
         leaves: t.leaves || {}
       };
     });
-  }, [initialTrainers, lossCodes]);
+  }, [initialTrainers]);
 
   const getAttendanceStatus = useCallback((rate: number) => {
     if (rate >= 95) return { label: 'Excellent', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50', dot: 'bg-emerald-500' };

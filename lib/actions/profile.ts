@@ -66,6 +66,19 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       .or(`employee_email.ilike.${cleanEmail}${empNum ? `,employee_code.eq."${empNum}"` : ''}`)
       .maybeSingle();
 
+    // The normalized primary_tasks row is authoritative when it exists.
+    // Falling back keeps profiles usable until the migration is applied.
+    let normalizedPrimaryTask: string | null = null;
+    if (empData?.id) {
+      const { data: primaryTaskData, error: primaryTaskError } = await supabaseAdmin
+        .from('primary_tasks')
+        .select('task_name')
+        .eq('employee_id', empData.id)
+        .maybeSingle();
+
+      if (!primaryTaskError) normalizedPrimaryTask = primaryTaskData?.task_name || null;
+    }
+
     // 5. Fetch auth user metadata from Supabase Auth
     let authUserMeta: any = null;
     try {
@@ -196,7 +209,6 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
     // Dynamic position title from database or role title
     const resolvedPosition = (
       (trainerData?.position && trainerData.position !== 'N/A') ? trainerData.position :
-      (trainerData?.assigned_task && trainerData.assigned_task !== 'N/A') ? trainerData.assigned_task :
       (trainerRow?.pos && trainerRow.pos !== 'N/A') ? trainerRow.pos :
       (empData?.position && empData.position !== 'N/A') ? empData.position :
       (authUserMeta?.position && authUserMeta.position !== 'N/A') ? authUserMeta.position :
@@ -207,6 +219,13 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
        effRole === 'TRAINER' ? 'Trainer' :
        effRole === 'TRAINEE' ? 'Trainee' :
        effRole === 'UNAUTHORIZED' ? 'Unauthorized Employee' : 'Employee')
+    );
+
+    const resolvedPrimaryTask = (
+      normalizedPrimaryTask ||
+      ((trainerData?.assigned_task && trainerData.assigned_task !== 'N/A') ? trainerData.assigned_task : null) ||
+      ((trainerRow?.assigned_task && trainerRow.assigned_task !== 'N/A') ? trainerRow.assigned_task : null) ||
+      'N/A'
     );
 
     // Parse Name Parts
@@ -261,7 +280,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
         employeeId: String(trainerData?.employee_num || trainerRow?.employee_num || empData?.employee_code || (cleanEmail.includes('ralasagas') ? '1008' : 'N/A')),
         startDate: String(trainerData?.start_date || trainerRow?.start_date || empData?.hire_date || 'N/A'),
         accounts: String(trainerData?.accounts || (Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'Quality Assurance'),
-        primaryTask: resolvedPosition,
+        primaryTask: resolvedPrimaryTask,
         firstName: fName || 'User',
         middleName: mName || 'N/A',
         lastName: lName || '',

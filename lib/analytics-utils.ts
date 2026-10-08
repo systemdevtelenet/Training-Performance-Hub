@@ -19,7 +19,75 @@ export interface BatchGroup {
   p?: number;
   a?: number;
   attritionRate?: string;
+  startingHeadcount?: number;
+  endingHeadcount?: number;
+  averageHeadcount?: number;
   attRate?: string;
+}
+
+export function calculateAttrition(
+  losses: number,
+  startingHeadcount: number,
+  endingHeadcount: number,
+) {
+  const safeLosses = Math.max(0, losses || 0);
+  const safeStarting = Math.max(0, startingHeadcount || 0);
+  const safeEnding = Math.max(0, endingHeadcount || 0);
+  const averageHeadcount = (safeStarting + safeEnding) / 2;
+  const rate = averageHeadcount > 0 ? (safeLosses / averageHeadcount) * 100 : 0;
+
+  return {
+    startingHeadcount: safeStarting,
+    endingHeadcount: safeEnding,
+    averageHeadcount,
+    rate,
+    formattedRate: `${rate.toFixed(1)}%`,
+  };
+}
+
+// Current roster tables contain the period's starting population and its losses.
+export function calculateRosterAttrition(losses: number, startingHeadcount: number) {
+  return calculateAttrition(
+    losses,
+    startingHeadcount,
+    Math.max(0, startingHeadcount - losses),
+  );
+}
+
+export const TRAINER_ATTENDANCE_LOSS_CODES = new Set(['ABS', 'SUS']);
+export const TRAINER_RELIABILITY_LOSS_CODES = new Set(['SL', 'VL', 'ML', 'PL', 'HOL', 'SUS', 'MED', 'BL']);
+
+export function getTrainerStatusCode(status?: string): string {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (!normalized) return '';
+
+  const aliases: Record<string, string> = {
+    A: 'ABS',
+    ABSENT: 'ABS',
+    ABSENCE: 'ABS',
+    PRESENT: 'P',
+    HOLIDAY: 'HOL',
+    SUSPENSION: 'SUS',
+    'REST DAY': 'RD',
+    'SICK LEAVE': 'SL',
+    'VACATION LEAVE': 'VL',
+    'MATERNITY LEAVE': 'ML',
+    'PATERNITY LEAVE': 'PL',
+    'BEREAVEMENT LEAVE': 'BL',
+    MEDICAL: 'MED',
+  };
+
+  if (aliases[normalized]) return aliases[normalized];
+  const firstToken = normalized.split(/[^A-Z]+/)[0];
+  return aliases[firstToken] || firstToken;
+}
+
+export function isTrainerAttendanceLoss(status?: string) {
+  return TRAINER_ATTENDANCE_LOSS_CODES.has(getTrainerStatusCode(status));
+}
+
+export function isTrainerReliabilityLoss(status?: string) {
+  return TRAINER_RELIABILITY_LOSS_CODES.has(getTrainerStatusCode(status));
 }
 
 export interface Trainer {
@@ -236,8 +304,11 @@ export function getFilteredData(
         group.p = totalP;
         group.a = totalA;
 
-        const lossRate = group.totalCount > 0 ? (group.losses / group.totalCount) * 100 : 0;
-        group.attritionRate = lossRate.toFixed(1) + '%';
+        const attrition = calculateRosterAttrition(group.losses, group.totalCount);
+        group.startingHeadcount = attrition.startingHeadcount;
+        group.endingHeadcount = attrition.endingHeadcount;
+        group.averageHeadcount = attrition.averageHeadcount;
+        group.attritionRate = attrition.formattedRate;
         
         const totalAttRecords = group.p + group.a;
         const attendanceRate = totalAttRecords > 0 ? (group.p / totalAttRecords) * 100 : 100.0; 
@@ -293,7 +364,8 @@ export function getFilteredData(
     }
   }
 
-  const calcRate = (l: number, t: number) => t > 0 ? ((l / t) * 100).toFixed(1) + '%' : '0.0%';
+  const calcRate = (losses: number, startingHeadcount: number) =>
+    calculateRosterAttrition(losses, startingHeadcount).formattedRate;
   
   const tAttTotal = trainerAttP + trainerAttA;
   const tAttRate = tAttTotal > 0 ? ((trainerAttP / tAttTotal) * 100).toFixed(1) + '%' : '100.0%';
@@ -317,7 +389,7 @@ export function getFilteredData(
       },
       totalHeadcount: totalOperationalHeadcount,
       totalLosses: summaryStats.global.losses,
-      globalRate: totalOperationalHeadcount > 0 ? ((summaryStats.global.losses / totalOperationalHeadcount) * 100).toFixed(1) + '%' : '0.0%',
+      globalRate: calcRate(summaryStats.global.losses, totalOperationalHeadcount),
       trainersSummary: {
         headcount: data.summary?.trainersSummary?.headcount ?? (data.trainers ? Object.keys(data.trainers).length : uniqueTrainersSet.size) ?? 14,
         totalLosses: data.summary?.trainersSummary?.totalLosses ?? 0,
@@ -330,21 +402,34 @@ export function getFilteredData(
   return filtered;
 }
 
+function createOfficialTrendPoint(period: string, headcount: number, losses: number, attendanceRate: string) {
+  const attrition = calculateRosterAttrition(losses, headcount);
+  return {
+    period,
+    activeHC: headcount,
+    headcount,
+    losses,
+    attritionNum: parseFloat(attrition.rate.toFixed(1)),
+    attritionRate: attrition.formattedRate,
+    attendanceRate,
+  };
+}
+
 export const OFFICIAL_MONTHLY_OVERALL = [
-  { period: 'January', activeHC: 46, headcount: 46, losses: 6, attritionNum: 13.0, attritionRate: '13.0%', attendanceRate: '92.8%' },
-  { period: 'February', activeHC: 32, headcount: 32, losses: 3, attritionNum: 9.4, attritionRate: '9.4%', attendanceRate: '97.2%' },
-  { period: 'March', activeHC: 16, headcount: 16, losses: 3, attritionNum: 18.8, attritionRate: '18.8%', attendanceRate: '83.8%' },
-  { period: 'April', activeHC: 39, headcount: 39, losses: 6, attritionNum: 15.4, attritionRate: '15.4%', attendanceRate: '97.3%' },
-  { period: 'May', activeHC: 19, headcount: 19, losses: 1, attritionNum: 5.3, attritionRate: '5.3%', attendanceRate: '95.5%' },
-  { period: 'June', activeHC: 38, headcount: 38, losses: 2, attritionNum: 5.3, attritionRate: '5.3%', attendanceRate: '98.5%' },
-  { period: 'July', activeHC: 40, headcount: 40, losses: 3, attritionNum: 7.5, attritionRate: '7.5%', attendanceRate: '97.0%' },
-  { period: 'August', activeHC: 16, headcount: 16, losses: 2, attritionNum: 12.5, attritionRate: '12.5%', attendanceRate: '92.0%' },
+  createOfficialTrendPoint('January', 46, 6, '92.8%'),
+  createOfficialTrendPoint('February', 32, 3, '97.2%'),
+  createOfficialTrendPoint('March', 16, 3, '83.8%'),
+  createOfficialTrendPoint('April', 39, 6, '97.3%'),
+  createOfficialTrendPoint('May', 19, 1, '95.5%'),
+  createOfficialTrendPoint('June', 38, 2, '98.5%'),
+  createOfficialTrendPoint('July', 40, 3, '97.0%'),
+  createOfficialTrendPoint('August', 16, 2, '92.0%'),
 ];
 
 export const OFFICIAL_QUARTERLY_OVERALL = [
-  { period: 'Q1', activeHC: 77, headcount: 77, losses: 12, attritionNum: 15.6, attritionRate: '15.6%', attendanceRate: '95.7%' },
-  { period: 'Q2', activeHC: 79, headcount: 79, losses: 9, attritionNum: 11.4, attritionRate: '11.4%', attendanceRate: '97.7%' },
-  { period: 'Q3', activeHC: 47, headcount: 47, losses: 5, attritionNum: 10.6, attritionRate: '10.6%', attendanceRate: '97.1%' },
+  createOfficialTrendPoint('Q1', 77, 12, '95.7%'),
+  createOfficialTrendPoint('Q2', 79, 9, '97.7%'),
+  createOfficialTrendPoint('Q3', 47, 5, '97.1%'),
 ];
 
 export function generateTrendAnalytics(rawData: any, filters: { month: string; quarter: string; search: string }) {
@@ -381,7 +466,7 @@ export function generateTrendAnalytics(rawData: any, filters: { month: string; q
       const losses = activeMembers.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.toLowerCase().slice(0, 3))).length;
       const p = activeMembers.reduce((sum, t) => sum + (t.p || 0), 0);
       const a = activeMembers.reduce((sum, t) => sum + (t.a || 0), 0);
-      const attrNum = hc > 0 ? parseFloat(((losses / hc) * 100).toFixed(1)) : 0.0;
+      const attrNum = parseFloat(calculateRosterAttrition(losses, hc).rate.toFixed(1));
       const totalAtt = p + a;
       const attNum = totalAtt > 0 ? parseFloat(((p / totalAtt) * 100).toFixed(1)) : 100.0;
       return {
@@ -403,7 +488,7 @@ export function generateTrendAnalytics(rawData: any, filters: { month: string; q
       const losses = activeMembers.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q)).length;
       const p = activeMembers.reduce((sum, t) => sum + (t.p || 0), 0);
       const a = activeMembers.reduce((sum, t) => sum + (t.a || 0), 0);
-      const attrNum = hc > 0 ? parseFloat(((losses / hc) * 100).toFixed(1)) : 0.0;
+      const attrNum = parseFloat(calculateRosterAttrition(losses, hc).rate.toFixed(1));
       const totalAtt = p + a;
       const attNum = totalAtt > 0 ? parseFloat(((p / totalAtt) * 100).toFixed(1)) : 100.0;
       return {
@@ -508,7 +593,7 @@ export function generateAccountMetrics(rawData: any, filters: any) {
       losses: item.losses,
       ongoing: item.ongoing,
       traineesList: item.trainees,
-      attritionRate: item.headcount > 0 ? ((item.losses / item.headcount) * 100).toFixed(1) + '%' : '0.0%',
+      attritionRate: calculateRosterAttrition(item.losses, item.headcount).formattedRate,
       attendanceRate: totalAtt > 0 ? ((item.p / totalAtt) * 100).toFixed(1) + '%' : '100.0%'
     };
   });

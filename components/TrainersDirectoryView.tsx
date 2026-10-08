@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Card, Badge } from '@tremor/react';
 import { Camera, Calendar, Award, ClipboardList } from 'lucide-react';
-import { isTrainerMatch } from '@/lib/analytics-utils';
+import { calculateRosterAttrition, isTrainerMatch } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
 
 export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filters: any }) {
@@ -65,7 +65,8 @@ export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filt
         if (assignedMembers.length > 0) {
           const hc = assignedMembers.length;
           const losses = assignedMembers.filter((m: any) => m.isLoss).length;
-          const attrNum = hc > 0 ? (losses / hc) * 100 : 0;
+          const attrition = calculateRosterAttrition(losses, hc);
+          const attrNum = attrition.rate;
           const successNum = 100 - attrNum;
 
           handledBatches.push({
@@ -74,7 +75,7 @@ export function TrainersDirectoryView({ rawData, filters }: { rawData: any; filt
             batch: bName,
             headcount: hc,
             losses,
-            attritionRate: attrNum.toFixed(1) + '%',
+            attritionRate: attrition.formattedRate,
             successRate: successNum.toFixed(1) + '%',
             successNum,
             members: assignedMembers

@@ -14,6 +14,7 @@ import {
 import { DrawerTrainee, TraineeDetailDrawer } from './TraineeDetailDrawer';
 import { useToast } from '@/components/CustomToast';
 import { useRole } from '@/components/providers/RoleProvider';
+import { calculateRosterAttrition } from '@/lib/analytics-utils';
 
 export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; rawData: any; filters: any }) {
   const router = useRouter();
@@ -175,7 +176,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
         if (ongoingCount > 0) {
           const hc = group.members.length;
           const losses = group.members.filter((m: any) => m.isLoss).length;
-          const attritionRate = hc > 0 ? ((losses / hc) * 100).toFixed(1) + '%' : '0.0%';
+          const attritionRate = calculateRosterAttrition(losses, hc).formattedRate;
 
           let totalP = 0, totalA = 0;
           group.members.forEach((m: any) => { totalP += (m.p || 0); totalA += (m.a || 0); });

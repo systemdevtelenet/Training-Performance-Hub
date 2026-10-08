@@ -522,6 +522,7 @@ export function AttendanceCalendarView({
   const [activeNoteTrainee, setActiveNoteTrainee] = useState<TraineeAttendanceItem | null>(null);
   const [activeNoteDate, setActiveNoteDate] = useState<string | null>(null);
   const [tempNoteText, setTempNoteText] = useState<string>('');
+  const [noteMode, setNoteMode] = useState<'view' | 'edit'>('view');
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -932,13 +933,19 @@ export function AttendanceCalendarView({
   };
 
   // Open note modal
-  const handleOpenNoteModal = (trainee: TraineeAttendanceItem, dateStr?: string) => {
+  const handleOpenNoteModal = (trainee: TraineeAttendanceItem, dateStr?: string, mode: 'view' | 'edit' = 'view') => {
     const targetDate = dateStr || selectedDate;
     const key = `${targetDate}___${trainee.name.trim().toLowerCase()}`;
     const record = dailyRecordsMap[key];
-    setActiveNoteTrainee(trainee);
+    setActiveNoteTrainee({
+      ...trainee,
+      notes: record?.notes || (targetDate === selectedDate ? trainee.notes : '') || '',
+      updatedAt: record?.updatedAt || trainee.updatedAt,
+      updatedBy: record?.updatedBy || trainee.updatedBy,
+    });
     setActiveNoteDate(targetDate);
     setTempNoteText(record?.notes || (targetDate === selectedDate ? trainee.notes : '') || '');
+    setNoteMode(mode);
   };
 
   // Save Reason Note
@@ -1827,7 +1834,7 @@ export function AttendanceCalendarView({
                               <div className="flex items-center gap-2 group">
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenNoteModal(trainee)}
+                                  onClick={() => handleOpenNoteModal(trainee, undefined, 'view')}
                                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#2F6798] text-white border border-[#2F6798] hover:bg-[#25537b] transition-all max-w-[220px] text-left truncate cursor-pointer shadow-xs"
                                   title={trainee.notes}
                                 >
@@ -1837,7 +1844,7 @@ export function AttendanceCalendarView({
                                 {isTrainer && (
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenNoteModal(trainee)}
+                                    onClick={() => handleOpenNoteModal(trainee, undefined, 'edit')}
                                     className="p-1 text-slate-400 hover:text-[#2F6798] transition-colors rounded"
                                     title="Edit note"
                                   >
@@ -1848,7 +1855,7 @@ export function AttendanceCalendarView({
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => handleOpenNoteModal(trainee)}
+                                onClick={() => isTrainer && handleOpenNoteModal(trainee, undefined, 'edit')}
                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
                                   isTrainer
                                     ? 'bg-[#2F6798] hover:bg-[#25537b] active:bg-[#1e4466] text-white border-[#2F6798] shadow-xs cursor-pointer'
@@ -2128,7 +2135,11 @@ export function AttendanceCalendarView({
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isAdmin && !isTrainer) {
-                                      showToast('Admin Mode is Read-Only. Only trainers can modify trainee attendance tags.', 'info');
+                                      if (hasNote) {
+                                        handleOpenNoteModal(trainee, day.iso, 'view');
+                                      } else {
+                                        showToast('No reason note was recorded for this attendance entry.', 'info');
+                                      }
                                       return;
                                     }
                                     const rect = e.currentTarget.getBoundingClientRect();
@@ -2139,12 +2150,12 @@ export function AttendanceCalendarView({
                                       y: rect.bottom + 6
                                     });
                                   }}
-                                  title={`${trainee.name} - ${day.iso}${tagMatch ? `: ${tagMatch.label}` : ': Untagged'}${hasNote ? ` | Note: "${record.notes}"` : ''} (Click to open dropdown)`}
+                                  title={`${trainee.name} - ${day.iso}${tagMatch ? `: ${tagMatch.label}` : ': Untagged'}${hasNote ? ` | Note: "${record.notes}"` : ''}${isAdmin && !isTrainer ? (hasNote ? ' (Click to view note)' : '') : ' (Click to open dropdown)'}`}
                                   className={`w-7 h-7 mx-auto rounded-[7px] text-[11px] font-black border transition-all flex items-center justify-center relative ${
                                     tagMatch
                                       ? `${tagMatch.color} shadow-2xs hover:scale-110 active:scale-95 cursor-pointer`
                                       : isAdmin && !isTrainer
-                                      ? 'bg-transparent text-slate-200 dark:text-slate-700 border-transparent cursor-default'
+                                      ? `bg-transparent text-slate-200 dark:text-slate-700 border-transparent ${hasNote ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/20' : 'cursor-default'}`
                                       : 'bg-white dark:bg-slate-800 text-slate-300 dark:text-slate-600 border border-slate-200/70 dark:border-slate-700 hover:border-[#2F6798] hover:bg-slate-50 dark:hover:bg-slate-700/40 hover:text-slate-500 cursor-pointer'
                                   }`}
                                 >
@@ -2310,7 +2321,7 @@ export function AttendanceCalendarView({
               </div>
 
               {/* Quick Preset Reasons */}
-              {isTrainer && (
+              {isTrainer && noteMode === 'edit' && (
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2.5 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-[#2F6798]" /> Quick Reason Presets:
@@ -2330,24 +2341,25 @@ export function AttendanceCalendarView({
                 </div>
               )}
 
-              {/* Detailed Reason Textarea */}
+              {/* Reason note content */}
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2 flex items-center justify-between">
-                  <span>Detailed Reason / Comments:</span>
-                  {isTrainer && <span className="text-[10px] font-normal text-slate-400">Click a preset above or type custom</span>}
+                  <span>{noteMode === 'view' ? 'Reason Note:' : 'Detailed Reason / Comments:'}</span>
+                  {isTrainer && noteMode === 'edit' && <span className="text-[10px] font-normal text-slate-400">Click a preset above or type custom</span>}
                 </label>
-                <textarea
-                  value={tempNoteText}
-                  onChange={e => setTempNoteText(e.target.value)}
-                  readOnly={isAdmin && !isTrainer}
-                  placeholder={
-                    isTrainer
-                      ? "Enter the specific reason for late, absence, undertime, or status change..."
-                      : "No notes recorded by trainer."
-                  }
-                  rows={5}
-                  className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 p-3.5 text-xs font-medium text-slate-800 dark:text-slate-100 outline-none transition-all placeholder:text-slate-400 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-inner leading-relaxed"
-                />
+                {noteMode === 'view' ? (
+                  <div className="min-h-32 w-full rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-800/50 p-4 text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                    {tempNoteText.trim() || 'No reason note has been recorded for this attendance entry.'}
+                  </div>
+                ) : (
+                  <textarea
+                    value={tempNoteText}
+                    onChange={e => setTempNoteText(e.target.value)}
+                    placeholder="Enter the specific reason for late, absence, undertime, or status change..."
+                    rows={5}
+                    className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 p-3.5 text-xs font-medium text-slate-800 dark:text-slate-100 outline-none transition-all placeholder:text-slate-400 focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 shadow-inner leading-relaxed"
+                  />
+                )}
               </div>
 
               {/* Author & Timestamp Info */}
@@ -2369,10 +2381,21 @@ export function AttendanceCalendarView({
                 }}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
-                {isAdmin && !isTrainer ? 'Close' : 'Cancel'}
+                {noteMode === 'view' ? 'Close' : 'Cancel'}
               </button>
 
-              {isTrainer && (
+              {isTrainer && noteMode === 'view' && (
+                <button
+                  type="button"
+                  onClick={() => setNoteMode('edit')}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#2F6798] hover:bg-[#24527a] text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Note</span>
+                </button>
+              )}
+
+              {isTrainer && noteMode === 'edit' && (
                 <button
                   type="button"
                   onClick={handleSaveNote}
@@ -2406,11 +2429,11 @@ export function AttendanceCalendarView({
           <div
             style={{
               position: 'fixed',
-              left: `${popoverAnchor.x}px`,
-              top: `${Math.min(window.innerHeight - 280, popoverAnchor.y)}px`,
-              transform: 'translateX(-50%)'
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)'
             }}
-            className="w-60 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700 p-3 z-50 animate-in fade-in zoom-in-95 duration-150"
+            className="w-64 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700 p-3 z-50 animate-in fade-in zoom-in-95 duration-150"
             onClick={e => e.stopPropagation()}
           >
             {/* Header with trainee info and date */}
@@ -2485,25 +2508,58 @@ export function AttendanceCalendarView({
               </button>
             </div>
 
-            {/* Note Divider & Note Action */}
+            {/* Note Divider & Note Actions */}
             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  const t = popoverAnchor.trainee;
-                  const d = popoverAnchor.date;
-                  setPopoverAnchor(null);
-                  handleOpenNoteModal(t, d);
-                }}
-                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>
-                  {dailyRecordsMap[`${popoverAnchor.date}___${popoverAnchor.trainee.name.trim().toLowerCase()}`]?.notes
-                    ? 'View / Edit Reason Note'
-                    : '+ Add Reason Note'}
-                </span>
-              </button>
+              {dailyRecordsMap[`${popoverAnchor.date}___${popoverAnchor.trainee.name.trim().toLowerCase()}`]?.notes ? (
+                <div className={`grid gap-2 ${isTrainer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = popoverAnchor.trainee;
+                      const d = popoverAnchor.date;
+                      setPopoverAnchor(null);
+                      handleOpenNoteModal(t, d, 'view');
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-[#2F6798]/30 bg-white dark:bg-slate-900 text-[#2F6798] dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Note</span>
+                  </button>
+                  {isTrainer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const t = popoverAnchor.trainee;
+                        const d = popoverAnchor.date;
+                        setPopoverAnchor(null);
+                        handleOpenNoteModal(t, d, 'edit');
+                      }}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Note</span>
+                    </button>
+                  )}
+                </div>
+              ) : isTrainer ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = popoverAnchor.trainee;
+                    const d = popoverAnchor.date;
+                    setPopoverAnchor(null);
+                    handleOpenNoteModal(t, d, 'edit');
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Add Reason Note</span>
+                </button>
+              ) : (
+                <div className="py-2 px-3 text-center text-xs font-semibold text-slate-400">
+                  No reason note recorded
+                </div>
+              )}
             </div>
           </div>
         </div>,

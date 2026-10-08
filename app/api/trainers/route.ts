@@ -90,8 +90,7 @@ export async function POST(req: Request) {
       accounts: accountsString,
       gmail_account: cleanEmail,
       thunderbird_account: cleanEmail,
-      profile_pic: profilePic || null,
-      assigned_task: assignedTask || `${cleanPosition} Duties`
+      profile_pic: profilePic || null
     };
 
     const { data: newTrainerProfile, error: tpInsertErr } = await supabase
@@ -118,7 +117,35 @@ export async function POST(req: Request) {
         role_id: roleId
       };
 
-      await supabase.from('employees').insert([empPayload]);
+      const { error: employeeInsertError } = await supabase.from('employees').insert([empPayload]);
+      if (employeeInsertError) {
+        console.warn('Could not insert employee row; looking for an existing employee:', employeeInsertError.message);
+      }
+
+      const employeeLookup = cleanEmail
+        ? `employee_code.eq."${cleanCode}",employee_email.ilike.${cleanEmail}`
+        : `employee_code.eq."${cleanCode}"`;
+      const { data: employee } = await supabase
+        .from('employees')
+        .select('id')
+        .or(employeeLookup)
+        .limit(1)
+        .maybeSingle();
+
+      const cleanAssignedTask = String(assignedTask || '').trim();
+      if (employee?.id && cleanAssignedTask && cleanAssignedTask.toLowerCase() !== 'task') {
+        const { error: primaryTaskError } = await supabase
+          .from('primary_tasks')
+          .upsert([{
+            employee_id: employee.id,
+            task_name: cleanAssignedTask,
+            updated_at: new Date().toISOString()
+          }], { onConflict: 'employee_id' });
+
+        if (primaryTaskError) {
+          console.warn('Could not save primary task:', primaryTaskError.message);
+        }
+      }
     } catch (empErr) {
       console.warn('Could not insert to employees table (optional sync):', empErr);
     }
@@ -130,8 +157,7 @@ export async function POST(req: Request) {
         position: cleanPosition,
         status: status.toUpperCase(),
         start_date: cleanStartDate,
-        profile_pic: profilePic || null,
-        assigned_task: assignedTask || `${cleanPosition} Duties`
+        profile_pic: profilePic || null
       }]);
     } catch (trErr) {
       console.warn('Could not insert into trainers table (optional sync):', trErr);

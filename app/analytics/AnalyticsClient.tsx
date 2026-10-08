@@ -17,15 +17,21 @@ import {
 } from 'recharts';
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 import { supabase } from '@/lib/supabase';
-import { matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
+import { calculateRosterAttrition, matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+const applyAverageHeadcountAttrition = <T extends { activeHC: number; losses: number }>(points: T[]) =>
+  points.map(point => ({
+    ...point,
+    attritionRate: parseFloat(calculateRosterAttrition(point.losses, point.activeHC).rate.toFixed(1)),
+  }));
+
 // Default benchmark data matching user's official records with exact attendance tallies
-const defaultMonthlyInhouse = [
+const defaultMonthlyInhouse = applyAverageHeadcountAttrition([
   { period: 'January', activeHC: 22, losses: 4, attritionRate: 18.2, attendanceRate: 81.8, sumP: 18, sumA: 4 },
   { period: 'February', activeHC: 17, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 15, sumA: 0 },
   { period: 'March', activeHC: 2, losses: 1, attritionRate: 50.0, attendanceRate: 66.7, sumP: 2, sumA: 1 },
@@ -34,9 +40,9 @@ const defaultMonthlyInhouse = [
   { period: 'June', activeHC: 9, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 18, sumA: 0 },
   { period: 'July', activeHC: 15, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 30, sumA: 0 },
   { period: 'August', activeHC: 3, losses: 1, attritionRate: 33.3, attendanceRate: 85.7, sumP: 6, sumA: 1 },
-];
+]);
 
-const defaultMonthlyPst = [
+const defaultMonthlyPst = applyAverageHeadcountAttrition([
   { period: 'January', activeHC: 24, losses: 2, attritionRate: 8.3, attendanceRate: 94.2, sumP: 163, sumA: 10 },
   { period: 'February', activeHC: 15, losses: 3, attritionRate: 20.0, attendanceRate: 96.7, sumP: 89, sumA: 3 },
   { period: 'March', activeHC: 14, losses: 2, attritionRate: 14.3, attendanceRate: 85.3, sumP: 29, sumA: 5 },
@@ -45,25 +51,25 @@ const defaultMonthlyPst = [
   { period: 'June', activeHC: 29, losses: 2, attritionRate: 6.9, attendanceRate: 98.5, sumP: 319, sumA: 5 },
   { period: 'July', activeHC: 25, losses: 3, attritionRate: 12.0, attendanceRate: 96.7, sumP: 357, sumA: 12 },
   { period: 'August', activeHC: 13, losses: 1, attritionRate: 7.7, attendanceRate: 93.0, sumP: 40, sumA: 3 },
-];
+]);
 
-const defaultQuarterlyInhouse = [
+const defaultQuarterlyInhouse = applyAverageHeadcountAttrition([
   { period: 'Q1', activeHC: 41, losses: 5, attritionRate: 12.2, attendanceRate: 92.0, sumP: 35, sumA: 5 },
   { period: 'Q2', activeHC: 20, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 37, sumA: 0 },
   { period: 'Q3', activeHC: 18, losses: 1, attritionRate: 5.6, attendanceRate: 97.3, sumP: 36, sumA: 1 },
-];
+]);
 
-const defaultQuarterlyPst = [
+const defaultQuarterlyPst = applyAverageHeadcountAttrition([
   { period: 'Q1', activeHC: 36, losses: 7, attritionRate: 19.4, attendanceRate: 93.4, sumP: 281, sumA: 18 },
   { period: 'Q2', activeHC: 59, losses: 9, attritionRate: 15.3, attendanceRate: 97.5, sumP: 1123, sumA: 29 },
   { period: 'Q3', activeHC: 29, losses: 4, attritionRate: 13.8, attendanceRate: 96.2, sumP: 383, sumA: 15 },
-];
+]);
 
-const defaultQuarterlyOverall = [
+const defaultQuarterlyOverall = applyAverageHeadcountAttrition([
   { period: 'Q1', activeHC: 77, losses: 12, attritionRate: 15.6, attendanceRate: 93.2, sumP: 316, sumA: 23 },
   { period: 'Q2', activeHC: 79, losses: 9, attritionRate: 11.4, attendanceRate: 97.6, sumP: 1160, sumA: 29 },
   { period: 'Q3', activeHC: 47, losses: 5, attritionRate: 10.6, attendanceRate: 96.3, sumP: 419, sumA: 16 },
-];
+]);
 
 function computeTrendsFromData(data: any) {
   if (!data?.inhouse?.groups && !data?.pst?.groups) return null;
@@ -109,7 +115,7 @@ function computeTrendsFromData(data: any) {
     const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
     const activeHC = inhouseM.length;
     const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
     const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -120,7 +126,7 @@ function computeTrendsFromData(data: any) {
     const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
     const activeHC = pstM.length;
     const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
     const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -137,7 +143,7 @@ function computeTrendsFromData(data: any) {
     const inhouseQ = allInhouse.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
     const activeHC = inhouseQ.length;
     const losses = inhouseQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
-    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = inhouseQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseQ.reduce((acc, t) => acc + (t.a || 0), 0);
     const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -148,7 +154,7 @@ function computeTrendsFromData(data: any) {
     const pstQ = allPst.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
     const activeHC = pstQ.length;
     const losses = pstQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
-    const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+    const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = pstQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstQ.reduce((acc, t) => acc + (t.a || 0), 0);
     const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -160,7 +166,7 @@ function computeTrendsFromData(data: any) {
     const pst = pstQuarterly[idx];
     const totalHC = inh.activeHC + pst.activeHC;
     const totalLoss = inh.losses + pst.losses;
-    const totalAttr = totalHC > 0 ? parseFloat(((totalLoss / totalHC) * 100).toFixed(1)) : 0;
+    const totalAttr = parseFloat(calculateRosterAttrition(totalLoss, totalHC).rate.toFixed(1));
     const totalP = inh.sumP + pst.sumP;
     const totalA = inh.sumA + pst.sumA;
     const totalAttd = (totalP + totalA) > 0 ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) : 100.0;
@@ -272,7 +278,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
             const activeHC = inhouseM.length;
             const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-            const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+            const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
             const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
             const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -283,7 +289,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
             const activeHC = pstM.length;
             const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-            const attritionRate = activeHC > 0 ? parseFloat(((losses / activeHC) * 100).toFixed(1)) : 0;
+            const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
             const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
             const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
             const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
@@ -307,7 +313,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       const pstAny = (pstMonthlyData[idx] || { activeHC: 0, losses: 0, attendanceRate: 100, sumP: 0, sumA: 0 }) as any;
       const totalHC = inh.activeHC + pstAny.activeHC;
       const totalLoss = inh.losses + pstAny.losses;
-      const totalAttr = totalHC > 0 ? parseFloat(((totalLoss / totalHC) * 100).toFixed(1)) : 0;
+      const totalAttr = parseFloat(calculateRosterAttrition(totalLoss, totalHC).rate.toFixed(1));
       
       const totalP = (inhAny.sumP || 0) + (pstAny.sumP || 0);
       const totalA = (inhAny.sumA || 0) + (pstAny.sumA || 0);
