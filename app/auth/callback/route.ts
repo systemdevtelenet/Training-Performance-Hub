@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${baseUrl}/login?error=unauthorized_domain`);
       }
 
-      // Check if user is registered by Admin in user_roles, trainers_profile, or active in employees
+      // Check access against employees and the trainer roster.
       const { createClient: createAdminClient } = await import('@supabase/supabase-js');
       const supabaseAdmin = createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,22 +39,19 @@ export async function GET(request: Request) {
         .ilike('email', email)
         .maybeSingle();
 
-      const { data: trainerRow } = await supabaseAdmin
-        .from('trainers_profile')
-        .select('name')
-        .or(`gmail_account.ilike."${email}",thunderbird_account.ilike."${email}"`)
-        .maybeSingle();
-
       const { data: empRow } = await supabaseAdmin
         .from('employees')
-        .select('id, status_id, role_id')
+        .select('id, employee_code, status_id, role_id')
         .ilike('employee_email', email)
         .maybeSingle();
 
+      const { data: trainerRow } = empRow?.employee_code
+        ? await supabaseAdmin.from('trainers').select('trainer_id').eq('employee_num', String(empRow.employee_code)).maybeSingle()
+        : { data: null };
+
       const isAuthorized = Boolean(
         roleRow ||
-        trainerRow ||
-        (empRow && empRow.status_id === 1)
+        (trainerRow && empRow?.status_id === 1)
       );
 
       if (!isAuthorized) {

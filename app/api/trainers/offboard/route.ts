@@ -13,8 +13,9 @@ const LOSS_STATUSES = ['RESIGNED', 'TERMINATED', 'FAILED', 'AWOL', 'ACCOUNT REMO
 // GET: Fetch list of trainers with their active trainee count and pending handovers
 export async function GET() {
   try {
-    const { data: tpList } = await supabase.from('trainers_profile').select('*');
+    const { data: trainerRows } = await supabase.from('trainers').select('*');
     const { data: empList } = await supabase.from('employees').select('*');
+    const { data: statuses } = await supabase.from('statuses').select('status_id, status_name');
     const { data: pstData } = await supabase.from('product_spec_training').select('name, wave, account, assigned_trainer, status');
     const { data: inhData } = await supabase.from('inhouse').select('name, batch, acount, account, status');
     const { data: asgData } = await supabase
@@ -44,47 +45,30 @@ export async function GET() {
     // Aggregate unique trainers
     const trainersMap = new Map<string, any>();
 
-    (tpList || []).forEach(tp => {
-      const name = (tp.name || '').trim();
-      if (!name) return;
-      const isResigned = (tp.status || '').toUpperCase() === 'RESIGNED';
-      trainersMap.set(name.toLowerCase(), {
-        name,
-        email: tp.gmail_account && tp.gmail_account !== 'mail' ? tp.gmail_account : tp.thunderbird_account || '',
-        status: isResigned ? 'RESIGNED' : (tp.status || 'ACTIVE').toUpperCase(),
-        position: tp.position || 'Trainer',
-        employeeNum: tp.employee_num || '',
-        accounts: tp.accounts || '',
-        activeTraineeCount: 0,
-        activeBatches: new Set<string>()
-      });
-    });
+    const trainerByCode = new Map(
+      (trainerRows || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
+    );
+    const statusById = new Map(
+      (statuses || []).map((status: any) => [Number(status.status_id), String(status.status_name || '')]),
+    );
 
-    // Also check employees table for trainers
-    (empList || []).forEach(emp => {
+    // Employees is authoritative; membership is restricted to the trainers roster.
+    (empList || []).forEach((emp: any) => {
+      const trainer = trainerByCode.get(String(emp.employee_code || '').trim().toLowerCase());
+      if (!trainer) return;
       const name = (emp.employee_name || '').trim();
       if (!name) return;
       const lower = name.toLowerCase();
-      const isResigned = emp.status_id === 3 || (emp.status_name || '').toUpperCase() === 'RESIGNED';
-      const existing = trainersMap.get(lower);
-      if (existing) {
-        if (!existing.email && emp.employee_email) existing.email = emp.employee_email;
-        if (isResigned) existing.status = 'RESIGNED';
-      } else {
-        const isTrainerRole = emp.role_id === 10 || (emp.role_name || '').toUpperCase().includes('TRAIN');
-        if (isTrainerRole) {
-          trainersMap.set(lower, {
-            name,
-            email: emp.employee_email || '',
-            status: isResigned ? 'RESIGNED' : 'ACTIVE',
-            position: emp.role_name || 'Trainer',
-            employeeNum: emp.employee_code || '',
-            accounts: '',
-            activeTraineeCount: 0,
-            activeBatches: new Set<string>()
-          });
-        }
-      }
+      trainersMap.set(lower, {
+        name,
+        email: emp.employee_email || '',
+        status: (statusById.get(Number(emp.status_id)) || 'ACTIVE').toUpperCase(),
+        position: trainer.position || 'Trainer',
+        employeeNum: emp.employee_code || '',
+        accounts: '',
+        activeTraineeCount: 0,
+        activeBatches: new Set<string>()
+      });
     });
 
     // Count active trainees for each trainer in PST
@@ -124,8 +108,8 @@ export async function GET() {
       activeBatches: Array.from(t.activeBatches)
     }));
 
-    const activeTrainers = allTrainersList.filter(t => t.status !== 'RESIGNED');
-    const resignedTrainers = allTrainersList.filter(t => t.status === 'RESIGNED');
+    const activeTrainers = allTrainersList.filter(t => !LOSS_STATUSES.includes(t.status));
+    const resignedTrainers = allTrainersList.filter(t => LOSS_STATUSES.includes(t.status));
 
     // Parse offboard history logs
     const history = (offboardHistory || []).map((row: any) => {
@@ -261,47 +245,47 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Update Trainer Profile Status to RESIGNED in trainers_profile
-    try {
-      await supabase
-        .from('trainers_profile')
-        .update({
-          status: 'RESIGNED'
-        })
-        .ilike('name', `%${cleanTrainer}%`);
-    } catch (e) {
-      console.warn('Error updating trainers_profile status:', e);
+    // Update exactly one rostered trainer. This cannot touch unrelated employees.
+    const { data: trainerRoster } = await supabase.from('trainers').select('trainer_id, employee_num');
+    const trainerCodes = new Set((trainerRoster || []).map((row: any) => String(row.employee_num || '').trim().toLowerCase()));
+    const { data: employeeRows } = await supabase
+      .from('employees')
+      .select('id, employee_code, employee_name, employee_email');
+    const normalizedTrainerName = cleanTrainer.toLowerCase();
+    const normalizedTrainerEmail = String(trainerEmail || '').trim().toLowerCase();
+    const trainerEmployee = (employeeRows || []).find((employee: any) => {
+      const code = String(employee.employee_code || '').trim().toLowerCase();
+      if (!trainerCodes.has(code)) return false;
+      const nameMatches = String(employee.employee_name || '').trim().toLowerCase() === normalizedTrainerName;
+      const emailMatches = Boolean(normalizedTrainerEmail) && String(employee.employee_email || '').trim().toLowerCase() === normalizedTrainerEmail;
+      return nameMatches || emailMatches;
+    });
+
+    if (!trainerEmployee) {
+      return NextResponse.json({ success: false, error: 'The selected trainer was not found in the employee trainer roster.' }, { status: 404 });
     }
 
-    // 3. Update in employees table (status_id = 3 is Resigned)
-    try {
-      await supabase
-        .from('employees')
-        .update({
-          status_id: 3
-        })
-        .ilike('employee_name', `%${cleanTrainer}%`);
-    } catch (e) {
-      console.warn('Error updating employees status:', e);
+    const { data: resignedStatus } = await supabase
+      .from('statuses')
+      .select('status_id')
+      .ilike('status_name', 'Resigned')
+      .maybeSingle();
+    if (!resignedStatus?.status_id) {
+      return NextResponse.json({ success: false, error: 'The Resigned employee status is not configured.' }, { status: 500 });
     }
 
-    // 4. Update in trainers table (matches on employee_num, not name column)
-    try {
-      const { data: tpRow } = await supabase
-        .from('trainers_profile')
-        .select('employee_num')
-        .ilike('name', `%${cleanTrainer}%`)
-        .maybeSingle();
-
-      if (tpRow?.employee_num) {
-        await supabase
-          .from('trainers')
-          .update({ status: 'RESIGNED' })
-          .eq('employee_num', String(tpRow.employee_num));
-      }
-    } catch (e) {
-      console.warn('Error updating trainers table status:', e);
+    const { error: employeeStatusError } = await supabase
+      .from('employees')
+      .update({ status_id: resignedStatus.status_id })
+      .eq('id', trainerEmployee.id);
+    if (employeeStatusError) {
+      return NextResponse.json({ success: false, error: employeeStatusError.message }, { status: 500 });
     }
+
+    await supabase
+      .from('trainers')
+      .update({ status: 'RESIGNED' })
+      .eq('employee_num', String(trainerEmployee.employee_code));
 
     // 5. Revoke / Demote Role Access if requested
     const targetEmail = trainerEmail?.trim().toLowerCase();

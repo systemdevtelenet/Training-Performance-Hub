@@ -56,34 +56,34 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
       }
     });
 
-    // Also check trainers_profile directory table dynamically for assigned accounts
-    const { data: trainerProfiles } = await supabaseAdmin
-      .from('trainers_profile')
-      .select('name, gmail_account, thunderbird_account, accounts');
-
-    (trainerProfiles || []).forEach(tr => {
-      const trName = (tr.name || '').toLowerCase().trim();
-      const trGmail = (tr.gmail_account || '').toLowerCase().trim();
-      const trTbird = (tr.thunderbird_account || '').toLowerCase().trim();
-
-      const isEmailMatch = Boolean(cleanEmail && (
-        (trGmail && trGmail.includes('@') && (trGmail === cleanEmail || trGmail.split('@')[0] === cleanEmail.split('@')[0])) ||
-        (trTbird && trTbird.includes('@') && (trTbird === cleanEmail || trTbird.split('@')[0] === cleanEmail.split('@')[0]))
-      ));
-
-      const isNameMatch = Boolean(
-        (cleanName && isTrainerMatch(trName, cleanName)) ||
-        (cleanName && isTrainerMatch(cleanName, trName)) ||
-        (normName && normalizeStr(trName) === normName)
-      );
-
-      if ((isEmailMatch || isNameMatch) && tr.accounts) {
-        tr.accounts.split(/[,/|&;\n]/).forEach((accStr: string) => {
-          const a = accStr.trim().toLowerCase();
-          if (a && a !== 'n/a') matchedAccounts.add(a);
+    // Include normalized employee account assignments for this trainer.
+    const { data: employees } = await supabaseAdmin
+      .from('employees')
+      .select('id, employee_name, employee_email');
+    const trainerEmployee = (employees || []).find((employee: any) => {
+      const employeeName = String(employee.employee_name || '').trim();
+      const employeeEmail = String(employee.employee_email || '').trim().toLowerCase();
+      return (cleanEmail && employeeEmail === cleanEmail) ||
+        (cleanName && isTrainerMatch(employeeName, cleanName)) ||
+        (normName && normalizeStr(employeeName) === normName);
+    });
+    if (trainerEmployee?.id) {
+      const { data: assignments } = await supabaseAdmin
+        .from('employee_assignments')
+        .select('account_id')
+        .eq('employee_id', trainerEmployee.id);
+      const accountIds = (assignments || []).map((assignment: any) => Number(assignment.account_id)).filter(Boolean);
+      if (accountIds.length > 0) {
+        const { data: accounts } = await supabaseAdmin
+          .from('accounts')
+          .select('account_id, account_name, account_code')
+          .in('account_id', accountIds);
+        (accounts || []).forEach((account: any) => {
+          const accountName = String(account.account_name || account.account_code || '').trim().toLowerCase();
+          if (accountName) matchedAccounts.add(accountName);
         });
       }
-    });
+    }
 
     return {
       names: Array.from(matchedNames),
@@ -266,17 +266,18 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
     const dates = getQuarterDateColumns(quarter);
     const result: any[] = [];
 
-    // 1. For 'trainers' account: Retrieve trainer profiles
+    // 1. For 'trainers' account: retrieve employee-backed trainer records.
     if (account === 'trainers') {
-      const { data: tp } = await supabaseAdmin.from('trainers_profile').select('*');
-      (tp || []).forEach(tr => {
+      const { getTrainersData } = await import('@/lib/data-fetcher');
+      const trainers = await getTrainersData();
+      trainers.forEach((tr: any) => {
         const row: any = {
           id: tr.name,
           teams: tr.name,
           _account: 'trainers',
           assigned_trainer: tr.name,
-          position: tr.position || tr.pos || 'Trainer',
-          startDate: tr.start_date || tr.startDate || tr.start || '-',
+          position: tr.role || 'Trainer',
+          startDate: tr.startDate || '-',
           accounts: tr.accounts || ''
         };
         dates.forEach(d => { row[d] = null; });

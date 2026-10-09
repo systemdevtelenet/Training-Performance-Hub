@@ -40,31 +40,20 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       .ilike('email', cleanEmail)
       .maybeSingle();
 
-    // 2. Fetch trainer profile if exists (case-insensitive)
-    const { data: trainerData } = await supabaseAdmin
-      .from('trainers_profile')
-      .select('*')
-      .or(`gmail_account.ilike.${cleanEmail},thunderbird_account.ilike.${cleanEmail}`)
-      .maybeSingle();
-
-    // 3. Fetch trainer main row
-    const empNum = trainerData?.employee_num || trainerData?.employeeNo;
-    let trainerRow: any = null;
-    if (empNum) {
-      const { data } = await supabaseAdmin
-        .from('trainers')
-        .select('*')
-        .eq('employee_num', empNum)
-        .maybeSingle();
-      trainerRow = data;
-    }
-
-    // 4. Fetch employee details if exists
+    // Employees is the authoritative identity and status source.
     const { data: empData } = await supabaseAdmin
       .from('employees')
       .select('*')
-      .or(`employee_email.ilike.${cleanEmail}${empNum ? `,employee_code.eq."${empNum}"` : ''}`)
+      .ilike('employee_email', cleanEmail)
       .maybeSingle();
+
+    const { data: trainerRow } = empData?.employee_code
+      ? await supabaseAdmin
+        .from('trainers')
+        .select('*')
+        .eq('employee_num', String(empData.employee_code))
+        .maybeSingle()
+      : { data: null };
 
     // The normalized primary_tasks row is authoritative when it exists.
     // Falling back keeps profiles usable until the migration is applied.
@@ -93,9 +82,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     // Determine actual full name dynamically from database or auth metadata
     let rawName: string | null = null;
-    if (trainerData?.name && trainerData.name.trim() !== 'N/A') {
-      rawName = trainerData.name.trim();
-    } else if (empData?.employee_name && empData.employee_name.trim() !== 'N/A') {
+    if (empData?.employee_name && empData.employee_name.trim() !== 'N/A') {
       rawName = empData.employee_name.trim();
     } else if (authUserMeta?.name && authUserMeta.name.trim() !== 'N/A') {
       rawName = authUserMeta.name.trim();
@@ -128,11 +115,9 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       // ignore
     }
 
-    const cleanName = (trainerData?.name || empData?.employee_name || rawName || '').toLowerCase();
+    const cleanName = (empData?.employee_name || rawName || '').toLowerCase();
     const pos = (
-      trainerData?.position || 
-      trainerData?.assigned_task || 
-      trainerRow?.pos || 
+      trainerRow?.position ||
       empData?.position || 
       empData?.role_name || 
       ''
@@ -185,9 +170,8 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
     else if (roleId === 5 || pos.includes('ADMIN') || pos.includes('SUPER ADMIN') || authUserMeta?.role === 'SUPER_ADMIN') {
       effRole = 'SUPER_ADMIN';
     }
-    // 5. Trainers (in trainers_profile, trainers table, or position as trainer)
+    // 5. Trainers in the trainer roster
     else if (
-      trainerData || 
       trainerRow || 
       pos.includes('TRAINER') || 
       pos.includes('TRAINING SPECIALIST') || 
@@ -208,8 +192,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     // Dynamic position title from database or role title
     const resolvedPosition = (
-      (trainerData?.position && trainerData.position !== 'N/A') ? trainerData.position :
-      (trainerRow?.pos && trainerRow.pos !== 'N/A') ? trainerRow.pos :
+      (trainerRow?.position && trainerRow.position !== 'N/A') ? trainerRow.position :
       (empData?.position && empData.position !== 'N/A') ? empData.position :
       (authUserMeta?.position && authUserMeta.position !== 'N/A') ? authUserMeta.position :
       (effRole === 'HOT_ADMIN' ? 'Head of Training' :
@@ -223,7 +206,6 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     const resolvedPrimaryTask = (
       normalizedPrimaryTask ||
-      ((trainerData?.assigned_task && trainerData.assigned_task !== 'N/A') ? trainerData.assigned_task : null) ||
       ((trainerRow?.assigned_task && trainerRow.assigned_task !== 'N/A') ? trainerRow.assigned_task : null) ||
       'N/A'
     );
@@ -267,7 +249,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       assignedTrainer = ih?.assignedTrainer || ih?.trainer || null;
     }
 
-    const avatarUrl = trainerData?.profile_pic || empData?.avatar_url || null;
+    const avatarUrl = empData?.avatar_url || trainerRow?.profile_pic || null;
 
     return {
       success: true,
@@ -277,16 +259,16 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       avatarUrl,
       assignedTrainer,
       userMeta: {
-        employeeId: String(trainerData?.employee_num || trainerRow?.employee_num || empData?.employee_code || (cleanEmail.includes('ralasagas') ? '1008' : 'N/A')),
-        startDate: String(trainerData?.start_date || trainerRow?.start_date || empData?.hire_date || 'N/A'),
-        accounts: String(trainerData?.accounts || (Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'Quality Assurance'),
+        employeeId: String(empData?.employee_code || trainerRow?.employee_num || (cleanEmail.includes('ralasagas') ? '1008' : 'N/A')),
+        startDate: String(empData?.hire_date || trainerRow?.start_date || 'N/A'),
+        accounts: String((Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'N/A'),
         primaryTask: resolvedPrimaryTask,
         firstName: fName || 'User',
         middleName: mName || 'N/A',
         lastName: lName || '',
         suffix: sName || 'N/A',
-        mobileNo: empData?.phone || empData?.mobile || empData?.contact_number || trainerData?.phone || trainerData?.mobile || 'N/A',
-        homeAddress: empData?.address || empData?.home_address || trainerData?.address || 'N/A',
+        mobileNo: empData?.phone || empData?.mobile || empData?.contact_number || 'N/A',
+        homeAddress: empData?.address || empData?.home_address || 'N/A',
         systemRole: roleFormatted
       }
     };

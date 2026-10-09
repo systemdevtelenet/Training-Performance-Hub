@@ -24,7 +24,7 @@ export async function GET() {
     const { data: accounts } = await supabase.from('accounts').select('*');
     const { data: roles } = await supabase.from('roles').select('*');
     const { data: assignments } = await supabase.from('employee_assignments').select('*');
-    const { data: trainersProfile } = await supabase.from('trainers_profile').select('*');
+    const { data: trainers } = await supabase.from('trainers').select('employee_num, position');
     const { data: inhouseData } = await supabase.from('inhouse').select('*');
     const { data: pstData } = await supabase.from('product_spec_training').select('*');
 
@@ -51,78 +51,27 @@ export async function GET() {
       }
     });
 
-    const processedCodes = new Set<string>();
-    const processedEmails = new Set<string>();
-    const processedNames = new Set<string>();
+    const trainerByCode = new Map<string, any>(
+      (trainers || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
+    );
     const resultList: any[] = [];
 
-    // 1. Prioritize Trainers from trainers_profile as PRIMARY employees at top
-    (trainersProfile || []).forEach((t, idx) => {
-      const code = String(t.employee_num || '').trim();
-      const email = (t.gmail_account && t.gmail_account !== 'mail' ? t.gmail_account : t.thunderbird_account && t.thunderbird_account !== 'mail' ? t.thunderbird_account : null);
-      const name = t.name || `Trainer ${idx + 1}`;
-      const pos = (t.position || 'Trainer').trim();
-
-      const matchingEmp = (employees || []).find(e => 
-        (code && String(e.employee_code || '').trim().toLowerCase() === code.toLowerCase()) ||
-        (email && (e.employee_email || '').trim().toLowerCase() === email.toLowerCase()) ||
-        (name && (e.employee_name || '').trim().toLowerCase() === name.toLowerCase())
-      );
-
-      if (code) processedCodes.add(code.toLowerCase());
-      if (email) processedEmails.add(email.toLowerCase());
-      processedNames.add(name.toLowerCase());
-
-      const isResigned = (t.status || '').toUpperCase() === 'RESIGNED';
-      const isInactive = (t.status || '').toUpperCase() === 'INACTIVE';
-      const statusId = isResigned ? 3 : isInactive ? 2 : 1;
-      const statusName = isResigned ? 'Resigned' : isInactive ? 'Inactive' : 'Active';
-
-      const roleTitle = pos.toUpperCase().includes('HEAD') 
-        ? 'Head of Training' 
-        : pos.toUpperCase().includes('COORDINATOR') 
-        ? 'Training Coordinator' 
-        : pos.toUpperCase().includes('CORP') 
-        ? 'Corporate Trainer' 
-        : 'Trainer';
-
-      resultList.push({
-        id: matchingEmp ? matchingEmp.id : -(1000 + idx),
-        employee_code: code || matchingEmp?.employee_code || 'N/A',
-        employee_name: name,
-        employee_email: email || matchingEmp?.employee_email || null,
-        status_id: statusId,
-        status_name: statusName,
-        role_id: matchingEmp?.role_id || 10,
-        role_name: roleTitle,
-        category: 'TRAINER',
-        hire_date: t.start_date || matchingEmp?.hire_date || null,
-        vici_link: matchingEmp?.vici_link || null,
-        avatar_url: t.profile_pic && t.profile_pic !== 'None ' ? t.profile_pic : matchingEmp?.avatar_url || null,
-        assigned_accounts: t.accounts || (matchingEmp ? (empAccountsMap.get(matchingEmp.id) || []).join(', ') : 'Unassigned') || 'Unassigned',
-        is_primary_trainer: true
-      });
-    });
-
-    // 2. Add remaining employees from employees table (Admins, QA, TLs, Agents)
+    // Employees is the single profile/status source. Trainer membership comes from
+    // the trainers roster by employee code, so unrelated employees are never changed.
     (employees || []).forEach(emp => {
       const code = String(emp.employee_code || '').trim().toLowerCase();
-      const email = (emp.employee_email || '').trim().toLowerCase();
-      const name = (emp.employee_name || '').trim().toLowerCase();
-
-      if ((code && processedCodes.has(code)) || (email && processedEmails.has(email)) || (name && processedNames.has(name))) {
-        return; // Already merged with trainers
-      }
-
+      const trainer = trainerByCode.get(code);
       const assignedAccs = empAccountsMap.get(emp.id) || [];
       const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
-      const roleName = roleMap.get(emp.role_id) || 'Agent';
+      const roleName = trainer?.position || roleMap.get(emp.role_id) || 'Agent';
 
       let category = 'AGENT';
       const rUpper = roleName.toUpperCase();
       const nUpper = (emp.employee_name || '').toUpperCase();
 
-      if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
+      if (trainer) {
+        category = 'TRAINER';
+      } else if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
         category = 'ADMIN';
       } else if (rUpper.includes('QA') || rUpper.includes('QUALITY') || nUpper.startsWith('QA ') || nUpper.startsWith('QAS ')) {
         category = 'QA';
@@ -140,11 +89,11 @@ export async function GET() {
         category,
         assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
         account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
-        is_primary_trainer: false
+        is_primary_trainer: Boolean(trainer)
       });
     });
 
-    // 3. Add active Trainees from inhouse and PST
+    // Add active Trainees from inhouse and PST
     const traineeNames = new Set<string>();
     let traineeIndex = 0;
     (inhouseData || []).concat(pstData || []).forEach(t => {
@@ -238,19 +187,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // If Trainer (10), synchronize into trainers_profile
+    // A role-10 employee is enrolled in the trainer roster without duplicating
+    // identity fields outside employees.
     if (Number(payload.role_id) === 10) {
       try {
-        await supabase.from('trainers_profile').upsert([{
-          name: employee_name.trim(),
+        await supabase.from('trainers').upsert([{
+          employee_num: payload.employee_code,
           position: 'Trainer',
-          status: 'ACTIVE',
-          start_date: hire_date || new Date().toISOString().split('T')[0],
-          employee_num: employee_code || String(newEmp.id),
-          gmail_account: employee_email ? employee_email.trim().toLowerCase() : null
-        }], { onConflict: 'name' });
+          status: 'ACTIVE'
+        }], { onConflict: 'employee_num' });
       } catch (tpErr) {
-        console.warn('Could not sync trainers_profile in employee POST:', tpErr);
+        console.warn('Could not enroll employee in trainers roster:', tpErr);
       }
     }
 

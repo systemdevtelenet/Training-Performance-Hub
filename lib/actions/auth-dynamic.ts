@@ -12,7 +12,7 @@ export interface AutoProvisionResult {
 }
 
 /**
- * Dynamically verifies credentials against database rosters (trainers_profile, employees, trainers)
+ * Dynamically verifies credentials against employees and the trainer roster.
  * and provisions or synchronizes the Supabase Auth user on-the-fly without hardcoded records or manual sync.
  */
 export async function autoProvisionUser(email: string, passwordAttempt: string): Promise<AutoProvisionResult> {
@@ -31,21 +31,18 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
       .ilike('email', cleanEmail)
       .maybeSingle();
 
-    // 2. Check trainers_profile
-    const { data: trainerProfile } = await supabaseAdmin
-      .from('trainers_profile')
-      .select('*')
-      .or(`gmail_account.ilike."${cleanEmail}",thunderbird_account.ilike."${cleanEmail}"`)
-      .maybeSingle();
-
-    // 3. Check employees roster
+    // Check employees roster
     const { data: empRecord } = await supabaseAdmin
       .from('employees')
       .select('*')
       .ilike('employee_email', cleanEmail)
       .maybeSingle();
 
-    const matchedRecord = trainerProfile || empRecord || userRoleRecord;
+    const { data: trainerRecord } = empRecord?.employee_code
+      ? await supabaseAdmin.from('trainers').select('*').eq('employee_num', String(empRecord.employee_code)).maybeSingle()
+      : { data: null };
+
+    const matchedRecord = empRecord || userRoleRecord;
     if (!matchedRecord) {
       return {
         success: false,
@@ -54,14 +51,14 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
     }
 
     const allowedTrainingRole = userRoleRecord?.role === 'HOT_ADMIN' || userRoleRecord?.role === 'TRAINER';
-    const trainerPosition = String(trainerProfile?.position || trainerProfile?.assigned_task || '').toUpperCase();
+    const trainerPosition = String(trainerRecord?.position || trainerRecord?.assigned_task || '').toUpperCase();
     const isHeadOfTraining =
       trainerPosition.includes('HEAD OF TRAINING') ||
       trainerPosition.includes('HOT') ||
       cleanEmail.includes('nreguero') ||
       cleanEmail.includes('nissi');
 
-    if (!trainerProfile && !allowedTrainingRole && !isHeadOfTraining) {
+    if (!trainerRecord && !allowedTrainingRole && !isHeadOfTraining) {
       return {
         success: false,
         message: 'Access denied: Training Performance Hub is restricted to trainers and Head of Training only.'
@@ -69,7 +66,7 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
     }
 
     // If regular employee, verify that employment status is ACTIVE (status_id === 1)
-    if (empRecord && !trainerProfile && !userRoleRecord) {
+    if (empRecord && !userRoleRecord) {
       if (empRecord.status_id !== 1) {
         return {
           success: false,
@@ -80,7 +77,6 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
 
     // Extract employee identifier/code
     const empCode = String(
-      trainerProfile?.employee_num || 
       empRecord?.employee_code || 
       (cleanEmail.includes('ralasagas') ? '1108' : '') ||
       (cleanEmail.includes('bosssilver') ? '1008' : '') ||
@@ -111,12 +107,12 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
     // Resolve system role dynamically from roster data and role_id
     let resolvedRole = userRoleRecord?.role || 'EMPLOYEE';
     if (!userRoleRecord) {
-      const position = (trainerProfile?.position || empRecord?.position || '').toUpperCase();
+      const position = (trainerRecord?.position || empRecord?.position || '').toUpperCase();
       const roleId = Number(empRecord?.role_id || 0);
 
       if (position.includes('HEAD OF TRAINING') || position.includes('HOT')) {
         resolvedRole = 'HOT_ADMIN';
-      } else if (trainerProfile || position.includes('TRAINER') || position.includes('TR')) {
+      } else if (trainerRecord || position.includes('TRAINER') || position.includes('TR')) {
         resolvedRole = 'TRAINER';
       } else {
         resolvedRole = 'UNAUTHORIZED';
@@ -132,9 +128,9 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
       await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, {
         password: cleanPassword,
         user_metadata: {
-          name: trainerProfile?.name || empRecord?.employee_name,
+          name: empRecord?.employee_name,
           role: resolvedRole,
-          position: trainerProfile?.position || empRecord?.position
+          position: trainerRecord?.position || empRecord?.position
         }
       });
     } else {
@@ -144,9 +140,9 @@ export async function autoProvisionUser(email: string, passwordAttempt: string):
         password: cleanPassword,
         email_confirm: true,
         user_metadata: {
-          name: trainerProfile?.name || empRecord?.employee_name,
+          name: empRecord?.employee_name,
           role: resolvedRole,
-          position: trainerProfile?.position || empRecord?.position
+          position: trainerRecord?.position || empRecord?.position
         }
       });
     }

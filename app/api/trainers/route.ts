@@ -10,13 +10,18 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // GET: Fetch trainers and available accounts for form options
 export async function GET() {
   try {
-    const { data: trainersProfile, error: tpErr } = await supabase
-      .from('trainers_profile')
-      .select('*')
-      .order('name', { ascending: true });
+    const { data: trainerRows, error: trainerError } = await supabase
+      .from('trainers')
+      .select('*');
+    const { data: employees, error: employeeError } = await supabase
+      .from('employees')
+      .select('id, employee_code, employee_name, employee_email, status_id, hire_date, avatar_url');
+    const { data: statuses } = await supabase.from('statuses').select('status_id, status_name');
+    const { data: assignments } = await supabase.from('employee_assignments').select('employee_id, account_id');
 
-    if (tpErr) {
-      console.error('Error fetching trainers_profile:', tpErr);
+    if (trainerError || employeeError) {
+      const message = trainerError?.message || employeeError?.message || 'Unable to fetch trainers.';
+      return NextResponse.json({ success: false, error: message }, { status: 500 });
     }
 
     const { data: accountsData } = await supabase
@@ -41,9 +46,46 @@ export async function GET() {
       if (name) accountsSet.add(name);
     });
 
+    const employeeByCode = new Map(
+      (employees || []).map((employee: any) => [String(employee.employee_code || '').trim().toLowerCase(), employee]),
+    );
+    const statusById = new Map(
+      (statuses || []).map((item: any) => [Number(item.status_id), String(item.status_name || '')]),
+    );
+    const accountById = new Map(
+      (accountsData || []).map((account: any) => [Number(account.account_id), account.account_name || account.account_code]),
+    );
+    const accountsByEmployeeId = new Map<string, string[]>();
+    (assignments || []).forEach((assignment: any) => {
+      const employeeId = String(assignment.employee_id || '');
+      const accountName = accountById.get(Number(assignment.account_id));
+      if (!employeeId || !accountName) return;
+      const current = accountsByEmployeeId.get(employeeId) || [];
+      if (!current.includes(accountName)) current.push(accountName);
+      accountsByEmployeeId.set(employeeId, current);
+    });
+
+    const trainerDirectory = (trainerRows || []).flatMap((trainer: any) => {
+      const employee = employeeByCode.get(String(trainer.employee_num || '').trim().toLowerCase());
+      if (!employee) return [];
+      return [{
+        id: employee.id,
+        name: employee.employee_name,
+        employee_num: employee.employee_code,
+        email: employee.employee_email,
+        gmail_account: employee.employee_email,
+        thunderbird_account: employee.employee_email,
+        position: trainer.position || 'Trainer',
+        status: (statusById.get(Number(employee.status_id)) || 'Active').toUpperCase(),
+        start_date: employee.hire_date,
+        profile_pic: employee.avatar_url,
+        accounts: (accountsByEmployeeId.get(String(employee.id)) || []).join(', '),
+      }];
+    }).sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')));
+
     return NextResponse.json({
       success: true,
-      trainers: trainersProfile || [],
+      trainers: trainerDirectory,
       accounts: Array.from(accountsSet).sort()
     });
   } catch (err: any) {
@@ -80,57 +122,70 @@ export async function POST(req: Request) {
     const cleanStartDate = startDate || today;
     const accountsString = Array.isArray(accounts) ? accounts.join(', ') : (accounts || '');
 
-    // 1. Insert into trainers_profile table
-    const trainerProfilePayload = {
-      name: cleanName,
-      position: cleanPosition,
-      status: status.toUpperCase(),
-      start_date: cleanStartDate,
-      employee_num: cleanCode,
-      accounts: accountsString,
-      gmail_account: cleanEmail,
-      thunderbird_account: cleanEmail,
-      profile_pic: profilePic || null
+    // Employees owns trainer identity and status. The trainers table only marks
+    // trainer membership and stores training-specific metadata.
+    const { data: statusRows } = await supabase.from('statuses').select('status_id, status_name');
+    const requestedStatus = String(status || 'ACTIVE').trim().toUpperCase();
+    const statusRow = (statusRows || []).find((item: any) => String(item.status_name || '').trim().toUpperCase() === requestedStatus);
+    const isHead = cleanPosition.toUpperCase().includes('HEAD');
+    const roleId = isHead ? 5 : 10;
+    const empPayload = {
+      employee_code: cleanCode,
+      employee_name: cleanName,
+      employee_email: cleanEmail,
+      status_id: Number(statusRow?.status_id || 1),
+      hire_date: cleanStartDate,
+      role_id: roleId,
+      avatar_url: profilePic || null,
     };
 
-    const { data: newTrainerProfile, error: tpInsertErr } = await supabase
-      .from('trainers_profile')
-      .insert([trainerProfilePayload])
-      .select()
+    const { data: existingEmployee } = await supabase
+      .from('employees')
+      .select('id, employee_code')
+      .eq('employee_code', cleanCode)
       .maybeSingle();
 
-    if (tpInsertErr) {
-      console.error('Error inserting into trainers_profile:', tpInsertErr);
-      return NextResponse.json({ success: false, error: tpInsertErr.message }, { status: 500 });
+    let employee: any = existingEmployee;
+    if (existingEmployee) {
+      const { data, error } = await supabase
+        .from('employees')
+        .update(empPayload)
+        .eq('id', existingEmployee.id)
+        .select('id, employee_code')
+        .single();
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      employee = data;
+    } else {
+      const { data, error } = await supabase
+        .from('employees')
+        .insert([empPayload])
+        .select('id, employee_code')
+        .single();
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      employee = data;
     }
 
-    // 2. Also insert or sync into employees table
-    try {
-      const isHead = cleanPosition.toUpperCase().includes('HEAD');
-      const roleId = isHead ? 5 : 10; // 5 for Admin/HOT, 10 for Trainer
-      const empPayload = {
-        employee_code: cleanCode,
-        employee_name: cleanName,
-        employee_email: cleanEmail,
-        status_id: 1, // Active
-        hire_date: cleanStartDate,
-        role_id: roleId
-      };
+    const { data: existingTrainer } = await supabase
+      .from('trainers')
+      .select('trainer_id')
+      .eq('employee_num', cleanCode)
+      .maybeSingle();
 
-      const { error: employeeInsertError } = await supabase.from('employees').insert([empPayload]);
-      if (employeeInsertError) {
-        console.warn('Could not insert employee row; looking for an existing employee:', employeeInsertError.message);
-      }
+    const trainerPayload = {
+      employee_num: cleanCode,
+      position: cleanPosition,
+      status: requestedStatus,
+      start_date: cleanStartDate,
+      profile_pic: profilePic || null,
+      assigned_task: String(assignedTask || '').trim() || null,
+    };
+    const trainerWrite = existingTrainer
+      ? await supabase.from('trainers').update(trainerPayload).eq('trainer_id', existingTrainer.trainer_id).select().single()
+      : await supabase.from('trainers').insert([trainerPayload]).select().single();
 
-      const employeeLookup = cleanEmail
-        ? `employee_code.eq."${cleanCode}",employee_email.ilike.${cleanEmail}`
-        : `employee_code.eq."${cleanCode}"`;
-      const { data: employee } = await supabase
-        .from('employees')
-        .select('id')
-        .or(employeeLookup)
-        .limit(1)
-        .maybeSingle();
+    if (trainerWrite.error) {
+      return NextResponse.json({ success: false, error: trainerWrite.error.message }, { status: 500 });
+    }
 
       const cleanAssignedTask = String(assignedTask || '').trim();
       if (employee?.id && cleanAssignedTask && cleanAssignedTask.toLowerCase() !== 'task') {
@@ -146,24 +201,7 @@ export async function POST(req: Request) {
           console.warn('Could not save primary task:', primaryTaskError.message);
         }
       }
-    } catch (empErr) {
-      console.warn('Could not insert to employees table (optional sync):', empErr);
-    }
-
-    // 3. Insert into trainers table (if present in schema)
-    try {
-      await supabase.from('trainers').insert([{
-        employee_num: cleanCode,
-        position: cleanPosition,
-        status: status.toUpperCase(),
-        start_date: cleanStartDate,
-        profile_pic: profilePic || null
-      }]);
-    } catch (trErr) {
-      console.warn('Could not insert into trainers table (optional sync):', trErr);
-    }
-
-    // 4. Synchronize user_roles if email is provided
+    // Synchronize access for the Head of Training when email is provided.
     if (cleanEmail) {
       try {
         const isHead = cleanPosition.toUpperCase().includes('HEAD');
@@ -175,7 +213,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5. Audit Logging
+    // Audit Logging
     await logActivity({
       title: 'Trainer Added to Hub',
       description: `Admin ${adminName} onboarded new trainer ${cleanName} (${cleanPosition}) assigned to ${accountsString || 'General Accounts'}.`,
@@ -183,7 +221,7 @@ export async function POST(req: Request) {
       author: adminName
     });
 
-    // 6. Revalidate cache
+    // Revalidate cache
     try {
       revalidateTag('trainers');
       revalidateTag('employees');
@@ -197,7 +235,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: `Trainer ${cleanName} has been successfully added.`,
-      trainer: newTrainerProfile
+      trainer: {
+        ...trainerWrite.data,
+        id: employee.id,
+        name: cleanName,
+        email: cleanEmail,
+        status: requestedStatus,
+      }
     });
   } catch (err: any) {
     console.error('Error in POST /api/trainers:', err);

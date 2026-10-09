@@ -196,41 +196,7 @@ export async function POST(req: Request) {
         actionUrl: '/trainees'
       });
 
-      // Synchronize assigned account with trainers_profile in Supabase so it immediately reflects in trainer dashboard & traffic lights
-      if (assign.cleanAccount && assign.cleanTrainer && assign.cleanTrainer !== 'Unassigned') {
-        try {
-          const { data: tpList } = await supabase
-            .from('trainers_profile')
-            .select('id, name, accounts');
-
-          const targetTrainer = assign.cleanTrainer.toLowerCase().trim();
-          const matchedProfile = (tpList || []).find((tp: any) => {
-            const trName = (tp.name || '').toLowerCase().trim();
-            return trName === targetTrainer || trName.includes(targetTrainer) || targetTrainer.includes(trName);
-          });
-
-          if (matchedProfile) {
-            const currentAccs = (matchedProfile.accounts || '')
-              .split(/[,/|]/)
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-
-            const alreadyHas = currentAccs.some(
-              (a: string) => a.toLowerCase() === assign.cleanAccount.toLowerCase()
-            );
-
-            if (!alreadyHas) {
-              currentAccs.push(assign.cleanAccount);
-              await supabase
-                .from('trainers_profile')
-                .update({ accounts: currentAccs.join(', ') })
-                .eq('id', matchedProfile.id);
-            }
-          }
-        } catch (tpErr) {
-          console.warn('Error syncing trainer accounts in trainers_profile:', tpErr);
-        }
-      }
+      // Trainer accounts are derived from trainee assignments and employee assignments.
     }
 
     const totalCount = inhousePayloads.length + pstPayloads.length;

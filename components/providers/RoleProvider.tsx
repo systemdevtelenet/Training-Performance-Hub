@@ -156,7 +156,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         const userEmail = session.user.email;
         setEmail(userEmail);
 
-        // Fetch user profile securely on server to access trainers_profile, trainers, employees
+        // Fetch the employee profile and trainer-roster membership securely on the server.
         const res = await fetchUserProfile(userEmail);
 
         if (res.success) {
@@ -227,11 +227,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setAvatarUrl(null);
         if (typeof window !== 'undefined') {
           localStorage.removeItem(CACHE_PROFILE_KEY);
+          localStorage.removeItem('ctnp_last_activity_at');
           if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/auth')) {
             window.location.replace('/login');
           }
         }
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
+          localStorage.setItem('ctnp_last_activity_at', String(Date.now()));
+        }
         fetchRole();
       }
     });

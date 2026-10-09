@@ -92,11 +92,15 @@ export async function fetchWorkforceAttendance(
   supabase: SupabaseClient,
   employeeIds: string[],
 ): Promise<Map<string, WorkforceAttendanceRecord[]>> {
-  const normalizedIds = Array.from(new Set(employeeIds.map(id => String(id || '').trim()).filter(Boolean)));
+  const normalizedIds = Array.from(new Set(
+    employeeIds
+      .map(id => String(id || '').trim())
+      .filter(id => /^\d+$/.test(id)),
+  ));
   const result = new Map<string, WorkforceAttendanceRecord[]>();
   if (normalizedIds.length === 0) return result;
 
-  const queryIds = normalizedIds.map(id => (/^\d+$/.test(id) ? Number(id) : id));
+  const queryIds = normalizedIds.map(Number);
   const rows: any[] = [];
   const pageSize = 1000;
 

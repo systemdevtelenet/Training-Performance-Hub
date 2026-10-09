@@ -77,22 +77,29 @@ export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE')
   if (!cleanQ) return results;
 
   try {
-    // 2. Search Trainers (trainers & trainers_profile)
+    // 2. Search trainer-roster employees
+    const { data: trainerRows } = await supabaseAdmin.from('trainers').select('employee_num, position');
+    const trainerCodes = new Set((trainerRows || []).map((trainer: any) => String(trainer.employee_num || '').trim().toLowerCase()));
+    const trainerPositionByCode = new Map((trainerRows || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer.position]));
     const { data: trainersData } = await supabaseAdmin
-      .from('trainers_profile')
-      .select('name, position, accounts, gmail_account, profile_pic, employee_num')
-      .or(`name.ilike.%${cleanQ}%,accounts.ilike.%${cleanQ}%,position.ilike.%${cleanQ}%,gmail_account.ilike.%${cleanQ}%`)
-      .limit(6);
+      .from('employees')
+      .select('id, employee_name, employee_code, employee_email, avatar_url')
+      .or(`employee_name.ilike.%${cleanQ}%,employee_code.ilike.%${cleanQ}%,employee_email.ilike.%${cleanQ}%`)
+      .limit(20);
 
-    (trainersData || []).forEach(t => {
+    (trainersData || [])
+      .filter((employee: any) => trainerCodes.has(String(employee.employee_code || '').trim().toLowerCase()))
+      .slice(0, 6)
+      .forEach((t: any) => {
+      const position = trainerPositionByCode.get(String(t.employee_code || '').trim().toLowerCase()) || 'Trainer';
       results.push({
-        id: `trainer-${t.employee_num || t.name}`,
-        title: t.name || 'Trainer',
-        subtitle: `${t.position || 'Trainer'} • ${t.accounts || 'General'}`,
+        id: `trainer-${t.employee_code || t.id}`,
+        title: t.employee_name || 'Trainer',
+        subtitle: String(position),
         category: 'trainer',
         badge: 'Trainer',
-        avatar: t.profile_pic || undefined,
-        href: `/trainers?search=${encodeURIComponent(t.name)}`
+        avatar: t.avatar_url || undefined,
+        href: `/trainers?search=${encodeURIComponent(t.employee_name)}`
       });
     });
 

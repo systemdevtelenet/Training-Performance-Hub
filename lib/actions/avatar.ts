@@ -54,22 +54,16 @@ export async function uploadAvatar(formData: FormData): Promise<{ success: boole
 
     const publicUrl = urlData.publicUrl;
 
-    // Sync avatar URL to database tables (trainers_profile & employees)
+    // Employees is the single avatar source.
     try {
       if (email) {
-        await supabase.from('trainers_profile').update({ profile_pic: publicUrl }).eq('gmail_account', email);
         await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_email', email);
       }
       if (employeeId) {
-        await supabase.from('trainers_profile').update({ profile_pic: publicUrl }).eq('employee_num', employeeId);
         await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_code', employeeId);
       }
       if (name) {
-        await supabase.from('trainers_profile').update({ profile_pic: publicUrl }).ilike('name', `%${name}%`);
-        await supabase.from('employees').update({ avatar_url: publicUrl }).ilike('employee_name', `%${name}%`);
-      }
-      if (email?.includes('nreguero') || name?.toLowerCase().includes('nissi') || employeeId === '1597') {
-        await supabase.from('trainers_profile').update({ profile_pic: publicUrl }).ilike('name', '%Nissi%');
+        await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_name', name);
       }
     } catch (syncErr) {
       console.warn('Could not sync avatar to database records:', syncErr);
@@ -95,15 +89,10 @@ export async function deleteAvatar(avatarUrl: string, employeeId?: string, email
     // Clear avatar from database records
     try {
       if (email) {
-        await supabase.from('trainers_profile').update({ profile_pic: null }).eq('gmail_account', email);
         await supabase.from('employees').update({ avatar_url: null }).eq('employee_email', email);
       }
       if (employeeId) {
-        await supabase.from('trainers_profile').update({ profile_pic: null }).eq('employee_num', employeeId);
         await supabase.from('employees').update({ avatar_url: null }).eq('employee_code', employeeId);
-      }
-      if (email?.includes('nreguero') || employeeId === '1597') {
-        await supabase.from('trainers_profile').update({ profile_pic: null }).ilike('name', '%Nissi%');
       }
     } catch (clearErr) {
       console.warn('Could not clear avatar from database records:', clearErr);

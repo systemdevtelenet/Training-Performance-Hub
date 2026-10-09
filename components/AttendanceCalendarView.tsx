@@ -524,6 +524,10 @@ export function AttendanceCalendarView({
   const [tempNoteText, setTempNoteText] = useState<string>('');
   const [noteMode, setNoteMode] = useState<'view' | 'edit'>('view');
 
+  // Individual daily summary opened from a blue date header.
+  const [summaryDate, setSummaryDate] = useState<string | null>(null);
+  const [summaryTraineeName, setSummaryTraineeName] = useState<string>('');
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
@@ -729,6 +733,64 @@ export function AttendanceCalendarView({
       return true;
     });
   }, [enrichedTrainees, isTrainer, userName, selectedTrainer, selectedBatch, selectedAccount, selectedStatusFilter, selectedTagFilter, searchQuery]);
+
+  const summaryTrainees = useMemo(() => {
+    const uniqueByName = new Map<string, TraineeAttendanceItem>();
+    filteredTrainees.forEach(trainee => {
+      const key = trainee.name.trim().toLowerCase();
+      if (!uniqueByName.has(key)) uniqueByName.set(key, trainee);
+    });
+    return Array.from(uniqueByName.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredTrainees]);
+
+  const handleOpenDailySummary = useCallback((date: string) => {
+    const firstWithRecord = summaryTrainees.find(trainee => {
+      const key = `${date}___${trainee.name.trim().toLowerCase()}`;
+      return Boolean(dailyRecordsMap[key]);
+    });
+    const initialTrainee = firstWithRecord || summaryTrainees[0];
+    setSummaryDate(date);
+    setSummaryTraineeName(initialTrainee?.name || '');
+  }, [dailyRecordsMap, summaryTrainees]);
+
+  const selectedSummaryTrainee = useMemo(() => {
+    return summaryTrainees.find(trainee => trainee.name === summaryTraineeName) || summaryTrainees[0] || null;
+  }, [summaryTrainees, summaryTraineeName]);
+
+  const selectedSummaryRecord = useMemo(() => {
+    if (!summaryDate || !selectedSummaryTrainee) return null;
+    const key = `${summaryDate}___${selectedSummaryTrainee.name.trim().toLowerCase()}`;
+    return dailyRecordsMap[key] || null;
+  }, [dailyRecordsMap, selectedSummaryTrainee, summaryDate]);
+
+  const selectedSummaryStats = useMemo(() => {
+    const stats = { p: 0, l: 0, u: 0, a: 0, totalTagged: 0, rate: '0%' };
+    if (!selectedSummaryTrainee) return stats;
+
+    monthDays.forEach(day => {
+      const key = `${day.iso}___${selectedSummaryTrainee.name.trim().toLowerCase()}`;
+      const code = dailyRecordsMap[key]?.attCode;
+      if (code === 'P') stats.p++;
+      else if (code === 'L') stats.l++;
+      else if (code === 'U') stats.u++;
+      else if (code === 'A') stats.a++;
+    });
+
+    stats.totalTagged = stats.p + stats.l + stats.u + stats.a;
+    stats.rate = stats.totalTagged > 0
+      ? `${Math.round(((stats.p + stats.l * 0.5) / stats.totalTagged) * 100)}%`
+      : '0%';
+    return stats;
+  }, [dailyRecordsMap, monthDays, selectedSummaryTrainee]);
+
+  useEffect(() => {
+    if (!summaryDate) return;
+    const handleSummaryEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSummaryDate(null);
+    };
+    window.addEventListener('keydown', handleSummaryEscape);
+    return () => window.removeEventListener('keydown', handleSummaryEscape);
+  }, [summaryDate]);
 
   // Pagination state (configurable rows per page)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -2040,7 +2102,7 @@ export function AttendanceCalendarView({
                     {monthDays.map(day => (
                       <th
                         key={day.iso}
-                        className={`py-2 px-1 text-center min-w-[36px] max-w-[40px] border-r border-[#3d77aa] transition-colors ${
+                        className={`p-0 text-center min-w-[36px] max-w-[40px] border-r border-[#3d77aa] transition-colors ${
                           day.isToday
                             ? 'bg-[#204a6e] text-amber-300 ring-2 ring-inset ring-amber-400/60 font-black'
                             : day.isWeekend
@@ -2048,12 +2110,19 @@ export function AttendanceCalendarView({
                             : 'bg-[#2F6798] text-white font-bold'
                         }`}
                       >
-                        <span className="text-[8px] uppercase tracking-tighter block opacity-80 font-semibold text-sky-100">
-                          {day.dayShort}
-                        </span>
-                        <span className="text-[11px] font-black block text-white">
-                          {day.num}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDailySummary(day.iso)}
+                          className="w-full min-h-[48px] px-1 py-2 flex flex-col items-center justify-center hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 transition-colors cursor-pointer"
+                          title={`View individual attendance summary for ${new Date(day.iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
+                        >
+                          <span className="text-[8px] uppercase tracking-tighter block opacity-80 font-semibold text-sky-100">
+                            {day.dayShort}
+                          </span>
+                          <span className="text-[11px] font-black block text-white">
+                            {day.num}
+                          </span>
+                        </button>
                       </th>
                     ))}
 
@@ -2235,6 +2304,181 @@ export function AttendanceCalendarView({
           </>
         )}
       </div>
+
+      {/* Individual Attendance Summary Drawer */}
+      {summaryDate && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] pointer-events-auto">
+          <button
+            type="button"
+            aria-label="Close individual attendance summary"
+            onClick={() => setSummaryDate(null)}
+            className="absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] cursor-default"
+          />
+
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Individual attendance summary"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl animate-in slide-in-from-right duration-300"
+          >
+            <header className="bg-[#2F6798] px-5 py-4 sm:px-6 flex items-center justify-between shrink-0 shadow-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                  <CalendarDays className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-extrabold tracking-wide text-white uppercase">Attendance Details</h2>
+                  <p className="text-[11px] font-medium text-white/80 mt-0.5">Individual attendance summary</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSummaryDate(null)}
+                aria-label="Close"
+                className="p-2 text-white/80 hover:text-white hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                    {new Date(summaryDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
+                  </h3>
+                  <p className="text-xs font-bold text-[#2F6798] dark:text-blue-400 mt-1">
+                    {new Date(summaryDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-black shrink-0">
+                  {new Date(summaryDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                  <UserCheck className="w-3.5 h-3.5 text-[#2F6798]" /> Select Trainee
+                </label>
+                {summaryTrainees.length > 0 ? (
+                  <CustomSelect
+                    value={selectedSummaryTrainee?.name || ''}
+                    onChange={setSummaryTraineeName}
+                    options={summaryTrainees.map(trainee => ({ value: trainee.name, label: trainee.name }))}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-xs font-semibold text-slate-500">
+                    No trainees match the current filters.
+                  </div>
+                )}
+              </div>
+
+              {selectedSummaryTrainee && (() => {
+                const record = selectedSummaryRecord;
+                const attendanceCode = record?.attCode || '';
+                const attendanceTag = ATTENDANCE_TAGS.find(tag => tag.code === attendanceCode);
+                const lifecycleStatus = record?.status || selectedSummaryTrainee.status || 'ONGOING';
+                const initials = selectedSummaryTrainee.name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+
+                return (
+                  <>
+                    <section className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/25 p-4 flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-[#2F6798] text-white flex items-center justify-center text-sm font-black shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-slate-900 dark:text-white truncate">{selectedSummaryTrainee.name}</p>
+                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                          {selectedSummaryTrainee.batch} &middot; {selectedSummaryTrainee.account}
+                        </p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full border text-[10px] font-black ${attendanceTag?.lightColor || 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+                        {attendanceTag?.label || 'Untagged'}
+                      </span>
+                    </section>
+
+                    <section className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 min-h-[92px]">
+                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Attendance Tag</p>
+                        <p className="text-base font-black text-slate-900 dark:text-white mt-2">{attendanceTag ? `${attendanceTag.short} - ${attendanceTag.label}` : 'Untagged'}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 min-h-[92px]">
+                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Trainee Status</p>
+                        <p className="text-base font-black text-slate-900 dark:text-white mt-2">{lifecycleStatus}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 min-h-[92px]">
+                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Assigned Trainer</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-white mt-2 break-words">{record?.trainerName || selectedSummaryTrainee.assignedTrainer}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 min-h-[92px]">
+                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Training Type</p>
+                        <p className="text-base font-black text-slate-900 dark:text-white mt-2">{record?.trainingType || selectedSummaryTrainee.trainingType}</p>
+                      </div>
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-[#2F6798]" />
+                          <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Attendance Summary</h4>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400">{formattedMatrixPeriodLabel}</span>
+                      </div>
+                      <div className="grid grid-cols-5 divide-x divide-slate-100 dark:divide-slate-800">
+                        {[
+                          { label: 'Present', value: selectedSummaryStats.p, color: 'text-emerald-600 dark:text-emerald-400' },
+                          { label: 'Late', value: selectedSummaryStats.l, color: 'text-amber-600 dark:text-amber-400' },
+                          { label: 'Under', value: selectedSummaryStats.u, color: 'text-orange-600 dark:text-orange-400' },
+                          { label: 'Absent', value: selectedSummaryStats.a, color: 'text-rose-600 dark:text-rose-400' },
+                          { label: 'Rate', value: selectedSummaryStats.rate, color: 'text-[#2F6798] dark:text-blue-400' },
+                        ].map(item => (
+                          <div key={item.label} className="px-2 py-4 text-center min-w-0">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase truncate">{item.label}</p>
+                            <p className={`text-base font-black mt-1 ${item.color}`}>{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-4 py-2.5 bg-slate-50/60 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        {selectedSummaryStats.totalTagged} tagged attendance record{selectedSummaryStats.totalTagged === 1 ? '' : 's'} in this view
+                      </div>
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-[#2F6798]" />
+                        <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Trainer Note</h4>
+                      </div>
+                      <div className="p-4 text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap min-h-[96px]">
+                        {record?.notes?.trim() || 'No reason note was recorded for this attendance entry.'}
+                      </div>
+                      {(record?.updatedBy || record?.updatedAt) && (
+                        <div className="px-4 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                          <span>{record?.notes?.trim() ? 'Note logged by' : 'Attendance updated by'}: <strong className="text-slate-700 dark:text-slate-200">{record?.updatedBy || 'Trainer'}</strong></span>
+                          <span>{record?.updatedAt ? new Date(record.updatedAt).toLocaleString() : ''}</span>
+                        </div>
+                      )}
+                    </section>
+                  </>
+                );
+              })()}
+            </div>
+
+            <footer className="p-4 sm:px-6 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 shrink-0">
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                Data source: Trainee attendance records
+              </span>
+              <button
+                type="button"
+                onClick={() => setSummaryDate(null)}
+                className="px-5 py-2.5 rounded-lg bg-[#2F6798] hover:bg-[#24527a] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </footer>
+          </aside>
+        </div>,
+        document.body
+      )}
 
       {/* Reason Notes Right-Side Slide-Over Drawer */}
       {activeNoteTrainee && typeof document !== 'undefined' && createPortal(

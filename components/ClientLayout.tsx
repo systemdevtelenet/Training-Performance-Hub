@@ -12,6 +12,7 @@ import { ToastProvider } from '@/components/CustomToast';
 import { RoleProvider, useRole } from '@/components/providers/RoleProvider';
 import AccessRestrictedView from '@/components/AccessRestrictedView';
 import PageLoading from '@/components/PageLoading';
+import IdleSessionGuard from '@/components/IdleSessionGuard';
 
 const AiHubDrawer = dynamic(() => import('@/components/AiHubDrawer'), { ssr: false });
 
@@ -76,6 +77,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       </div>
       <AiHubDrawer />
       <DataSyncOverlay />
+      <IdleSessionGuard />
     </>
   );
 }
