@@ -370,11 +370,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Trainee identifier is required' }, { status: 400 });
     }
 
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      return NextResponse.json(
+        { error: 'Trainee deletion is not configured on the server. Add SUPABASE_SERVICE_ROLE_KEY to the deployment environment.' },
+        { status: 503 },
+      );
+    }
+
     const cleanName = rawName.trim();
     const isPst = type.toUpperCase().includes('PST') || type.toUpperCase().includes('PRODUCT');
     const targetTable = isPst ? 'product_spec_training' : 'inhouse';
+    const deleteClient = createClient(supabaseUrl, serviceRoleKey);
 
-    let query = supabase.from(targetTable).delete().eq('name', cleanName);
+    let query = deleteClient.from(targetTable).delete().eq('name', cleanName);
 
     if (isPst) {
       if (batch) {
@@ -382,7 +391,7 @@ export async function DELETE(req: Request) {
         if (!isNaN(cleanWave)) query = query.eq('wave', cleanWave);
       }
       if (account && account !== 'All' && account !== 'General') {
-        query = query.ilike('account', `%${account.trim()}%`);
+        query = query.ilike('account', account.trim());
       }
     } else {
       if (batch) {
@@ -390,15 +399,22 @@ export async function DELETE(req: Request) {
         if (!isNaN(parsedBatch)) query = query.eq('batch', parsedBatch);
       }
       if (account && account !== 'All' && account !== 'General') {
-        query = query.ilike('acount', `%${account.trim()}%`);
+        query = query.ilike('acount', account.trim());
       }
     }
 
-    const { error } = await query;
+    const { data: deletedRows, error } = await query.select('name');
 
     if (error) {
       console.error('Error deleting trainee from table:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!deletedRows?.length) {
+      return NextResponse.json({
+        success: false,
+        error: `No matching ${isPst ? 'PST' : 'inhouse'} trainee record was deleted. The trainee may already be removed, or the name, batch, or account may not match the database record.`,
+      }, { status: 404 });
     }
 
     // Also remove from assignment records
@@ -428,7 +444,7 @@ export async function DELETE(req: Request) {
       // Non-blocking in static generation
     }
 
-    return NextResponse.json({ success: true, name: cleanName });
+    return NextResponse.json({ success: true, name: cleanName, deletedCount: deletedRows.length });
   } catch (err: any) {
     console.error('Error in trainee DELETE route:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

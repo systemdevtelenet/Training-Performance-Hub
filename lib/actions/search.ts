@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -78,20 +79,21 @@ export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE')
 
   try {
     // 2. Search trainer-roster employees
-    const { data: trainerRows } = await supabaseAdmin.from('trainers').select('employee_num, position');
-    const trainerCodes = new Set((trainerRows || []).map((trainer: any) => String(trainer.employee_num || '').trim().toLowerCase()));
-    const trainerPositionByCode = new Map((trainerRows || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer.position]));
+    const { data: positions } = await supabaseAdmin.from('positions').select('position_id, position_name, position_code');
+    const positionById = new Map((positions || []).map((position: any) => [Number(position.position_id), position]));
+    const { data: roles } = await supabaseAdmin.from('roles').select('role_id, role_name');
+    const roleById = new Map((roles || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]));
     const { data: trainersData } = await supabaseAdmin
       .from('employees')
-      .select('id, employee_name, employee_code, employee_email, avatar_url')
+      .select('id, employee_name, employee_code, employee_email, avatar_url, role_id, position_id')
       .or(`employee_name.ilike.%${cleanQ}%,employee_code.ilike.%${cleanQ}%,employee_email.ilike.%${cleanQ}%`)
       .limit(20);
 
     (trainersData || [])
-      .filter((employee: any) => trainerCodes.has(String(employee.employee_code || '').trim().toLowerCase()))
+      .filter((employee: any) => isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id))))
       .slice(0, 6)
       .forEach((t: any) => {
-      const position = trainerPositionByCode.get(String(t.employee_code || '').trim().toLowerCase()) || 'Trainer';
+      const position = getTrainingPositionLabel(positionById.get(Number(t.position_id)));
       results.push({
         id: `trainer-${t.employee_code || t.id}`,
         title: t.employee_name || 'Trainer',

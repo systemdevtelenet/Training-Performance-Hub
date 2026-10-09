@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -24,9 +25,7 @@ export async function GET() {
     const { data: accounts } = await supabase.from('accounts').select('*');
     const { data: roles } = await supabase.from('roles').select('*');
     const { data: assignments } = await supabase.from('employee_assignments').select('*');
-    const { data: trainers } = await supabase.from('trainers').select('employee_num, position');
-    const { data: inhouseData } = await supabase.from('inhouse').select('*');
-    const { data: pstData } = await supabase.from('product_spec_training').select('*');
+    const { data: positions } = await supabase.from('positions').select('position_id, position_name, position_code');
 
     // Create lookup maps
     const statusMap = new Map<number, string>();
@@ -51,8 +50,8 @@ export async function GET() {
       }
     });
 
-    const trainerByCode = new Map<string, any>(
-      (trainers || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
+    const positionById = new Map<number, any>(
+      (positions || []).map((position: any) => [Number(position.position_id), position]),
     );
     const resultList: any[] = [];
 
@@ -60,16 +59,18 @@ export async function GET() {
     // the trainers roster by employee code, so unrelated employees are never changed.
     (employees || []).forEach(emp => {
       const code = String(emp.employee_code || '').trim().toLowerCase();
-      const trainer = trainerByCode.get(code);
+      const trainerPosition = positionById.get(Number(emp.position_id));
+      const positionLabel = trainerPosition ? getTrainingPositionLabel(trainerPosition) : 'Unassigned';
+      const isTrainerEmployeeRecord = isTrainerEmployee(trainerPosition, roleMap.get(emp.role_id));
       const assignedAccs = empAccountsMap.get(emp.id) || [];
       const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
-      const roleName = trainer?.position || roleMap.get(emp.role_id) || 'Agent';
+      const roleName = roleMap.get(emp.role_id) || 'Agent';
 
       let category = 'AGENT';
       const rUpper = roleName.toUpperCase();
       const nUpper = (emp.employee_name || '').toUpperCase();
 
-      if (trainer) {
+      if (isTrainerEmployeeRecord) {
         category = 'TRAINER';
       } else if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
         category = 'ADMIN';
@@ -86,38 +87,11 @@ export async function GET() {
         status_name: statusName,
         role_id: emp.role_id || 1,
         role_name: roleName,
+        position_label: positionLabel,
         category,
         assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
         account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
-        is_primary_trainer: Boolean(trainer)
-      });
-    });
-
-    // Add active Trainees from inhouse and PST
-    const traineeNames = new Set<string>();
-    let traineeIndex = 0;
-    (inhouseData || []).concat(pstData || []).forEach(t => {
-      const tName = (t.name || '').trim();
-      if (!tName || traineeNames.has(tName.toLowerCase())) return;
-      traineeNames.add(tName.toLowerCase());
-
-      const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
-      const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
-
-      resultList.push({
-        id: -(5000 + traineeIndex++),
-        employee_code: 'TRAINEE',
-        employee_name: tName,
-        employee_email: null,
-        status_id: isLoss ? 3 : 1,
-        status_name: statusName,
-        role_id: 11,
-        role_name: 'Trainee',
-        category: 'TRAINEE',
-        hire_date: null,
-        vici_link: null,
-        assigned_accounts: t.account || t.acount || 'Training Roster',
-        is_primary_trainer: false
+        is_primary_trainer: isTrainerEmployeeRecord
       });
     });
 
@@ -126,7 +100,8 @@ export async function GET() {
       data: resultList,
       accounts: accounts || [],
       statuses: statuses || [],
-      roles: roles || []
+      roles: roles || [],
+      positions: positions || []
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

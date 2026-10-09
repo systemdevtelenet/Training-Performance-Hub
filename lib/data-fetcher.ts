@@ -10,6 +10,7 @@ import {
   isTrainerReliabilityLoss,
 } from '@/lib/analytics-utils';
 import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
+import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition } from '@/lib/trainer-position';
 
 // Create a standard client that doesn't access Next.js cookies
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -57,44 +58,48 @@ export const getDashboardData = async () => {
       .from('product_spec_training')
       .select('*');
 
-    const { data: trainersData } = await supabaseAdmin
-      .from('trainers')
-      .select('*');
-
     const { data: trainerEmployees } = await supabaseAdmin
       .from('employees')
-      .select('id, employee_code, employee_name, status_id');
+      .select('id, employee_code, employee_name, status_id, role_id, position_id');
 
     const { data: employeeStatuses } = await supabaseAdmin
       .from('statuses')
       .select('status_id, status_name');
 
+    const { data: employeePositions } = await supabaseAdmin
+      .from('positions')
+      .select('position_id, position_name, position_code');
+
+    const { data: employeeRoles } = await supabaseAdmin.from('roles').select('role_id, role_name');
+
     const inhouseList = inhouseData || [];
     const pstList = pstData || [];
-    const trainersList = trainersData || [];
     const employeeList = trainerEmployees || [];
     const statusNameById = new Map<number, string>(
       (employeeStatuses || []).map((status: any) => [Number(status.status_id), String(status.status_name || '')]),
     );
-    const employeeByCode = new Map<string, any>(
-      employeeList.map((employee: any) => [String(employee.employee_code || '').trim().toLowerCase(), employee]),
+    const positionById = new Map<number, any>(
+      (employeePositions || []).map((position: any) => [Number(position.position_id), position]),
+    );
+    const roleById = new Map<number, string>(
+      (employeeRoles || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]),
     );
 
     const trainerNamesSet = new Set<string>();
-    trainersList.forEach((trainer: any) => {
-      const employee = employeeByCode.get(String(trainer.employee_num || '').trim().toLowerCase());
-      if (employee?.employee_name) trainerNamesSet.add(employee.employee_name.trim());
+    employeeList.forEach((employee: any) => {
+      if (employee.employee_name && isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id)))) {
+        trainerNamesSet.add(employee.employee_name.trim());
+      }
     });
 
     // Consolidate unique trainers and track active vs losses (RESIGNED, AWOL, LATERAL count as losses)
     const TRAINER_LOSS_STATUSES = ['RESIGNED', 'AWOL', 'LATERAL', 'TERMINATED', 'INACTIVE'];
     const trainerStatusMap = new Map<string, string>();
-    trainersList.forEach((t: any) => {
-      const num = String(t.employee_num || '').trim();
-      const employee = employeeByCode.get(num.toLowerCase());
-      if (!employee) return;
+    employeeList.forEach((employee: any) => {
+      if (!isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id)))) return;
+      const num = String(employee.employee_code || '').trim();
       const effectiveStatus = (statusNameById.get(Number(employee.status_id)) || 'ACTIVE').toUpperCase().trim();
-      const nameKey = (employee.employee_name || (num ? `emp_${num}` : `t_${t.trainer_id}`)).trim().toLowerCase();
+      const nameKey = (employee.employee_name || `emp_${num || employee.id}`).trim().toLowerCase();
       trainerStatusMap.set(nameKey, effectiveStatus);
     });
 
@@ -315,17 +320,22 @@ export const getTrainersData = async () => {
 
     if (trainersError) {
       console.error('Error fetching trainers:', trainersError);
-      return [];
     }
 
     const primaryTaskByEmployeeId = new Map<string, string>();
     const { data: trainerEmployees, error: employeesError } = await supabaseAdmin
       .from('employees')
-      .select('id, employee_code, employee_name, employee_email, status_id, role_id, hire_date, avatar_url');
+      .select('id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, avatar_url');
 
     const { data: statuses } = await supabaseAdmin
       .from('statuses')
       .select('status_id, status_name');
+
+    const { data: positions } = await supabaseAdmin
+      .from('positions')
+      .select('position_id, position_name, position_code');
+
+    const { data: roles } = await supabaseAdmin.from('roles').select('role_id, role_name');
 
     const { data: accounts } = await supabaseAdmin
       .from('accounts')
@@ -353,11 +363,14 @@ export const getTrainersData = async () => {
       }
     }
 
-    const employeeByCode = new Map<string, any>(
-      (trainerEmployees || []).map((employee: any) => [String(employee.employee_code || '').trim().toLowerCase(), employee]),
-    );
     const statusNameById = new Map<number, string>(
       (statuses || []).map((status: any) => [Number(status.status_id), String(status.status_name || '')]),
+    );
+    const positionById = new Map<number, any>(
+      (positions || []).map((position: any) => [Number(position.position_id), position]),
+    );
+    const roleById = new Map<number, string>(
+      (roles || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]),
     );
     const accountNameById = new Map<number, string>(
       (accounts || []).map((account: any) => [Number(account.account_id), String(account.account_name || account.account_code || '')]),
@@ -464,12 +477,19 @@ export const getTrainersData = async () => {
 
     const assignmentMap = await getTraineeTrainerAssignmentMap();
 
-    const consolidatedTrainers = (trainers || [])
-      .map((trainer: any) => ({
-        ...trainer,
-        employee: employeeByCode.get(String(trainer.employee_num || '').trim().toLowerCase()),
-      }))
-      .filter((trainer: any) => Boolean(trainer.employee));
+    const trainerByCode = new Map<string, any>(
+      (trainers || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
+    );
+    const consolidatedTrainers = (trainerEmployees || [])
+      .filter((employee: any) => isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id))))
+      .map((employee: any) => {
+        const trainer = trainerByCode.get(String(employee.employee_code || '').trim().toLowerCase()) || {};
+        return {
+          ...trainer,
+          employee_num: employee.employee_code,
+          employee,
+        };
+      });
 
     if (consolidatedTrainers.length === 0) return [];
 
@@ -649,7 +669,7 @@ export const getTrainersData = async () => {
         name: trainerName,
         email: employee.employee_email || '',
         profilePic: cleanPic,
-        role: t.position || 'TRAINER',
+        role: getTrainingPositionLabel(positionById.get(Number(employee.position_id))),
         status: (statusNameById.get(Number(employee.status_id)) || 'ACTIVE').toUpperCase(),
         statusId: employee.status_id,
         startDate: employee.hire_date || t.start_date || 'N/A',
@@ -813,9 +833,7 @@ export const getEmployeesData = async () => {
     const { data: accounts } = await supabaseAdmin.from('accounts').select('*');
     const { data: roles } = await supabaseAdmin.from('roles').select('*');
     const { data: assignments } = await supabaseAdmin.from('employee_assignments').select('*');
-    const { data: trainers } = await supabaseAdmin.from('trainers').select('employee_num, position');
-    const { data: inhouseData } = await supabaseAdmin.from('inhouse').select('*');
-    const { data: pstData } = await supabaseAdmin.from('product_spec_training').select('*');
+    const { data: positions } = await supabaseAdmin.from('positions').select('position_id, position_name, position_code');
 
     const statusMap = new Map<number, string>();
     (statuses || []).forEach(s => statusMap.set(s.status_id, s.status_name));
@@ -838,24 +856,26 @@ export const getEmployeesData = async () => {
       }
     });
 
-    const trainerByCode = new Map<string, any>(
-      (trainers || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
+    const positionById = new Map<number, any>(
+      (positions || []).map((position: any) => [Number(position.position_id), position]),
     );
     const resultList: any[] = [];
 
     // Employees is authoritative for every employee, including trainers.
     (employees || []).forEach(emp => {
       const code = String(emp.employee_code || '').trim().toLowerCase();
-      const trainer = trainerByCode.get(code);
+      const trainerPosition = positionById.get(Number(emp.position_id));
+      const positionLabel = trainerPosition ? getTrainingPositionLabel(trainerPosition) : 'Unassigned';
+      const isTrainerEmployeeRecord = isTrainerEmployee(trainerPosition, roleMap.get(emp.role_id));
       const assignedAccs = empAccountsMap.get(emp.id) || [];
       const statusName = statusMap.get(emp.status_id) || (emp.status_id === 1 ? 'Active' : emp.status_id === 2 ? 'Inactive' : 'Active');
-      const roleName = trainer?.position || roleMap.get(emp.role_id) || 'Agent';
+      const roleName = roleMap.get(emp.role_id) || 'Agent';
 
       let category = 'AGENT';
       const rUpper = roleName.toUpperCase();
       const nUpper = (emp.employee_name || '').toUpperCase();
 
-      if (trainer) {
+      if (isTrainerEmployeeRecord) {
         category = 'TRAINER';
       } else if (rUpper.includes('SUPERVISOR') || rUpper.includes('ADMIN') || nUpper.startsWith('HOT ') || nUpper.startsWith('ADMIN ')) {
         category = 'ADMIN';
@@ -872,38 +892,11 @@ export const getEmployeesData = async () => {
         status_name: statusName,
         role_id: emp.role_id || 1,
         role_name: roleName,
+        position_label: positionLabel,
         category,
         assigned_accounts: assignedAccs.length > 0 ? assignedAccs.join(', ') : 'Unassigned',
         account_ids: (assignments || []).filter(a => a.employee_id === emp.id).map(a => a.account_id),
-        is_primary_trainer: Boolean(trainer)
-      });
-    });
-
-    // Add active Trainees from inhouse and PST
-    const traineeNames = new Set<string>();
-    let traineeIndex = 0;
-    (inhouseData || []).concat(pstData || []).forEach(t => {
-      const tName = (t.name || '').trim();
-      if (!tName || traineeNames.has(tName.toLowerCase())) return;
-      traineeNames.add(tName.toLowerCase());
-
-      const isLoss = ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED'].some(k => (t.status || '').toUpperCase().includes(k));
-      const statusName = isLoss ? 'Resigned' : (t.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'Active' : (t.status || 'Active');
-
-      resultList.push({
-        id: -(5000 + traineeIndex++),
-        employee_code: 'TRAINEE',
-        employee_name: tName,
-        employee_email: null,
-        status_id: isLoss ? 3 : 1,
-        status_name: statusName,
-        role_id: 11,
-        role_name: 'Trainee',
-        category: 'TRAINEE',
-        hire_date: null,
-        vici_link: null,
-        assigned_accounts: t.account || t.acount || 'Training Roster',
-        is_primary_trainer: false
+        is_primary_trainer: isTrainerEmployeeRecord
       });
     });
 
@@ -911,11 +904,12 @@ export const getEmployeesData = async () => {
       employees: resultList,
       accounts: accounts || [],
       statuses: statuses || [],
-      roles: roles || []
+      roles: roles || [],
+      positions: positions || []
     };
   } catch (e) {
     console.error('getEmployeesData error:', e);
-    return { employees: [], accounts: [], statuses: [], roles: [] };
+    return { employees: [], accounts: [], statuses: [], roles: [], positions: [] };
   }
 };
 

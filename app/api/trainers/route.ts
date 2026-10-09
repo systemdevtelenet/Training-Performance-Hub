@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition, normalizePositionCode } from '@/lib/trainer-position';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -15,8 +16,10 @@ export async function GET() {
       .select('*');
     const { data: employees, error: employeeError } = await supabase
       .from('employees')
-      .select('id, employee_code, employee_name, employee_email, status_id, hire_date, avatar_url');
+      .select('id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, avatar_url');
     const { data: statuses } = await supabase.from('statuses').select('status_id, status_name');
+    const { data: positions } = await supabase.from('positions').select('position_id, position_name, position_code');
+    const { data: roles } = await supabase.from('roles').select('role_id, role_name');
     const { data: assignments } = await supabase.from('employee_assignments').select('employee_id, account_id');
 
     if (trainerError || employeeError) {
@@ -46,11 +49,17 @@ export async function GET() {
       if (name) accountsSet.add(name);
     });
 
-    const employeeByCode = new Map(
-      (employees || []).map((employee: any) => [String(employee.employee_code || '').trim().toLowerCase(), employee]),
+    const trainerByCode = new Map(
+      (trainerRows || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
     );
     const statusById = new Map(
       (statuses || []).map((item: any) => [Number(item.status_id), String(item.status_name || '')]),
+    );
+    const positionById = new Map(
+      (positions || []).map((position: any) => [Number(position.position_id), position]),
+    );
+    const roleById = new Map(
+      (roles || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]),
     );
     const accountById = new Map(
       (accountsData || []).map((account: any) => [Number(account.account_id), account.account_name || account.account_code]),
@@ -65,9 +74,10 @@ export async function GET() {
       accountsByEmployeeId.set(employeeId, current);
     });
 
-    const trainerDirectory = (trainerRows || []).flatMap((trainer: any) => {
-      const employee = employeeByCode.get(String(trainer.employee_num || '').trim().toLowerCase());
-      if (!employee) return [];
+    const trainerDirectory = (employees || []).flatMap((employee: any) => {
+      const position = positionById.get(Number(employee.position_id));
+      if (!isTrainerEmployee(position, roleById.get(Number(employee.role_id)))) return [];
+      const trainer = trainerByCode.get(String(employee.employee_code || '').trim().toLowerCase()) || {};
       return [{
         id: employee.id,
         name: employee.employee_name,
@@ -75,7 +85,7 @@ export async function GET() {
         email: employee.employee_email,
         gmail_account: employee.employee_email,
         thunderbird_account: employee.employee_email,
-        position: trainer.position || 'Trainer',
+        position: getTrainingPositionLabel(position),
         status: (statusById.get(Number(employee.status_id)) || 'Active').toUpperCase(),
         start_date: employee.hire_date,
         profile_pic: employee.avatar_url,
@@ -125,8 +135,20 @@ export async function POST(req: Request) {
     // Employees owns trainer identity and status. The trainers table only marks
     // trainer membership and stores training-specific metadata.
     const { data: statusRows } = await supabase.from('statuses').select('status_id, status_name');
+    const { data: positionRows } = await supabase.from('positions').select('position_id, position_name, position_code');
     const requestedStatus = String(status || 'ACTIVE').trim().toUpperCase();
     const statusRow = (statusRows || []).find((item: any) => String(item.status_name || '').trim().toUpperCase() === requestedStatus);
+    const requestedPosition = normalizePositionCode(cleanPosition);
+    const positionRow = (positionRows || []).find((item: any) => {
+      const code = normalizePositionCode(item.position_code);
+      const name = normalizePositionCode(item.position_name);
+      if (requestedPosition.includes('HEAD')) return code === 'HOT';
+      if (requestedPosition.includes('COORDINATOR')) return code === 'TC';
+      return code === requestedPosition || name === requestedPosition;
+    });
+    if (!positionRow || !isTrainerPosition(positionRow)) {
+      return NextResponse.json({ success: false, error: `Training position ${cleanPosition} is not configured in positions.` }, { status: 400 });
+    }
     const isHead = cleanPosition.toUpperCase().includes('HEAD');
     const roleId = isHead ? 5 : 10;
     const empPayload = {
@@ -134,6 +156,7 @@ export async function POST(req: Request) {
       employee_name: cleanName,
       employee_email: cleanEmail,
       status_id: Number(statusRow?.status_id || 1),
+      position_id: Number(positionRow.position_id),
       hire_date: cleanStartDate,
       role_id: roleId,
       avatar_url: profilePic || null,
