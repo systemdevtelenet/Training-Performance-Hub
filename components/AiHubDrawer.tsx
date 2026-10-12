@@ -382,26 +382,29 @@ export default function AiHubDrawer() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) - Hidden per company policy */}
-      <div className={`hidden fixed bottom-1 right-2 z-50 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+      {/* Floating Action Button (FAB) */}
+      <div className={`fixed bottom-24 right-4 sm:bottom-5 sm:right-5 z-50 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
         <button
           onClick={() => setIsOpen(true)}
-          className="group relative flex items-center justify-center transition-all hover:scale-110 hover:-translate-y-1"
+          aria-label="Open Training Hub AI"
+          title="Training Hub AI"
+          className="group flex min-h-[65px] w-[232px] items-center gap-2 rounded-full border border-blue-100 bg-white px-2.5 pr-4 text-left shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2"
         >
-          <Player
-            autoplay
-            loop
-            src="/animations/AI chatbot-2.json"
-            style={{ height: '60px', width: '60px' }}
-          />
-
-          {/* Tooltip Beside Button */}
-          <div className="absolute right-full -mr-2 top-1/2 -translate-y-1/2 w-max opacity-0 translate-x-2 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
-            <div className="relative rounded-xl bg-[#2F6798] px-3 py-1.5 text-xs font-medium text-white shadow-xl border border-[#2F6798]/50">
-              Training Hub AI
-              <div className="absolute -right-1 top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#2F6798] border-t border-r border-[#2F6798]/50"></div>
-            </div>
-          </div>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2F6798]">
+            <Player
+              autoplay
+              loop
+              src="/animations/AI chatbot-2.json"
+              style={{ height: '52px', width: '52px' }}
+            />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="text-sm font-bold leading-tight text-slate-900">Training Hub AI</span>
+            <span className="mt-1 text-[10px] font-medium leading-tight text-slate-500">Chat, quick prompts &amp; history</span>
+          </span>
+          <span className="ml-auto text-lg leading-none text-[#2F6798] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+            ›
+          </span>
         </button>
       </div>
 

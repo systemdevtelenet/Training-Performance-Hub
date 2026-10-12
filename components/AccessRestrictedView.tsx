@@ -10,6 +10,7 @@ interface AccessRestrictedProps {
   userName: string | null;
   userMeta?: {
     primaryTask?: string;
+    position?: string;
     employeeId?: string;
   };
 }
@@ -88,9 +89,9 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
             <p className="font-extrabold text-white dark:text-slate-100 text-base tracking-tight truncate">{userName || 'Employee User'}</p>
             <p className="text-white/80 dark:text-slate-400 font-mono text-xs truncate">{email || 'No email associated'}</p>
           </div>
-          {userMeta?.primaryTask && userMeta.primaryTask !== 'N/A' && (
+          {(userMeta?.position && userMeta.position !== 'N/A' || userMeta?.primaryTask && userMeta.primaryTask !== 'N/A') && (
             <p className="text-[11px] text-white/70 dark:text-slate-400 pt-2 border-t border-white/20 dark:border-slate-700/80">
-              Position: <span className="text-white dark:text-slate-200 font-semibold">{userMeta.primaryTask}</span>
+              Position: <span className="text-white dark:text-slate-200 font-semibold">{userMeta.position && userMeta.position !== 'N/A' ? userMeta.position : userMeta.primaryTask}</span>
             </p>
           )}
         </div>

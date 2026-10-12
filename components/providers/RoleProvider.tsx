@@ -10,6 +10,7 @@ export interface UserMetaDetails {
   employeeId: string;
   startDate: string;
   accounts: string;
+  position: string;
   primaryTask: string;
   firstName?: string;
   middleName?: string;
@@ -37,6 +38,7 @@ const defaultUserMeta: UserMetaDetails = {
   employeeId: 'N/A',
   startDate: 'N/A',
   accounts: 'N/A',
+  position: 'N/A',
   primaryTask: 'N/A',
   firstName: 'N/A',
   middleName: 'N/A',

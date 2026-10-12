@@ -36,6 +36,7 @@ export default function Topbar() {
   const profileRef = useRef<HTMLDivElement>(null);
 
   const positionTitle = useMemo(() => {
+    if (userMeta?.position && userMeta.position !== 'N/A') return userMeta.position;
     if (userMeta?.primaryTask && userMeta.primaryTask !== 'N/A') return userMeta.primaryTask;
     const effRole = role || actualRole;
     if (effRole === 'SUPER_ADMIN') return 'Super Admin';

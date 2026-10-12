@@ -17,6 +17,7 @@ export interface UserProfileResponse {
     employeeId: string;
     startDate: string;
     accounts: string;
+    position: string;
     primaryTask: string;
     firstName: string;
     middleName: string;
@@ -46,6 +47,14 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       .select('*')
       .ilike('employee_email', cleanEmail)
       .maybeSingle();
+
+    const { data: positionData } = empData?.position_id
+      ? await supabaseAdmin
+        .from('positions')
+        .select('position_name')
+        .eq('position_id', empData.position_id)
+        .maybeSingle()
+      : { data: null };
 
     const { data: trainerRow } = empData?.employee_code
       ? await supabaseAdmin
@@ -192,6 +201,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     // Dynamic position title from database or role title
     const resolvedPosition = (
+      (positionData?.position_name && positionData.position_name !== 'N/A') ? positionData.position_name :
       (trainerRow?.position && trainerRow.position !== 'N/A') ? trainerRow.position :
       (empData?.position && empData.position !== 'N/A') ? empData.position :
       (authUserMeta?.position && authUserMeta.position !== 'N/A') ? authUserMeta.position :
@@ -262,6 +272,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
         employeeId: String(empData?.employee_code || trainerRow?.employee_num || (cleanEmail.includes('ralasagas') ? '1008' : 'N/A')),
         startDate: String(empData?.hire_date || trainerRow?.start_date || 'N/A'),
         accounts: String((Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'N/A'),
+        position: resolvedPosition,
         primaryTask: resolvedPrimaryTask,
         firstName: fName || 'User',
         middleName: mName || 'N/A',
@@ -289,6 +300,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
         employeeId: 'N/A',
         startDate: 'N/A',
         accounts: 'N/A',
+        position: 'N/A',
         primaryTask: 'Operations User',
         firstName: fallbackName,
         middleName: 'N/A',

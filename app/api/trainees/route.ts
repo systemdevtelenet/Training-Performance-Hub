@@ -382,35 +382,72 @@ export async function DELETE(req: Request) {
     const isPst = type.toUpperCase().includes('PST') || type.toUpperCase().includes('PRODUCT');
     const targetTable = isPst ? 'product_spec_training' : 'inhouse';
     const deleteClient = createClient(supabaseUrl, serviceRoleKey);
+    const escapedName = cleanName.replace(/[\\%_]/g, '\\$&');
+    const batchNumber = batch ? parseInt(batch.replace(/[^0-9]/g, ''), 10) : NaN;
+    const candidateFields = isPst ? 'name, wave, account' : 'name, batch, acount';
+    let candidateQuery = deleteClient
+      .from(targetTable)
+      .select(candidateFields)
+      .ilike('name', `%${escapedName}%`);
 
-    let query = deleteClient.from(targetTable).delete().eq('name', cleanName);
-
-    if (isPst) {
-      if (batch) {
-        const cleanWave = parseInt(`${batch}`.replace(/[^0-9]/g, ''), 10);
-        if (!isNaN(cleanWave)) query = query.eq('wave', cleanWave);
-      }
-      if (account && account !== 'All' && account !== 'General') {
-        query = query.ilike('account', account.trim());
-      }
-    } else {
-      if (batch) {
-        const parsedBatch = parseInt(`${batch}`.replace(/[^0-9]/g, ''), 10);
-        if (!isNaN(parsedBatch)) query = query.eq('batch', parsedBatch);
-      }
-      if (account && account !== 'All' && account !== 'General') {
-        query = query.ilike('acount', account.trim());
-      }
+    if (!Number.isNaN(batchNumber)) {
+      candidateQuery = candidateQuery.eq(isPst ? 'wave' : 'batch', batchNumber);
     }
 
-    const { data: deletedRows, error } = await query.select('name');
-
-    if (error) {
-      console.error('Error deleting trainee from table:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: candidates, error: candidateError } = await candidateQuery;
+    if (candidateError) {
+      console.error('Error finding trainee to delete:', candidateError);
+      return NextResponse.json({ error: candidateError.message }, { status: 500 });
     }
 
-    if (!deletedRows?.length) {
+    const accountColumn = isPst ? 'account' : 'acount';
+    const batchColumn = isPst ? 'wave' : 'batch';
+    const matchingCandidates = (candidates || []).filter((row: any) => {
+      if (String(row.name || '').trim().toLowerCase() !== cleanName.toLowerCase()) return false;
+      if (account && account !== 'All') {
+        const storedAccount = String(row[accountColumn] || '').trim().toLowerCase();
+        const requestedAccount = account.trim().toLowerCase();
+        if (requestedAccount === 'general') {
+          if (storedAccount && storedAccount !== 'general') return false;
+        } else if (storedAccount !== requestedAccount) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const uniqueCandidates: any[] = [];
+    const candidateKeys = new Set<string>();
+    matchingCandidates.forEach((row: any) => {
+      const key = JSON.stringify([row.name, row[batchColumn], row[accountColumn]]);
+      if (candidateKeys.has(key)) return;
+      candidateKeys.add(key);
+      uniqueCandidates.push(row);
+    });
+
+    const deletedRows: any[] = [];
+    for (const row of uniqueCandidates) {
+      let deleteQuery = deleteClient.from(targetTable).delete().eq('name', row.name);
+      if (row[batchColumn] == null) {
+        deleteQuery = deleteQuery.is(batchColumn, null);
+      } else {
+        deleteQuery = deleteQuery.eq(batchColumn, row[batchColumn]);
+      }
+      if (row[accountColumn] == null) {
+        deleteQuery = deleteQuery.is(accountColumn, null);
+      } else {
+        deleteQuery = deleteQuery.eq(accountColumn, row[accountColumn]);
+      }
+
+      const { data, error } = await deleteQuery.select('name');
+      if (error) {
+        console.error('Error deleting trainee from table:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      deletedRows.push(...(data || []));
+    }
+
+    if (!deletedRows.length) {
       return NextResponse.json({
         success: false,
         error: `No matching ${isPst ? 'PST' : 'inhouse'} trainee record was deleted. The trainee may already be removed, or the name, batch, or account may not match the database record.`,

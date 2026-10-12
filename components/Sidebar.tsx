@@ -216,7 +216,9 @@ export default function Sidebar() {
       : (displayName.slice(0, 2).toUpperCase() || 'U');
 
     // Dynamic role title
-    const title = userMeta?.primaryTask !== 'N/A' && userMeta?.primaryTask
+    const title = userMeta?.position !== 'N/A' && userMeta?.position
+      ? userMeta.position
+      : userMeta?.primaryTask !== 'N/A' && userMeta?.primaryTask
       ? userMeta.primaryTask
       : role === 'SUPER_ADMIN' ? 'Super Admin'
       : role === 'HOT_ADMIN' ? 'Head of Training'

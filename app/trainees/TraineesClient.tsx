@@ -10,7 +10,6 @@ import {
   Download,
   Printer,
   Users,
-  TrendingDown,
   Layers,
   Building2,
   Table as TableIcon,
@@ -71,6 +70,32 @@ const isLossStatus = (status?: string) => {
 
 import { isTrainerMatch } from '@/lib/analytics-utils';
 
+function scopeTraineeRecords(records: Trainee[], isTrainer: boolean, isTrainee: boolean, userName: string, email: string) {
+  if (isTrainer) {
+    const qTrainer = userName || '';
+    const qEmail = (email || '').toLowerCase().split('@')[0];
+    return records.filter(t => {
+      if (!t.assignedTrainer || t.assignedTrainer === 'Unassigned') return false;
+      return isTrainerMatch(t.assignedTrainer, qTrainer) ||
+        isTrainerMatch(qTrainer, t.assignedTrainer) ||
+        Boolean(email && qEmail.length >= 3 && t.assignedTrainer.toLowerCase() === qEmail);
+    });
+  }
+  if (isTrainee) {
+    const qName = (userName || '').toLowerCase();
+    const qEmail = (email || '').toLowerCase().split('@')[0];
+    return records.filter(t => {
+      const tName = (t.name || '').toLowerCase();
+      return Boolean((qName && (tName === qName || isTrainerMatch(tName, qName))) || (qEmail && tName.includes(qEmail)));
+    });
+  }
+  return records;
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char));
+}
+
 export default function TraineesPage({ initialTrainees = [] }: { initialTrainees?: Trainee[] }) {
   const { role, actualRole, userName, email, isLoading, userMeta } = useRole();
   const toast = useToast();
@@ -83,31 +108,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const canManageTrainees = isPrivilegedAdmin || isTrainer;
 
   const scopedInitialTrainees = useMemo(() => {
-    if (!isTrainer && !isTrainee) return initialTrainees;
-    if (isTrainer) {
-      const qTrainer = userName || '';
-      const qEmail = (email || '').toLowerCase().split('@')[0];
-      return initialTrainees.filter(t => {
-        if (!t.assignedTrainer || t.assignedTrainer === 'Unassigned') return false;
-        return (
-          isTrainerMatch(t.assignedTrainer, qTrainer) ||
-          isTrainerMatch(qTrainer, t.assignedTrainer) ||
-          (email && qEmail.length >= 3 && t.assignedTrainer.toLowerCase() === qEmail)
-        );
-      });
-    }
-    if (isTrainee) {
-      const qName = (userName || '').toLowerCase();
-      const qEmail = (email || '').toLowerCase().split('@')[0];
-      return initialTrainees.filter(t => {
-        const tName = (t.name || '').toLowerCase();
-        return (
-          (qName && (tName === qName || isTrainerMatch(tName, qName))) ||
-          (qEmail && tName.includes(qEmail))
-        );
-      });
-    }
-    return initialTrainees;
+    return scopeTraineeRecords(initialTrainees, isTrainer, isTrainee, userName || '', email || '');
   }, [initialTrainees, isTrainer, isTrainee, userName, email, userMeta]);
 
   const [trainees, setTrainees] = useState<Trainee[]>(scopedInitialTrainees);
@@ -154,7 +155,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         const res = await fetch('/api/trainees');
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
-          setTrainees(data.data);
+          setTrainees(scopeTraineeRecords(data.data, isTrainer, isTrainee, userName || '', email || ''));
         }
       } catch (e) {
         console.warn('Realtime trainees refresh error:', e);
@@ -171,7 +172,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isTrainer, isTrainee, userName, email]);
 
   // Sync search and tab params from URL if navigated from Topbar / Sidebar
   useEffect(() => {
@@ -261,6 +262,72 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     else toast.info(msg, title || 'Info');
   };
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTrainees = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/trainees', { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result.success || !Array.isArray(result.data)) {
+        throw new Error(result.error || 'Unable to retrieve trainee records.');
+      }
+      setTrainees(scopeTraineeRecords(result.data, isTrainer, isTrainee, userName || '', email || ''));
+      if (isAdmin) fetchPendingApprovalsCount();
+      showToast('Trainee data is up to date.', 'Refreshed');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not refresh trainee data.', 'Refresh failed', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const exportSummary = () => {
+    const csvCell = (value: unknown) => {
+      let text = String(value ?? '');
+      if (/^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const rows = [
+      ['Training Performance Hub - Trainee Summary'],
+      ['Roster', rosterFilter],
+      ['Quarter', selectedQuarter],
+      ['Month', selectedMonth],
+      ['Client account', selectedAccount],
+      ['Total headcount', totalHC],
+      ['Inhouse trainees', inhouseHC],
+      ['PST trainees', pstHC],
+      [],
+      ['Trainee', 'Training type', 'Batch', 'Client account', 'Assigned trainer', 'Status', 'Present', 'Absent', 'Start date'],
+      ...filteredTrainees.map(t => [
+        t.name, t.trainingType || '', t.batchName, t.accountName, t.assignedTrainer,
+        t.status, t.p, t.a, t.startDate || ''
+      ])
+    ];
+    const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `trainee-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${filteredTrainees.length} trainee records.`, 'Summary exported');
+  };
+
+  const printSummary = () => {
+    const printWindow = window.open('', '_blank', 'width=1100,height=800');
+    if (!printWindow) {
+      showToast('Allow pop-ups for this site to print or save the summary as PDF.', 'Print window blocked', 'error');
+      return;
+    }
+    const rows = filteredTrainees.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.trainingType || '')}</td><td>${escapeHtml(t.batchName)}</td><td>${escapeHtml(t.accountName)}</td><td>${escapeHtml(t.assignedTrainer)}</td><td>${escapeHtml(t.status)}</td><td>${t.p ?? 0}</td><td>${t.a ?? 0}</td></tr>`).join('');
+    printWindow.document.write(`<!doctype html><html><head><title>Trainee Summary</title><style>
+      body{font:12px Arial,sans-serif;color:#172033;padding:24px}h1{font-size:20px;margin:0 0 6px}p{color:#53647a;margin:4px 0 18px}.stats{display:flex;gap:28px;margin:18px 0}.stats strong{display:block;font-size:18px;margin-top:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd5df;padding:7px;text-align:left}th{background:#edf3f8}thead{display:table-header-group}tr{break-inside:avoid}@media print{body{padding:0}}
+      </style></head><body><h1>Training Performance Hub</h1><p>Trainee Summary | Generated ${escapeHtml(new Date().toLocaleString())} | Roster: ${escapeHtml(rosterFilter)} | Quarter: ${escapeHtml(selectedQuarter)} | Month: ${escapeHtml(selectedMonth)} | Account: ${escapeHtml(selectedAccount)}</p><div class="stats"><div>Total Headcount<strong>${totalHC}</strong></div><div>Inhouse Trainees<strong>${inhouseHC}</strong></div><div>PST Trainees<strong>${pstHC}</strong></div></div><table><thead><tr><th>Trainee</th><th>Type</th><th>Batch</th><th>Client Account</th><th>Assigned Trainer</th><th>Status</th><th>Present</th><th>Absent</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No matching trainee records.</td></tr>'}</tbody></table><script>window.onload=()=>{window.print()}</script></body></html>`);
+    printWindow.document.close();
+  };
+
   // Dynamic filter lists
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
@@ -330,7 +397,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [filteredTrainees, currentPage, pageSize]);
 
   // Grouped datasets and top summary counts
-  const { inhouseBatches, pstBatches, clientAccounts, totalHC, inhouseHC, pstHC, systemAttr } = useMemo(() => {
+  const { inhouseBatches, pstBatches, clientAccounts, totalHC, inhouseHC, pstHC } = useMemo(() => {
     const inhouseMap: Record<string, any> = {};
     const pstMap: Record<string, any> = {};
     const accountMap: Record<string, any> = {};
@@ -338,7 +405,6 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     let hcCount = 0;
     let ihCount = 0;
     let pstCount = 0;
-    let lossCount = 0;
 
     filteredTrainees.forEach((t) => {
       hcCount++;
@@ -349,8 +415,6 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       }
 
       const isLoss = Boolean(t.isLoss || isLossStatus(t.status));
-      if (isLoss) lossCount++;
-
       const acctName = t.accountName || 'Unknown Account';
       if (!accountMap[acctName]) {
         accountMap[acctName] = { 
@@ -467,16 +531,13 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }));
 
     const sortByName = (a: any, b: any) => a.name.localeCompare(b.name);
-    const overallAttr = hcCount ? ((lossCount / hcCount) * 100).toFixed(2) + '%' : '0.00%';
-
     return {
       inhouseBatches: inhouse.sort(sortByName),
       pstBatches: pst.sort(sortByName),
       clientAccounts: clients.sort(sortByName),
       totalHC: hcCount,
       inhouseHC: ihCount,
-      pstHC: pstCount,
-      systemAttr: overallAttr
+      pstHC: pstCount
     };
   }, [filteredTrainees]);
 
@@ -809,15 +870,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => window.location.reload()}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            onClick={refreshTrainees}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Refresh Data
+            <RefreshCw className={`w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4] ${isRefreshing ? 'animate-spin' : ''}`} /> {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
           </button>
-          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+          <button onClick={exportSummary} className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
             <Download className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Export Summary
           </button>
-          <button className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+          <button onClick={printSummary} className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
             <Printer className="w-3.5 h-3.5 text-[#2F6798] dark:text-[#5a9fd4]" /> Print / PDF
           </button>
         </div>
@@ -923,79 +985,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         </div>
       )}
 
-      {/* TOP SUMMARY KPI BOXES - PROPERLY ARRANGED & RESPONSIVE */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Box 1: Ongoing Headcount */}
-        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
-            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
+      {/* TRAINEE SUMMARY */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'TOTAL HEADCOUNT', value: totalHC, icon: Users, tone: 'text-[#2F6798] dark:text-[#5a9fd4]', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
+          { label: 'INHOUSE TRAINEES', value: inhouseHC, icon: GraduationCap, tone: 'text-blue-600 dark:text-blue-400', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
+          { label: 'PST TRAINEES', value: pstHC, icon: Layers, tone: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+        ].map(({ label, value, icon: Icon, tone, iconBg }) => (
+          <div key={label} className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
+            <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
+              <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="" className="w-full h-auto object-cover object-bottom" />
+            </div>
+            <div className="min-w-0 relative z-10">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{label}</p>
+              <h4 className={`text-2xl font-black ${tone} mt-0.5`}>{value.toLocaleString()}</h4>
+            </div>
+            <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center ${tone} shrink-0 ml-2 relative z-10`}>
+              <Icon className="w-5 h-5" />
+            </div>
           </div>
-          <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING HEADCOUNT</p>
-            <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{totalHC.toLocaleString()}</h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#2F6798] dark:text-[#5a9fd4] shrink-0 ml-2 relative z-10">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Box 2: Inhouse Trainees */}
-        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
-            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
-          </div>
-          <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING INHOUSE</p>
-            <h4 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{inhouseHC.toLocaleString()}</h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 ml-2 relative z-10">
-            <GraduationCap className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Box 3: PST Trainees */}
-        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
-            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
-          </div>
-          <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">ONGOING PST</p>
-            <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{pstHC.toLocaleString()}</h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 ml-2 relative z-10">
-            <Layers className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Box 4: Client Accounts */}
-        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
-            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
-          </div>
-          <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">CLIENT ACCOUNTS</p>
-            <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-0.5">{clientAccounts.length.toLocaleString()}</h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0 ml-2 relative z-10">
-            <Building2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Box 5: System Attrition */}
-        <div className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
-          <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
-            <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/design%20(1).png" alt="Watermark" className="w-full h-auto object-cover object-bottom" />
-          </div>
-          <div className="min-w-0 relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">SYSTEM ATTRITION</p>
-            <h4 className={`text-2xl font-black mt-0.5 ${parseFloat(systemAttr) > 5 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-              {systemAttr}
-            </h4>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 ml-2 relative z-10">
-            <TrendingDown className="w-5 h-5" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* UNIFIED FILTER & SUB-TABS CONTAINER */}
