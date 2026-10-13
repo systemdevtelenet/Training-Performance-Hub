@@ -47,30 +47,24 @@ export async function getTraineeTrainerAssignmentMap(): Promise<Map<string, stri
 // We export direct async functions for real-time live data consistency across all pages
 export const getDashboardData = async () => {
   try {
-    const assignmentMap = await getTraineeTrainerAssignmentMap();
+    const [assignmentMap, inhouseResult, pstResult, trainerEmployeesResult, employeeStatusesResult, employeePositionsResult, employeeRolesResult] = await Promise.all([
+      getTraineeTrainerAssignmentMap(),
+      supabaseAdmin.from('inhouse').select('*'),
+      supabaseAdmin.from('product_spec_training').select('*'),
+      supabaseAdmin.from('employees').select('id, employee_code, employee_name, status_id, role_id, position_id'),
+      supabaseAdmin.from('statuses').select('status_id, status_name'),
+      supabaseAdmin.from('positions').select('position_id, position_name, position_code'),
+      supabaseAdmin.from('roles').select('role_id, role_name')
+    ]);
+    const { data: inhouseData, error: inhouseError } = inhouseResult;
+    const { data: pstData, error: pstError } = pstResult;
+    const { data: trainerEmployees, error: employeesError } = trainerEmployeesResult;
+    const { data: employeeStatuses, error: statusesError } = employeeStatusesResult;
+    const { data: employeePositions, error: positionsError } = employeePositionsResult;
+    const { data: employeeRoles, error: rolesError } = employeeRolesResult;
 
-    // Fetch live data from Supabase tables
-    const { data: inhouseData, error: inhouseError } = await supabaseAdmin
-      .from('inhouse')
-      .select('*');
-
-    const { data: pstData, error: pstError } = await supabaseAdmin
-      .from('product_spec_training')
-      .select('*');
-
-    const { data: trainerEmployees } = await supabaseAdmin
-      .from('employees')
-      .select('id, employee_code, employee_name, status_id, role_id, position_id');
-
-    const { data: employeeStatuses } = await supabaseAdmin
-      .from('statuses')
-      .select('status_id, status_name');
-
-    const { data: employeePositions } = await supabaseAdmin
-      .from('positions')
-      .select('position_id, position_name, position_code');
-
-    const { data: employeeRoles } = await supabaseAdmin.from('roles').select('role_id, role_name');
+    const sourceError = inhouseError || pstError || employeesError || statusesError || positionsError || rolesError;
+    if (sourceError) throw sourceError;
 
     const inhouseList = inhouseData || [];
     const pstList = pstData || [];
@@ -304,11 +298,16 @@ export const getDashboardData = async () => {
       attendanceRate: trainerAttendanceRate,
       reliabilityRate: trainerReliabilityRate
     };
+    transformed.dataSource = 'live';
+    transformed.generatedAt = new Date().toISOString();
 
     return transformed;
   } catch (err) {
     console.error('Error in getDashboardData:', err);
-    return dummyPayload;
+    return {
+      dataSource: 'unavailable',
+      dataError: 'Live dashboard data could not be loaded.'
+    };
   }
 };
 

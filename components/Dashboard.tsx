@@ -49,11 +49,11 @@ export default function Dashboard({ initialData }: { initialData: any }) {
       }
     });
 
-    const activeTrainersCount = processedData.summary?.trainersSummary?.headcount ?? initialData?.metrics?.activeTrainers ?? 16;
+    const activeTrainersCount = processedData.summary?.trainersSummary?.headcount ?? initialData?.metrics?.activeTrainers ?? null;
 
     return {
-      totalTrainees: processedData.summary?.totalHeadcount ?? initialData?.metrics?.totalTrainees ?? 0,
-      overallAttrition: processedData.summary?.globalRate ?? initialData?.metrics?.overallAttrition ?? '0.0%',
+      totalTrainees: processedData.summary?.totalHeadcount ?? initialData?.metrics?.totalTrainees ?? null,
+      overallAttrition: processedData.summary?.globalRate ?? initialData?.metrics?.overallAttrition ?? 'N/A',
       activeTrainers: activeTrainersCount,
       classesInSession: batchSet.size
     };
@@ -66,6 +66,14 @@ export default function Dashboard({ initialData }: { initialData: any }) {
         title="Loading Dashboard..."
         subtitle="Getting your personalized workspace ready"
       />
+    );
+  }
+
+  if (initialData?.dataSource === 'unavailable') {
+    return (
+      <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        Live dashboard data is currently unavailable. Metrics are hidden until the data connection is restored.
+      </div>
     );
   }
 

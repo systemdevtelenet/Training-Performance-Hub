@@ -322,8 +322,6 @@ export function getFilteredData(
   });
 
   let trainerAttP = 0, trainerAttA = 0, trainerRelP = 0, trainerRelA = 0, trainerRelLosses = 0, trainerRelSched = 0;
-  const uniqueTrainersSet = new Set<string>();
-
   if (filtered.trainerAttendance?.groups) {
     for (const [trainerName, group] of Object.entries<any>(filtered.trainerAttendance.groups)) {
       const filteredMembers = group.members.filter((m: any) => {
@@ -335,7 +333,6 @@ export function getFilteredData(
       
       group.members = filteredMembers;
       if (filteredMembers.length > 0) {
-        uniqueTrainersSet.add(trainerName.toUpperCase());
         filteredMembers.forEach((m: any) => {
           trainerAttP += m.p;
           trainerAttA += m.a;
@@ -368,9 +365,9 @@ export function getFilteredData(
     calculateRosterAttrition(losses, startingHeadcount).formattedRate;
   
   const tAttTotal = trainerAttP + trainerAttA;
-  const tAttRate = tAttTotal > 0 ? ((trainerAttP / tAttTotal) * 100).toFixed(1) + '%' : '100.0%';
+  const tAttRate = tAttTotal > 0 ? ((trainerAttP / tAttTotal) * 100).toFixed(1) + '%' : 'N/A';
   const tRelActual = trainerRelP + trainerRelA;
-  const tRelRate = trainerRelSched > 0 ? ((tRelActual / trainerRelSched) * 100).toFixed(1) + '%' : '100.0%';
+  const tRelRate = trainerRelSched > 0 ? ((tRelActual / trainerRelSched) * 100).toFixed(1) + '%' : 'N/A';
 
     const totalOperationalHeadcount = summaryStats.inhouse.count + summaryStats.pst.count;
 
@@ -391,9 +388,9 @@ export function getFilteredData(
       totalLosses: summaryStats.global.losses,
       globalRate: calcRate(summaryStats.global.losses, totalOperationalHeadcount),
       trainersSummary: {
-        headcount: data.summary?.trainersSummary?.headcount ?? (data.trainers ? Object.keys(data.trainers).length : uniqueTrainersSet.size) ?? 14,
-        totalLosses: data.summary?.trainersSummary?.totalLosses ?? 0,
-        attritionRate: data.summary?.trainersSummary?.attritionRate ?? '0.0%',
+        headcount: data.summary?.trainersSummary?.headcount ?? null,
+        totalLosses: data.summary?.trainersSummary?.totalLosses ?? null,
+        attritionRate: data.summary?.trainersSummary?.attritionRate ?? 'N/A',
         attendanceRate: tAttRate,
         reliabilityRate: tRelRate
       }

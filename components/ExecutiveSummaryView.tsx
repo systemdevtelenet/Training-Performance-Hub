@@ -121,7 +121,7 @@ export function ExecutiveSummaryView({ data, rawData, filters }: { data: any; ra
 
   if (!data?.summary) return null;
 
-  const ts = data.summary.trainersSummary || { headcount: 16, attendanceRate: '100.0%', reliabilityRate: '100.0%', attritionRate: '0.0%', totalLosses: 0 };
+  const ts = data.summary.trainersSummary || { headcount: 'N/A', attendanceRate: 'N/A', reliabilityRate: 'N/A', attritionRate: 'N/A', totalLosses: 'N/A' };
   const trendData = data.trendData || { overall: { months: [], quarters: [] } };
 
   const handleAssignTrainer = async (batch: any, newTrainer: string) => {

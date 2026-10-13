@@ -795,17 +795,29 @@ export function AttendanceCalendarView({
   // Pagination state (configurable rows per page)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [matrixPage, setMatrixPage] = useState<number>(1);
+  const MATRIX_PAGE_SIZE = 10;
 
   // Reset page to 1 on filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedTrainer, selectedBatch, selectedAccount, selectedStatusFilter, selectedTagFilter, searchQuery, selectedDate]);
+    setMatrixPage(1);
+  }, [selectedTrainer, selectedBatch, selectedAccount, selectedStatusFilter, selectedTagFilter, searchQuery, selectedDate, selectedMonth, matrixRange, matrixRefDate]);
 
   const totalPages = Math.ceil(filteredTrainees.length / pageSize) || 1;
   const paginatedTrainees = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredTrainees.slice(start, start + pageSize);
   }, [filteredTrainees, currentPage, pageSize]);
+  const matrixTotalPages = Math.ceil(filteredTrainees.length / MATRIX_PAGE_SIZE) || 1;
+  const paginatedMatrixTrainees = useMemo(() => {
+    const start = (matrixPage - 1) * MATRIX_PAGE_SIZE;
+    return filteredTrainees.slice(start, start + MATRIX_PAGE_SIZE);
+  }, [filteredTrainees, matrixPage]);
+
+  useEffect(() => {
+    setMatrixPage(page => Math.min(page, matrixTotalPages));
+  }, [matrixTotalPages]);
 
   // Daily KPI calculations
   const dailyKPIs = useMemo(() => {
@@ -2145,8 +2157,8 @@ export function AttendanceCalendarView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                  {filteredTrainees.length > 0 ? (
-                    filteredTrainees.map((trainee, idx) => {
+                  {paginatedMatrixTrainees.length > 0 ? (
+                    paginatedMatrixTrainees.map((trainee, idx) => {
                       const initials = trainee.name
                         ? trainee.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
                         : '?';
@@ -2293,13 +2305,36 @@ export function AttendanceCalendarView({
             </div>
 
             {/* Matrix Footer */}
-            <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
               <span>
-                Displaying <strong>{filteredTrainees.length}</strong> trainees for <strong>{formattedMatrixPeriodLabel}</strong>
+                Showing <strong>{filteredTrainees.length === 0 ? 0 : (matrixPage - 1) * MATRIX_PAGE_SIZE + 1}–{Math.min(matrixPage * MATRIX_PAGE_SIZE, filteredTrainees.length)}</strong> of <strong>{filteredTrainees.length}</strong> trainees for <strong>{formattedMatrixPeriodLabel}</strong>
               </span>
-              <span className="font-semibold text-slate-400">
-                {monthDays.length} Total Days in View ({matrixRange.charAt(0).toUpperCase() + matrixRange.slice(1)})
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                {filteredTrainees.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMatrixPage(page => Math.max(1, page - 1))}
+                      disabled={matrixPage === 1}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-1">Page <strong className="text-slate-700 dark:text-slate-200">{matrixPage}</strong> of <strong className="text-slate-700 dark:text-slate-200">{matrixTotalPages}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setMatrixPage(page => Math.min(matrixTotalPages, page + 1))}
+                      disabled={matrixPage === matrixTotalPages}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+                <span className="font-semibold text-slate-400">
+                  {monthDays.length} Total Days in View ({matrixRange.charAt(0).toUpperCase() + matrixRange.slice(1)})
+                </span>
+              </div>
             </div>
           </>
         )}

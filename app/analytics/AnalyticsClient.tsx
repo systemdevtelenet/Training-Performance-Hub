@@ -462,6 +462,14 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     );
   }
 
+  if (initialData?.dataSource === 'unavailable') {
+    return (
+      <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        Live analytics data is unavailable. Trend metrics are hidden until the data connection is restored.
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-[1600px] mx-auto pt-0 px-0 pb-6 md:px-1 lg:px-2 space-y-5">
       

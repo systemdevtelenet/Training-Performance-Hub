@@ -10,15 +10,15 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
     setIsLoading(false);
   }, [metrics]);
 
-  const traineesCount = metrics?.totalTrainees ?? 180;
-  const attritionRate = metrics?.overallAttrition ?? '1.1%';
-  const trainersCount = metrics?.activeTrainers ?? 16;
+  const traineesCount = metrics?.totalTrainees ?? 'N/A';
+  const attritionRate = metrics?.overallAttrition ?? 'N/A';
+  const trainersCount = metrics?.activeTrainers ?? 'N/A';
 
   const kpiData = [
     {
       id: 'trainees',
       label: 'Total Trainees',
-      value: traineesCount.toString(),
+      value: String(traineesCount),
       trend: 'Live Data',
       isPositive: true,
       icon: Users,
@@ -36,7 +36,7 @@ export default function KpiCards({ metrics }: { metrics?: any }) {
     {
       id: 'trainers',
       label: 'Active Trainers',
-      value: trainersCount.toString(),
+      value: String(trainersCount),
       trend: 'Active',
       isPositive: true,
       icon: UserCheck,
