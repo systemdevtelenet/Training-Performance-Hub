@@ -42,6 +42,7 @@ import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import PageLoading from '@/components/PageLoading';
 import { createClient } from '@/utils/supabase/client';
+import { isTraineeLossStatus, isTrainerMatch } from '@/lib/analytics-utils';
 
 export type Trainee = {
   id: string;
@@ -62,13 +63,7 @@ export type Trainee = {
   nhoCompleted?: boolean;
 };
 
-const isLossStatus = (status?: string) => {
-  if (!status) return false;
-  const s = status.toUpperCase().trim();
-  return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
-};
-
-import { isTrainerMatch } from '@/lib/analytics-utils';
+const isLossStatus = (status?: string) => isTraineeLossStatus(status);
 
 function scopeTraineeRecords(records: Trainee[], isTrainer: boolean, isTrainee: boolean, userName: string, email: string) {
   if (isTrainer) {
@@ -120,6 +115,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [breakdownTab, setBreakdownTab] = useState<'all' | 'inhouse' | 'pst' | 'accounts'>('all');
   const [rosterFilter, setRosterFilter] = useState<'ongoing' | 'offboarded' | 'all'>('ongoing');
+  const [trackFilter, setTrackFilter] = useState<'all' | 'inhouse' | 'general' | 'pst'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('All');
   const [selectedQuarter, setSelectedQuarter] = useState('All');
@@ -371,6 +367,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (selectedQuarter !== 'All' && t.quarter !== selectedQuarter) return false;
       if (selectedMonth !== 'All' && t.month !== selectedMonth) return false;
 
+      if (trackFilter === 'inhouse' && t.trainingType !== 'INHOUSE') return false;
+      if (trackFilter === 'pst' && t.trainingType !== 'PST') return false;
+      if (trackFilter === 'general' && !t.batchName.toLowerCase().startsWith('general')) return false;
+
       if (deferredSearchQuery.trim()) {
         const q = deferredSearchQuery.toLowerCase();
         const matchesName = t.name.toLowerCase().includes(q);
@@ -382,12 +382,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
       return true;
     });
-  }, [trainees, rosterFilter, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [trainees, rosterFilter, trackFilter, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
+
+  const rosterSummaryCounts = useMemo(() => {
+    const summaryTrainees = trainees.filter(t =>
+      (selectedAccount === 'All' || t.accountName === selectedAccount) &&
+      (selectedQuarter === 'All' || t.quarter === selectedQuarter) &&
+      (selectedMonth === 'All' || t.month === selectedMonth)
+    );
+    const inhouse = summaryTrainees.filter(t => t.trainingType === 'INHOUSE').length;
+    return {
+      total: summaryTrainees.length,
+      inhouse,
+      pst: summaryTrainees.length - inhouse,
+    };
+  }, [trainees, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredSearchQuery, rosterFilter, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [deferredSearchQuery, rosterFilter, trackFilter, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Paginated trainees slice
   const totalPages = Math.ceil(filteredTrainees.length / pageSize) || 1;
@@ -988,9 +1002,9 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       {/* TRAINEE SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'TOTAL HEADCOUNT', value: totalHC, icon: Users, tone: 'text-[#2F6798] dark:text-[#5a9fd4]', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
-          { label: 'INHOUSE TRAINEES', value: inhouseHC, icon: GraduationCap, tone: 'text-blue-600 dark:text-blue-400', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
-          { label: 'PST TRAINEES', value: pstHC, icon: Layers, tone: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+          { label: 'TOTAL HEADCOUNT', value: rosterSummaryCounts.total, icon: Users, tone: 'text-[#2F6798] dark:text-[#5a9fd4]', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
+          { label: 'INHOUSE TRAINEES', value: rosterSummaryCounts.inhouse, icon: GraduationCap, tone: 'text-blue-600 dark:text-blue-400', iconBg: 'bg-blue-50 dark:bg-blue-950/40' },
+          { label: 'PST TRAINEES', value: rosterSummaryCounts.pst, icon: Layers, tone: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-50 dark:bg-emerald-950/40' },
         ].map(({ label, value, icon: Icon, tone, iconBg }) => (
           <div key={label} className="relative overflow-hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between hover:shadow-md transition-all group">
             <div className="absolute -right-2 -bottom-2 w-32 sm:w-44 pointer-events-none select-none opacity-[0.28] dark:opacity-[0.16] group-hover:opacity-[0.42] dark:group-hover:opacity-[0.28] transition-all duration-300 transform group-hover:scale-105 z-0">
@@ -1396,6 +1410,24 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                 >
                   All ({trainees.length})
                 </button>
+              </div>
+              <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-900">
+                {([
+                  ['all', 'All Tracks'],
+                  ['inhouse', 'In-house'],
+                  ['general', 'General'],
+                  ['pst', 'PST'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTrackFilter(value)}
+                    aria-pressed={trackFilter === value}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${trackFilter === value ? 'bg-white text-[#2F6798] shadow-xs dark:bg-slate-700 dark:text-blue-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 

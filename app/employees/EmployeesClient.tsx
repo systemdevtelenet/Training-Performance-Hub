@@ -59,6 +59,9 @@ export type EmployeeRecord = {
   account_ids?: number[];
 };
 
+const isActiveEmployee = (employee: EmployeeRecord) =>
+  employee.status_id === 1 || employee.status_name?.toLowerCase() === 'active';
+
 export default function EmployeesClient({
   initialEmployees = [],
   accounts = [],
@@ -192,10 +195,11 @@ export default function EmployeesClient({
       // Status filter
       if (selectedStatus !== 'All') {
         const sName = (e.status_name || '').toLowerCase();
-        if (selectedStatus.toLowerCase() === 'active' && e.status_id !== 1 && sName !== 'active') return false;
-        if (selectedStatus.toLowerCase() === 'inactive' && e.status_id !== 2 && sName !== 'inactive') return false;
+        if (selectedStatus.toLowerCase() === 'active' && !isActiveEmployee(e)) return false;
+        if (selectedStatus.toLowerCase() === 'inactive' && isActiveEmployee(e)) return false;
         if (selectedStatus.toLowerCase() === 'resigned' && e.status_id !== 3 && sName !== 'resigned') return false;
         if (selectedStatus.toLowerCase() === 'on leave' && e.status_id !== 4 && sName !== 'on leave') return false;
+        if (selectedStatus.toLowerCase() === 'awol' && sName !== 'awol') return false;
       }
 
       // Account filter
@@ -238,7 +242,7 @@ export default function EmployeesClient({
   // KPI Metrics
   const kpis = useMemo(() => {
     const total = employees.length;
-    const active = employees.filter(e => e.status_id === 1 || e.status_name?.toLowerCase() === 'active').length;
+    const active = employees.filter(isActiveEmployee).length;
     return { total, active, inactive: total - active };
   }, [employees]);
 
@@ -570,6 +574,7 @@ export default function EmployeesClient({
               { value: 'Active', label: 'Active' },
               { value: 'Inactive', label: 'Inactive' },
               { value: 'Resigned', label: 'Resigned' },
+              { value: 'AWOL', label: 'AWOL' },
               { value: 'On Leave', label: 'On Leave' },
             ]}
           />

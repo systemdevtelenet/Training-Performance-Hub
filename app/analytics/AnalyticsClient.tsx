@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 
 const Player = dynamic(
   () => import('@lottiefiles/react-lottie-player').then((mod) => mod.Player),
@@ -177,9 +178,14 @@ function computeTrendsFromData(data: any) {
 }
 
 export default function AnalyticsPage({ initialData }: { initialData?: any }) {
-  const { role, actualRole } = useRole();
+  const router = useRouter();
+  const { role, actualRole, isLoading: isRoleLoading } = useRole();
   const currentRole = role || actualRole;
   const isAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole);
+
+  useEffect(() => {
+    if (!isRoleLoading && !isAdmin) router.replace('/');
+  }, [isRoleLoading, isAdmin, router]);
 
   const initialComputed = useMemo(() => computeTrendsFromData(initialData), [initialData]);
 
@@ -440,27 +446,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     return null;
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
-          <AlertTriangle className="w-7 h-7" />
-        </div>
-        <div className="max-w-md space-y-1.5">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Admin Access Only</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Performance Analytics & AI Insights are reserved exclusively for Administrative and Leadership personnel.
-          </p>
-        </div>
-        <a
-          href="/"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-xs shadow-md transition-all"
-        >
-          Return to Dashboard
-        </a>
-      </div>
-    );
-  }
+  if (isRoleLoading || !isAdmin) return null;
 
   if (initialData?.dataSource === 'unavailable') {
     return (

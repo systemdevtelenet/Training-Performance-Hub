@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2 } from 'lucide-react';
+import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { toast } from 'react-hot-toast';
 
@@ -37,10 +37,73 @@ type ChatSession = {
   messages: Message[];
 };
 
+const CHAT_STORAGE_KEY_PREFIX = 'tph_ai_chat_sessions_v2';
+const MAX_SAVED_SESSIONS = 30;
+
+const getChatStorageKey = (email: string) =>
+  `${CHAT_STORAGE_KEY_PREFIX}:${email.trim().toLowerCase()}`;
+
+const DEFAULT_WELCOME_MESSAGE: Message = {
+  id: 'welcome',
+  sender: 'ai',
+  text: 'Hi there! I am your Training Performance Hub AI. How can I help you navigate or analyze your training performance, attendance, and attrition data today?',
+};
+
+const formatSessionTime = (timestamp: number) => {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Date unavailable';
+  const date = new Date(timestamp);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  if (sameDay(date, today)) return `Today at ${time}`;
+  if (sameDay(date, yesterday)) return `Yesterday at ${time}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' })} at ${time}`;
+};
+
+const renderInlineMarkdown = (text: string) =>
+  text.split(/(\*\*.*?\*\*)/g).map((part, index) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={index} className="font-semibold text-slate-900 dark:text-white">{part.slice(2, -2)}</strong>
+      : part
+  );
+
+const renderAssistantMarkdown = (text: string) => {
+  const normalized = text
+    .replace(/\s*(#{1,6}\s+)/g, '\n$1')
+    .replace(/^(#{1,6}\s+[^*\n]+)(?=\*\*)/gm, '$1\n')
+    .replace(/(?<!\*)\s+\*(?!\*)\s+/g, '\n- ');
+
+  return normalized.split(/\n+/).map((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return null;
+
+    const heading = line.match(/^#{1,6}\s+(.+)$/);
+    if (heading) {
+      return <p key={index} className="pt-1 font-bold text-slate-900 dark:text-white">{renderInlineMarkdown(heading[1])}</p>;
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      return <p key={index} className="flex gap-1.5 pl-1"><span aria-hidden="true">•</span><span>{renderInlineMarkdown(bullet[1])}</span></p>;
+    }
+
+    const numbered = line.match(/^(\d+[.)])\s+(.+)$/);
+    if (numbered) {
+      return <p key={index} className="flex gap-1.5"><span className="font-semibold">{numbered[1]}</span><span>{renderInlineMarkdown(numbered[2])}</span></p>;
+    }
+
+    return <p key={index}>{renderInlineMarkdown(line)}</p>;
+  });
+};
+
 export default function AiHubDrawer() {
   const router = useRouter();
   const { role, email } = useRole();
   const [isOpen, setIsOpen] = useState(false);
+  const [isFabExpanded, setIsFabExpanded] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
   const [view, setView] = useState<'chat' | 'history'>('chat');
@@ -50,14 +113,8 @@ export default function AiHubDrawer() {
 
   const userInitials = 'NJ';
 
-  const defaultWelcomeMessage: Message = {
-    id: 'welcome',
-    sender: 'ai',
-    text: 'Hi there! I am your Training Performance Hub AI. How can I help you navigate or analyze your training performance, attendance, and attrition data today?',
-  };
-
   const [isTyping, setIsTyping] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([defaultWelcomeMessage]);
+  const [messages, setMessages] = useState<Message[]>([DEFAULT_WELCOME_MESSAGE]);
 
   const [audioLevels, setAudioLevels] = useState<number[]>(Array(28).fill(0.2));
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -66,37 +123,40 @@ export default function AiHubDrawer() {
   const animFrameRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  // Load persistent chat history & auto-restore the most recent session from localStorage on mount
+  // Keep history isolated when multiple people use the same browser.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tph_ai_chat_sessions');
-      if (saved) {
-        try {
-          const parsed: ChatSession[] = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Clean up legacy non-serializable objects from messages if present
-            const cleanedSessions = parsed.map(session => ({
-              ...session,
-              messages: session.messages.map(m => {
-                const { resultCard, ...rest } = m as any;
-                return rest as Message;
-              })
-            }));
+    if (typeof window === 'undefined') return;
 
-            setChatSessions(cleanedSessions);
-            // Auto-restore the most recent active chat thread so closing/opening drawer keeps conversation
-            const latestSession = cleanedSessions[0];
-            if (latestSession && latestSession.messages?.length > 0) {
-              setActiveSessionId(latestSession.id);
-              setMessages(latestSession.messages);
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to load chat history:', e);
+    setChatSessions([]);
+    setActiveSessionId(null);
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    if (!email) return;
+
+    const saved = localStorage.getItem(getChatStorageKey(email));
+    if (!saved) return;
+
+    try {
+      const parsed: ChatSession[] = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const cleanedSessions = parsed.map(session => ({
+          ...session,
+          timestamp: Number(session.timestamp) || Number(session.id) || 0,
+          messages: (session.messages || []).map(m => {
+            const { resultCard, ...rest } = m as any;
+            return rest as Message;
+          })
+        }));
+        setChatSessions(cleanedSessions);
+        const latestSession = cleanedSessions[0];
+        if (latestSession?.messages?.length > 0) {
+          setActiveSessionId(latestSession.id);
+          setMessages(latestSession.messages);
         }
       }
+    } catch (e) {
+      console.warn('Failed to load chat history:', e);
     }
-  }, []);
+  }, [email]);
 
   // Save chat session whenever messages update
   const saveSessionToHistory = (newMsgList: Message[], userQueryText: string) => {
@@ -108,38 +168,51 @@ export default function AiHubDrawer() {
 
       const existingIndex = prev.findIndex(s => s.id === currentId);
       const title = userQueryText.length > 35 ? userQueryText.substring(0, 35) + '...' : userQueryText;
-      const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timestamp = Date.now();
 
       let updatedSessions: ChatSession[];
       if (existingIndex >= 0) {
-        updatedSessions = [...prev];
-        updatedSessions[existingIndex] = {
-          ...updatedSessions[existingIndex],
+        const updatedSession = {
+          ...prev[existingIndex],
           messages: newMsgList,
-          time: `Today at ${formattedTime}`
+          timestamp,
+          time: formatSessionTime(timestamp)
         };
+        updatedSessions = [updatedSession, ...prev.filter((_, index) => index !== existingIndex)];
       } else {
         const newSession: ChatSession = {
           id: currentId,
           title,
-          time: `Today at ${formattedTime}`,
-          timestamp: Date.now(),
+          time: formatSessionTime(timestamp),
+          timestamp,
           messages: newMsgList
         };
         updatedSessions = [newSession, ...prev];
       }
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('tph_ai_chat_sessions', JSON.stringify(updatedSessions));
+      updatedSessions = updatedSessions.slice(0, MAX_SAVED_SESSIONS);
+      if (typeof window !== 'undefined' && email) {
+        localStorage.setItem(getChatStorageKey(email), JSON.stringify(updatedSessions));
       }
 
       return updatedSessions;
     });
   };
 
+  const handleClearChatHistory = () => {
+    if (!email || chatSessions.length === 0) return;
+    if (!window.confirm('Clear all saved AI conversations for this account from this browser? This cannot be undone.')) return;
+
+    localStorage.removeItem(getChatStorageKey(email));
+    setChatSessions([]);
+    setActiveSessionId(null);
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setView('chat');
+  };
+
   const handleStartNewChat = () => {
     setActiveSessionId(null);
-    setMessages([defaultWelcomeMessage]);
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
     setView('chat');
   };
 
@@ -154,7 +227,7 @@ export default function AiHubDrawer() {
     setChatSessions(prev => {
       const updated = prev.filter(s => s.id !== sessionId);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('tph_ai_chat_sessions', JSON.stringify(updated));
+        if (email) localStorage.setItem(getChatStorageKey(email), JSON.stringify(updated));
       }
       return updated;
     });
@@ -383,12 +456,12 @@ export default function AiHubDrawer() {
   return (
     <>
       {/* Floating Action Button (FAB) */}
-      <div className={`fixed bottom-24 right-4 sm:bottom-5 sm:right-5 z-50 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+      <div className={`fixed bottom-24 right-4 sm:bottom-5 sm:right-5 z-50 flex items-center gap-1.5 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
         <button
           onClick={() => setIsOpen(true)}
           aria-label="Open Training Hub AI"
           title="Training Hub AI"
-          className="group flex min-h-[65px] w-[232px] items-center gap-2 rounded-full border border-blue-100 bg-white px-2.5 pr-4 text-left shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2"
+          className={`group flex min-h-[64px] items-center gap-2 overflow-hidden rounded-full border border-blue-100 bg-white text-left shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2 ${isFabExpanded ? 'w-[232px] px-2.5 pr-4' : 'w-16 justify-center p-0.5'}`}
         >
           <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2F6798]">
             <Player
@@ -398,13 +471,23 @@ export default function AiHubDrawer() {
               style={{ height: '52px', width: '52px' }}
             />
           </span>
-          <span className="flex min-w-0 flex-col">
+          <span className={`min-w-0 flex-col ${isFabExpanded ? 'flex' : 'hidden'}`}>
             <span className="text-sm font-bold leading-tight text-slate-900">Training Hub AI</span>
             <span className="mt-1 text-[10px] font-medium leading-tight text-slate-500">Chat, quick prompts &amp; history</span>
           </span>
-          <span className="ml-auto text-lg leading-none text-[#2F6798] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+          <span className={`${isFabExpanded ? 'ml-auto' : 'hidden'} text-lg leading-none text-[#2F6798] transition-transform group-hover:translate-x-0.5`} aria-hidden="true">
             ›
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsFabExpanded(expanded => !expanded)}
+          aria-label={isFabExpanded ? 'Collapse AI launcher' : 'Expand AI launcher'}
+          aria-expanded={isFabExpanded}
+          title={isFabExpanded ? 'Collapse AI launcher' : 'Show AI launcher label'}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#2F6798] shadow-md transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2"
+        >
+          {isFabExpanded ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
       </div>
 
@@ -471,13 +554,25 @@ export default function AiHubDrawer() {
           <div className="flex-1 overflow-y-auto p-0">
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/50">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider dark:text-slate-400">Recent Conversations</h3>
-              <button
-                onClick={handleStartNewChat}
-                className="flex items-center gap-1.5 rounded-full bg-[#2F6798] px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-[#235179] transition-all cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                New Chat
-              </button>
+              <div className="flex items-center gap-2">
+                {chatSessions.length > 0 && (
+                  <button
+                    onClick={handleClearChatHistory}
+                    title="Clear saved history from this browser"
+                    aria-label="Clear saved history from this browser"
+                    className="rounded-md p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors dark:hover:bg-red-950/30"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  onClick={handleStartNewChat}
+                  className="flex items-center gap-1.5 rounded-full bg-[#2F6798] px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-[#235179] transition-all cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New Chat
+                </button>
+              </div>
             </div>
 
             {chatSessions.length === 0 ? (
@@ -511,7 +606,7 @@ export default function AiHubDrawer() {
                           <p className={`text-sm font-medium truncate ${isActive ? 'text-[#2F6798] font-bold dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>
                             {session.title}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5">{session.time}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{formatSessionTime(Number(session.timestamp) || Number(session.id))}</p>
                         </div>
                       </div>
 
@@ -599,8 +694,8 @@ export default function AiHubDrawer() {
                     msg.text
                   ) : (
                     <>
-                      <div className="rounded-2xl rounded-tl-sm border border-slate-100 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 leading-relaxed">
-                        {msg.text.split('**').map((part, i) => i % 2 === 1 ? <strong key={i} className="font-bold text-slate-900 dark:text-white">{part}</strong> : part)}
+                      <div className="space-y-1.5 break-words rounded-2xl rounded-tl-sm border border-slate-100 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 leading-relaxed">
+                        {renderAssistantMarkdown(msg.text)}
                       </div>
 
                       {/* Dynamic Navigation Action Card */}

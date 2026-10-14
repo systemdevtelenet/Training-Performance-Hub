@@ -25,6 +25,12 @@ export interface BatchGroup {
   attRate?: string;
 }
 
+export function isTraineeLossStatus(status?: string): boolean {
+  const normalized = String(status || '').toUpperCase().trim();
+  return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED']
+    .some(code => normalized.includes(code));
+}
+
 export function calculateAttrition(
   losses: number,
   startingHeadcount: number,

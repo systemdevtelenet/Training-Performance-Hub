@@ -6,12 +6,13 @@ import { calculateRosterAttrition, getFilteredData } from '@/lib/analytics-utils
 
 const OPENROUTER_MODELS = [
   'google/gemini-3.7-flash',
+  'openai/gpt-5.4-mini',
   'deepseek/deepseek-v4-flash-0731'
 ];
 
 function getNavigationIntent(message: string) {
   const text = message.toLowerCase();
-  if (!/\b(go to|open|show|take me to|navigate|view|launch|bring me to)\b/.test(text)) return null;
+  if (!/\b(go to|open|show|take me to|navigate|view|launch|bring me to|check)\b/.test(text)) return null;
 
   if (/\b(analytics|trends?|performance trends)\b/.test(text)) {
     return { path: '/analytics', reply: 'Opening Performance Analytics & Trends dashboard.' };
@@ -175,70 +176,75 @@ Accuracy rules:
 2. State that current trainee attrition is an estimate based on roster records when explaining it; do not claim the app has actual period opening/closing snapshots.
 3. Explain calculations from the supplied definitions and distinguish trainer employment losses from trainer attendance/reliability losses.
 4. Mention the data timestamp and all-period filters when relevant.
-5. Respond clearly and professionally. Navigation requests are handled separately by the application.`;
+5. Respond clearly and professionally. Navigation requests are handled separately by the application.
+6. For summaries, use short Markdown headings and one bullet per line. Put headings and bullets on separate lines; never pack metrics into a single paragraph or separate them with asterisks.`;
 
-    // Keep one bounded fallback so a provider outage cannot stall the chat for long.
-    for (let attempt = 0; attempt < OPENROUTER_MODELS.length; attempt++) {
-      const model = OPENROUTER_MODELS[attempt];
-      const timeoutMs = attempt === 0 ? 6000 : 3500;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'http://localhost:3000',
-            'X-Title': 'Training Performance Hub',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...(history || []),
-              { role: 'user', content: message }
-            ],
-            temperature: 0.3,
-            max_tokens: 1000
-          }),
-        });
+    let lastFailure = 'network or provider error';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Training Performance Hub',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          models: OPENROUTER_MODELS,
+          provider: { sort: 'throughput' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...(history || []).slice(-12),
+            { role: 'user', content: message }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000
+        }),
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          let replyText = data.choices?.[0]?.message?.content || "No response generated.";
-          
-          let action = null;
-          if (replyText.startsWith('NAV:')) {
-            const parts = replyText.split('|');
-            const navPath = parts[0].replace('NAV:', '').trim();
-            const cleanMessage = parts.slice(1).join('|').trim();
-            action = { type: 'navigate', path: navPath };
-            replyText = cleanMessage || `Navigating to ${navPath}`;
-          } else {
-            const textLower = replyText.toLowerCase();
-            if (textLower.includes('/traffic-lights')) action = { type: 'navigate', path: '/traffic-lights' };
-            else if (textLower.includes('/trainers')) action = { type: 'navigate', path: '/trainers' };
-            else if (textLower.includes('/trainees')) action = { type: 'navigate', path: '/trainees' };
-            else if (textLower.includes('/analytics')) action = { type: 'navigate', path: '/analytics' };
-          }
-
-          return NextResponse.json({
-            reply: replyText,
-            action,
-            modelUsed: model
-          });
+      if (response.ok) {
+        const data = await response.json();
+        let replyText = data.choices?.[0]?.message?.content || 'No response generated.';
+        let action = null;
+        if (replyText.startsWith('NAV:')) {
+          const parts = replyText.split('|');
+          const navPath = parts[0].replace('NAV:', '').trim();
+          const cleanMessage = parts.slice(1).join('|').trim();
+          action = { type: 'navigate', path: navPath };
+          replyText = cleanMessage || `Navigating to ${navPath}`;
+        } else {
+          const textLower = replyText.toLowerCase();
+          if (textLower.includes('/traffic-lights')) action = { type: 'navigate', path: '/traffic-lights' };
+          else if (textLower.includes('/trainers')) action = { type: 'navigate', path: '/trainers' };
+          else if (textLower.includes('/trainees')) action = { type: 'navigate', path: '/trainees' };
+          else if (textLower.includes('/analytics')) action = { type: 'navigate', path: '/analytics' };
         }
-      } catch (err) {
-        console.warn(`Model ${model} failed, trying fallback...`, err);
-      } finally {
-        clearTimeout(timeoutId);
+
+        return NextResponse.json({
+          reply: replyText,
+          action,
+          modelUsed: data.model || 'OpenRouter fallback'
+        });
       }
+
+      console.warn(`Copilot request failed with HTTP ${response.status}`);
+      return NextResponse.json({
+        reply: `The AI provider returned HTTP ${response.status}. Please try again shortly.`,
+        modelUsed: 'Provider Error'
+      }, { status: response.status });
+    } catch (err) {
+      const failure = err instanceof Error && err.name === 'AbortError' ? 'request timed out' : 'network error';
+      lastFailure = failure;
+      console.warn(`Copilot request failed: ${failure}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     return NextResponse.json({
-      reply: "Sorry, all AI backup agents are currently unreachable. Please check your network connection.",
+      reply: `The AI service is temporarily unavailable (${lastFailure}). Please try again shortly. Navigation shortcuts are still available.`,
       modelUsed: 'Error Fallback'
     });
 

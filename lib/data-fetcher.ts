@@ -8,6 +8,7 @@ import {
   isTrainerAttendanceLoss,
   isTrainerMatch,
   isTrainerReliabilityLoss,
+  isTraineeLossStatus,
 } from '@/lib/analytics-utils';
 import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
 import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition } from '@/lib/trainer-position';
@@ -91,10 +92,9 @@ export const getDashboardData = async () => {
     const trainerStatusMap = new Map<string, string>();
     employeeList.forEach((employee: any) => {
       if (!isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id)))) return;
-      const num = String(employee.employee_code || '').trim();
       const effectiveStatus = (statusNameById.get(Number(employee.status_id)) || 'ACTIVE').toUpperCase().trim();
-      const nameKey = (employee.employee_name || `emp_${num || employee.id}`).trim().toLowerCase();
-      trainerStatusMap.set(nameKey, effectiveStatus);
+      const employeeKey = String(employee.id || employee.employee_code || employee.employee_name || '').trim().toLowerCase();
+      if (employeeKey) trainerStatusMap.set(employeeKey, effectiveStatus);
     });
 
     let activeTrainers = 0;
@@ -116,8 +116,6 @@ export const getDashboardData = async () => {
     const trainerAttritionRate = trainerAttrition.formattedRate;
 
     const totalTrainees = inhouseList.length + pstList.length;
-    const lossStatuses = ['FAILED', 'RESIGNED', 'TERMINATED', 'AWOL', 'LATERAL', 'RED', 'ACCOUNT REMOVED', 'LOSS', 'ATTRITION', 'EOC'];
-
     let totalLosses = 0;
     const accountsSet = new Set<string>();
 
@@ -134,7 +132,7 @@ export const getDashboardData = async () => {
       if (!inhouseGroups[accountName][batchName]) inhouseGroups[accountName][batchName] = { members: [] };
 
       const statusUpper = (item.status || '').toUpperCase();
-      const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
+      const isLoss = isTraineeLossStatus(statusUpper);
       if (isLoss) totalLosses++;
 
       let pCount = 0, aCount = 0;
@@ -174,7 +172,7 @@ export const getDashboardData = async () => {
       if (!pstGroups[accountName][batchName]) pstGroups[accountName][batchName] = { members: [] };
 
       const statusUpper = (item.status || '').toUpperCase();
-      const isLoss = lossStatuses.some(ls => statusUpper.includes(ls));
+      const isLoss = isTraineeLossStatus(statusUpper);
       if (isLoss) totalLosses++;
 
       let pCount = 0, aCount = 0;
@@ -739,12 +737,6 @@ export const getTraineesData = async () => {
     if (err1) console.error('Error fetching INHOUSE:', err1);
     if (err2) console.error('Error fetching PST:', err2);
 
-    const isLossStatus = (st?: string) => {
-      if (!st) return false;
-      const s = st.toUpperCase().trim();
-      return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
-    };
-
     const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
 
     // Map INHOUSE rows to Trainee type
@@ -757,7 +749,7 @@ export const getTraineesData = async () => {
         if (val === 'A') aCount++;
       }
 
-      const isLoss = isLossStatus(row.status);
+      const isLoss = isTraineeLossStatus(row.status);
       const cleanName = (row.name || '').trim().toLowerCase();
       const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
 
@@ -791,7 +783,7 @@ export const getTraineesData = async () => {
       const acct = (row.account || row.acount || 'PST Account').trim();
       const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
       const batchName = `${acct} -${rawWave || '1'}`;
-      const isLoss = isLossStatus(row.status);
+      const isLoss = isTraineeLossStatus(row.status);
       const cleanName = (row.name || '').trim().toLowerCase();
       const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
 
