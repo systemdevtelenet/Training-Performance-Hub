@@ -112,7 +112,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { employee_code, employee_name, employee_email, status_id, role_id, hire_date, vici_link, account_id } = body;
+    const { employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, vici_link, account_id } = body;
 
     if (!employee_name) {
       return NextResponse.json({ error: 'Employee name is required' }, { status: 400 });
@@ -125,7 +125,8 @@ export async function POST(req: Request) {
       status_id: status_id ? Number(status_id) : 1,
       hire_date: hire_date || null,
       vici_link: vici_link || null,
-      role_id: role_id ? Number(role_id) : 1
+      role_id: role_id ? Number(role_id) : 1,
+      position_id: position_id ? Number(position_id) : null
     };
 
     const { data: newEmp, error: insertErr } = await supabase
@@ -200,7 +201,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, employee_code, employee_name, employee_email, status_id, role_id, hire_date, vici_link, account_id } = body;
+    const { id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, vici_link, account_id } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });
@@ -212,6 +213,7 @@ export async function PUT(req: Request) {
     if (employee_email !== undefined) payload.employee_email = employee_email;
     if (status_id !== undefined) payload.status_id = Number(status_id);
     if (role_id !== undefined) payload.role_id = Number(role_id);
+    if (position_id !== undefined) payload.position_id = position_id ? Number(position_id) : null;
     if (hire_date !== undefined) payload.hire_date = hire_date || null;
     if (vici_link !== undefined) payload.vici_link = vici_link || null;
 

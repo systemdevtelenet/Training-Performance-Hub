@@ -492,6 +492,7 @@ export default function EmployeesClient({
                   employee_email: '',
                   status_id: 1,
                   role_id: 1,
+                  position_id: '',
                   hire_date: '',
                   vici_link: '',
                   account_id: ''
@@ -842,6 +843,7 @@ export default function EmployeesClient({
           mode="add"
           initialData={formData}
           roles={rolesList}
+          positions={positionsList}
           accounts={accounts}
           statuses={statuses}
           existingEmployees={employees}
@@ -884,11 +886,13 @@ export default function EmployeesClient({
             employee_email: editingEmp.employee_email || '',
             status_id: editingEmp.status_id || 1,
             role_id: editingEmp.role_id || 1,
+            position_id: editingEmp.position_id ?? '',
             hire_date: editingEmp.hire_date || '',
             vici_link: editingEmp.vici_link || '',
             account_id: (editingEmp.account_ids && editingEmp.account_ids[0]) ? String(editingEmp.account_ids[0]) : ''
           }}
           roles={rolesList}
+          positions={positionsList}
           accounts={accounts}
           statuses={statuses}
           existingEmployees={employees}

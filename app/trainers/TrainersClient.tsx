@@ -52,7 +52,7 @@ import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 
 type TrainerTab = 'directory' | 'attendance' | 'reliability' | 'attendance-reliability' | 'calendar';
 
-export default function TrainersClient({ initialTrainers = [] }: { initialTrainers?: any[] }) {
+export default function TrainersClient({ initialTrainers = [], initialTrainees = [] }: { initialTrainers?: any[]; initialTrainees?: any[] }) {
   const { role, actualRole, email, avatarUrl, userName } = useRole();
   const currentRole = role || actualRole;
   const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
@@ -190,6 +190,7 @@ export default function TrainersClient({ initialTrainers = [] }: { initialTraine
       <AttendanceCalendarView
         initialTrainers={scopedInitialTrainers}
         allTrainers={initialTrainers}
+        initialTrainees={initialTrainees}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
       />

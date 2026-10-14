@@ -42,11 +42,13 @@ interface EmployeeFormDrawerProps {
     employee_email: string;
     status_id: number;
     role_id?: number;
+    position_id?: number | null;
     hire_date: string;
     vici_link: string;
     account_id: string;
   };
   roles?: any[];
+  positions?: any[];
   accounts: any[];
   statuses?: any[];
   existingEmployees?: any[];
@@ -60,6 +62,7 @@ export function EmployeeFormDrawer({
   mode,
   initialData,
   roles = [],
+  positions = [],
   accounts = [],
   statuses = [],
   existingEmployees = [],
@@ -71,7 +74,8 @@ export function EmployeeFormDrawer({
   const [open, setOpen] = useState(isOpen);
   const [formData, setFormData] = useState({
     ...initialData,
-    role_id: initialData.role_id ? Number(initialData.role_id) : 1
+    role_id: initialData.role_id ? Number(initialData.role_id) : 1,
+    position_id: initialData.position_id ? Number(initialData.position_id) : ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -79,7 +83,8 @@ export function EmployeeFormDrawer({
     if (isOpen) {
       setFormData({
         ...initialData,
-        role_id: initialData.role_id ? Number(initialData.role_id) : 1
+        role_id: initialData.role_id ? Number(initialData.role_id) : 1,
+        position_id: initialData.position_id ? Number(initialData.position_id) : ''
       });
       setErrors({});
       setRendered(true);
@@ -135,6 +140,7 @@ export function EmployeeFormDrawer({
       (formData.employee_email || '').trim() !== (initialData.employee_email || '').trim() ||
       Number(formData.status_id) !== Number(initialData.status_id) ||
       Number(formData.role_id || 1) !== Number(initialData.role_id || 1) ||
+      String(formData.position_id || '') !== String(initialData.position_id || '') ||
       (formData.hire_date || '') !== (initialData.hire_date || '') ||
       (formData.vici_link || '').trim() !== (initialData.vici_link || '').trim() ||
       String(formData.account_id || '') !== String(initialData.account_id || '')
@@ -403,7 +409,7 @@ export function EmployeeFormDrawer({
               </div>
             </div>
 
-            {/* Role & Hire Date */}
+            {/* Role & Position */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
@@ -419,6 +425,26 @@ export function EmployeeFormDrawer({
 
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-[#2F6798]" /> Position
+                </label>
+                <CustomSelect
+                  value={formData.position_id ? Number(formData.position_id) : ''}
+                  onChange={val => handleFieldChange('position_id', val ? Number(val) : '')}
+                  options={[
+                    { value: '', label: '-- Unassigned --' },
+                    ...positions.map((position: any) => ({
+                      value: Number(position.position_id),
+                      label: position.position_code || position.position_name
+                    }))
+                  ]}
+                  placeholder="Select Position"
+                />
+              </div>
+            </div>
+
+            {/* Hire Date */}
+            <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-[#2F6798]" /> Hire Date
                 </label>
                 <CustomDatePicker
@@ -432,7 +458,6 @@ export function EmployeeFormDrawer({
                     {errors.hire_date}
                   </p>
                 )}
-              </div>
             </div>
 
             {/* Vici Stats Link */}

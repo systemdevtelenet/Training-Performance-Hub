@@ -51,6 +51,7 @@ export interface TraineeAttendanceItem {
 interface AttendanceCalendarViewProps {
   initialTrainers?: any[];
   allTrainers?: any[];
+  initialTrainees?: any[];
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
@@ -125,6 +126,7 @@ const QUICK_REASONS = [
 export function AttendanceCalendarView({
   initialTrainers = [],
   allTrainers = [],
+  initialTrainees = [],
   onRefresh,
   isRefreshing
 }: AttendanceCalendarViewProps) {
@@ -565,17 +567,59 @@ export function AttendanceCalendarView({
     return allTrainers && allTrainers.length > 0 ? allTrainers : initialTrainers;
   }, [allTrainers, initialTrainers]);
 
+  const currentTrainerName = useMemo(() => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const matchedByEmail = cleanEmail
+      ? trainersList.find((trainer: any) => (trainer.email || '').trim().toLowerCase() === cleanEmail)
+      : undefined;
+    const matchedByName = userName
+      ? trainersList.find((trainer: any) => isTrainerMatch(trainer.name, userName) || isTrainerMatch(userName, trainer.name))
+      : undefined;
+    return matchedByEmail?.name || matchedByName?.name || userName || '';
+  }, [trainersList, email, userName]);
+
   // If user is a Trainer, auto-default selected trainer to them
   useEffect(() => {
-    if (isTrainer && userName) {
-      setSelectedTrainer(userName);
+    if (isTrainer && currentTrainerName) {
+      setSelectedTrainer(currentTrainerName);
     }
-  }, [isTrainer, userName]);
+  }, [isTrainer, currentTrainerName]);
 
-  // Extract all trainees across batches from initialTrainers
+  // Prefer each trainee's direct assignment over a trainer profile's nested batch snapshot.
   const allTraineesList = useMemo(() => {
     const list: TraineeAttendanceItem[] = [];
     const seenNames = new Set<string>();
+
+    if (initialTrainees.length > 0) {
+      initialTrainees.forEach((trainee: any) => {
+        const name = String(trainee.name || '').trim();
+        if (!name) return;
+        const rawBatch = String(trainee.batchName || '').trim();
+        const batchNumber = rawBatch.match(/(?:^|\s|-)(?:batch\s*)?(\d+)\s*$/i)?.[1];
+        const batch = batchNumber ? `Batch ${batchNumber}` : rawBatch || 'General';
+        const key = `${batch}-${name}`.toLowerCase();
+        if (seenNames.has(key)) return;
+        seenNames.add(key);
+
+        const rawStatus = String(trainee.status || 'ONGOING').toUpperCase();
+        let status = 'ONGOING';
+        if (rawStatus === 'ENDORSED' || rawStatus === 'PASSED') status = 'ENDORSED';
+        else if (rawStatus === 'EOC') status = 'EOC';
+        else if (rawStatus === 'AWOL') status = 'AWOL';
+        else if (['FAIL', 'FAILED', 'DROP', 'DROPPED', 'TERMINATED', 'RESIGNED', 'ATTRITION'].some(value => rawStatus.includes(value))) status = 'EOC';
+
+        list.push({
+          id: trainee.id || name,
+          name,
+          batch,
+          account: String(trainee.accountName || trainee.account || 'General'),
+          assignedTrainer: String(trainee.assignedTrainer || 'Unassigned'),
+          trainingType: trainee.trainingType === 'INHOUSE' ? 'INHOUSE' : 'PST',
+          status,
+        });
+      });
+      return list;
+    }
 
     trainersList.forEach((t: any) => {
       const trainerName = t.name || 'Unknown Trainer';
@@ -618,28 +662,28 @@ export function AttendanceCalendarView({
   const availableBatches = useMemo(() => {
     const set = new Set<string>();
     allTraineesList.forEach(t => {
-      if (isTrainer && userName) {
-        if (!isTrainerMatch(t.assignedTrainer, userName)) return;
+      if (isTrainer && currentTrainerName) {
+        if (!isTrainerMatch(t.assignedTrainer, currentTrainerName)) return;
       } else if (selectedTrainer !== 'All') {
         if (!isTrainerMatch(t.assignedTrainer, selectedTrainer)) return;
       }
       if (t.batch) set.add(t.batch);
     });
     return ['All', ...Array.from(set).sort()];
-  }, [allTraineesList, isTrainer, userName, selectedTrainer]);
+  }, [allTraineesList, isTrainer, currentTrainerName, selectedTrainer]);
 
   const availableAccounts = useMemo(() => {
     const set = new Set<string>();
     allTraineesList.forEach(t => {
-      if (isTrainer && userName) {
-        if (!isTrainerMatch(t.assignedTrainer, userName)) return;
+      if (isTrainer && currentTrainerName) {
+        if (!isTrainerMatch(t.assignedTrainer, currentTrainerName)) return;
       } else if (selectedTrainer !== 'All') {
         if (!isTrainerMatch(t.assignedTrainer, selectedTrainer)) return;
       }
       if (t.account) set.add(t.account);
     });
     return ['All', ...Array.from(set).sort()];
-  }, [allTraineesList, isTrainer, userName, selectedTrainer]);
+  }, [allTraineesList, isTrainer, currentTrainerName, selectedTrainer]);
 
   // Auto-reset batch or account filter if selected value is no longer present in scoped options
   useEffect(() => {
@@ -683,8 +727,8 @@ export function AttendanceCalendarView({
   const filteredTrainees = useMemo(() => {
     return enrichedTrainees.filter(t => {
       // Role & Trainer scoping
-      if (isTrainer && userName) {
-        if (!isTrainerMatch(t.assignedTrainer, userName)) {
+      if (isTrainer && currentTrainerName) {
+        if (!isTrainerMatch(t.assignedTrainer, currentTrainerName)) {
           return false;
         }
       } else if (selectedTrainer !== 'All') {
@@ -732,7 +776,7 @@ export function AttendanceCalendarView({
 
       return true;
     });
-  }, [enrichedTrainees, isTrainer, userName, selectedTrainer, selectedBatch, selectedAccount, selectedStatusFilter, selectedTagFilter, searchQuery]);
+  }, [enrichedTrainees, isTrainer, currentTrainerName, selectedTrainer, selectedBatch, selectedAccount, selectedStatusFilter, selectedTagFilter, searchQuery]);
 
   const summaryTrainees = useMemo(() => {
     const uniqueByName = new Map<string, TraineeAttendanceItem>();
