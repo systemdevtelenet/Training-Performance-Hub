@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
+import { createClient as createAuthClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +12,12 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
 });
+
+async function hasAuthenticatedUser() {
+  const authClient = await createAuthClient();
+  const { data: { user }, error } = await authClient.auth.getUser();
+  return !error && Boolean(user);
+}
 
 interface DailyAttendanceEntry {
   date: string; // YYYY-MM-DD
@@ -23,6 +31,7 @@ interface DailyAttendanceEntry {
   notes?: string;
   updatedAt?: string;
   updatedBy?: string;
+  source?: 'TIME_TRACKER';
 }
 
 // Generate unique key for a trainee on a specific date
@@ -76,15 +85,130 @@ async function fetchDbRecords(): Promise<Record<string, DailyAttendanceEntry>> {
   }
 }
 
+function normalizeTraineeName(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function isEndorsed(status: unknown) {
+  const value = String(status || '').trim().toUpperCase();
+  return value === 'ENDORSED' || value === 'PASSED';
+}
+
+async function fetchEndorsedTraineeAttendance(
+  manualRecords: Record<string, DailyAttendanceEntry>,
+): Promise<Record<string, DailyAttendanceEntry>> {
+  const [inhouseResult, pstResult, employeeResult, trackerEmployeeResult] = await Promise.all([
+    supabase.from('inhouse').select('name, status, batch, acount'),
+    supabase.from('product_spec_training').select('name, status, wave, account'),
+    supabase.from('employees').select('employee_code, employee_name'),
+    supabase.from('time_tracker_employees').select('"Employee ID"'),
+  ]);
+  const sourceError = inhouseResult.error || pstResult.error || employeeResult.error || trackerEmployeeResult.error;
+  if (sourceError) {
+    console.error('Unable to resolve endorsed trainees for time-tracker attendance:', sourceError);
+    return {};
+  }
+
+  const roster = [
+    ...(inhouseResult.data || []).filter((row: any) => isEndorsed(row.status)).map((row: any) => ({
+      name: String(row.name || '').trim(),
+      batchName: row.batch ? `Batch ${row.batch}` : '',
+      accountName: String(row.account || row.acount || '').trim(),
+      trainingType: 'INHOUSE',
+    })),
+    ...(pstResult.data || []).filter((row: any) => isEndorsed(row.status)).map((row: any) => ({
+      name: String(row.name || '').trim(),
+      batchName: row.wave ? `Batch ${row.wave}` : '',
+      accountName: String(row.account || '').trim(),
+      trainingType: 'PST',
+    })),
+  ].filter(row => row.name);
+
+  const rosterByName = new Map<string, typeof roster>();
+  roster.forEach(row => {
+    const key = normalizeTraineeName(row.name);
+    const matches = rosterByName.get(key) || [];
+    matches.push(row);
+    rosterByName.set(key, matches);
+  });
+
+  const employeesByName = new Map<string, any[]>();
+  (employeeResult.data || []).forEach((employee: any) => {
+    const key = normalizeTraineeName(employee.employee_name);
+    if (!key || !/^\d+$/.test(String(employee.employee_code || '').trim())) return;
+    const matches = employeesByName.get(key) || [];
+    matches.push(employee);
+    employeesByName.set(key, matches);
+  });
+
+  const identityMap = new Map<string, typeof roster[number]>();
+  const trackerEmployeeIds = new Set((trackerEmployeeResult.data || [])
+    .map((row: any) => String(row['Employee ID'] || '').trim())
+    .filter((id: string) => /^\d+$/.test(id)));
+  rosterByName.forEach((trainees, key) => {
+    const employees = employeesByName.get(key) || [];
+    if (trainees.length !== 1 || employees.length !== 1) return;
+    const employeeCode = String(employees[0].employee_code).trim();
+    if (trackerEmployeeIds.has(employeeCode)) identityMap.set(employeeCode, trainees[0]);
+  });
+  if (identityMap.size === 0) return {};
+
+  const workforceRecords = await fetchWorkforceAttendance(supabase, Array.from(identityMap.keys()));
+  const records: Record<string, DailyAttendanceEntry> = {};
+  workforceRecords.forEach((employeeRecords, employeeCode) => {
+    const trainee = identityMap.get(employeeCode);
+    if (!trainee) return;
+
+    employeeRecords.forEach(record => {
+      const tag = record.status === 'A'
+        ? 'A'
+        : record.status === 'L'
+          ? 'L'
+          : record.status === 'UND' || record.status === 'L/UND'
+            ? 'U'
+            : record.status === 'P'
+              ? 'P'
+              : '';
+      const key = getRecordKey(record.date, trainee.name);
+      const manual = manualRecords[key];
+      records[key] = {
+        ...manual,
+        date: record.date,
+        traineeName: trainee.name,
+        batchName: trainee.batchName || manual?.batchName,
+        accountName: trainee.accountName || manual?.accountName,
+        trainerName: manual?.trainerName,
+        trainingType: trainee.trainingType,
+        status: 'ENDORSED',
+        attCode: tag,
+        notes: manual?.notes || '',
+        updatedBy: 'Time Tracker',
+        source: 'TIME_TRACKER',
+      };
+    });
+  });
+  return records;
+}
+
 // GET: Retrieve attendance records for a specific date or range from Supabase
 export async function GET(req: Request) {
   try {
+    if (!(await hasAuthenticatedUser())) {
+      return NextResponse.json({ error: 'Please sign in to view attendance.' }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date'); // e.g. 2026-09-18
     const trainer = searchParams.get('trainer');
     const batch = searchParams.get('batch');
 
     const allRecords = await fetchDbRecords();
+    const trackerRecords = await fetchEndorsedTraineeAttendance(allRecords);
+    Object.assign(allRecords, trackerRecords);
     let recordsList = Object.values(allRecords);
 
     if (date) {
@@ -113,6 +237,9 @@ export async function GET(req: Request) {
 // POST: Save or update attendance records, status, and reason notes in Supabase
 export async function POST(req: Request) {
   try {
+    if (!(await hasAuthenticatedUser())) {
+      return NextResponse.json({ error: 'Please sign in to update attendance.' }, { status: 401 });
+    }
     const body = await req.json();
     const { date, records, updatedBy, actionType } = body;
 
@@ -127,6 +254,20 @@ export async function POST(req: Request) {
     }
 
     const currentRecords = await fetchDbRecords();
+    const trackerRecords = await fetchEndorsedTraineeAttendance(currentRecords);
+    const attemptsToOverrideTracker = rawList.some(item => {
+      const itemDate = item.date || date || new Date().toISOString().split('T')[0];
+      if (!item.traineeName) return false;
+      const synced = trackerRecords[getRecordKey(itemDate, item.traineeName)];
+      if (!synced) return false;
+      return (item.attCode !== undefined && item.attCode !== synced.attCode) ||
+        (item.status !== undefined && item.status !== synced.status);
+    });
+    if (attemptsToOverrideTracker) {
+      return NextResponse.json({
+        error: 'Attendance synced from the time tracker cannot be changed in the Training Hub. Notes may still be updated.'
+      }, { status: 409 });
+    }
     const timestamp = new Date().toISOString();
     const author = updatedBy || 'Trainer';
     const updatedEntries: DailyAttendanceEntry[] = [];

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, X, Minus, Sparkles, Mic, Send, Navigation, AlertTriangle, TrendingDown, BarChart2, History, MessageSquare, Maximize2, Minimize2, HelpCircle, Paperclip, Square, Plus, Trash2 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { toast } from 'react-hot-toast';
 
@@ -63,6 +63,14 @@ const formatSessionTime = (timestamp: number) => {
   return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' })} at ${time}`;
 };
 
+const formatExactSessionTime = (timestamp: number) => {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Date unavailable';
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestamp));
+};
+
 const renderInlineMarkdown = (text: string) =>
   text.split(/(\*\*.*?\*\*)/g).map((part, index) =>
     part.startsWith('**') && part.endsWith('**')
@@ -102,8 +110,30 @@ const renderAssistantMarkdown = (text: string) => {
 export default function AiHubDrawer() {
   const router = useRouter();
   const { role, email } = useRole();
+  const isAdmin = role.toUpperCase().includes('ADMIN');
+  const isTrainer = role.toUpperCase() === 'TRAINER';
+  const quickPrompts = isAdmin
+    ? [
+        { label: 'Summarize organization-wide metrics', prompt: 'Summarize organization-wide trainee metrics' },
+        { label: 'Compare in-house and PST trainees', prompt: 'Compare in-house and PST trainees' },
+        { label: 'Show trainer attendance and reliability', prompt: 'Show trainer attendance and reliability' },
+        { label: 'Open traffic light statuses', prompt: 'Check traffic light statuses' },
+      ]
+    : isTrainer
+      ? [
+          { label: 'Summarize my assigned trainees', prompt: 'Summarize my assigned trainees' },
+          { label: 'Show my trainees by track', prompt: 'Show my assigned trainees by track' },
+          { label: 'Show my attendance and reliability', prompt: 'Show my attendance and reliability' },
+          { label: 'Open my trainees', prompt: 'Open my trainees' },
+        ]
+      : [
+          { label: 'Open my trainees', prompt: 'Open my trainees' },
+          { label: 'Check training attendance', prompt: 'Open trainee attendance' },
+          { label: 'Open traffic light statuses', prompt: 'Check traffic light statuses' },
+          { label: 'Open dashboard', prompt: 'Open dashboard' },
+        ];
   const [isOpen, setIsOpen] = useState(false);
-  const [isFabExpanded, setIsFabExpanded] = useState(false);
+  const [isFloatingEnabled, setIsFloatingEnabled] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
   const [view, setView] = useState<'chat' | 'history'>('chat');
@@ -115,6 +145,31 @@ export default function AiHubDrawer() {
 
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([DEFAULT_WELCOME_MESSAGE]);
+
+  useEffect(() => {
+    if (!email) {
+      setIsFloatingEnabled(true);
+      return;
+    }
+
+    const savedPreferences = localStorage.getItem(`user_preferences_${email.trim().toLowerCase()}`);
+    if (savedPreferences) {
+      try {
+        setIsFloatingEnabled(JSON.parse(savedPreferences).showAiFloating !== false);
+      } catch {
+        setIsFloatingEnabled(true);
+      }
+    } else {
+      setIsFloatingEnabled(true);
+    }
+
+    const handleVisibilityChange = (event: Event) => {
+      const visible = (event as CustomEvent<boolean>).detail;
+      setIsFloatingEnabled(typeof visible === 'boolean' ? visible : true);
+    };
+    window.addEventListener('ai-floating-visibility-updated', handleVisibilityChange);
+    return () => window.removeEventListener('ai-floating-visibility-updated', handleVisibilityChange);
+  }, [email]);
 
   const [audioLevels, setAudioLevels] = useState<number[]>(Array(28).fill(0.2));
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -456,40 +511,30 @@ export default function AiHubDrawer() {
   return (
     <>
       {/* Floating Action Button (FAB) */}
-      <div className={`fixed bottom-24 right-4 sm:bottom-5 sm:right-5 z-50 flex items-center gap-1.5 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+      {isFloatingEnabled && (
+      <div className={`group/fab fixed bottom-24 right-4 sm:bottom-5 sm:right-5 z-50 flex items-center gap-2 transition-all duration-300 ${isOpen ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+        <span className="w-0 overflow-hidden whitespace-nowrap rounded-full bg-[#2F6798] px-0 py-2.5 text-center text-xs font-bold text-white opacity-0 shadow-lg transition-all duration-200 group-hover/fab:w-[136px] group-hover/fab:px-4 group-hover/fab:opacity-100 group-focus-within/fab:w-[136px] group-focus-within/fab:px-4 group-focus-within/fab:opacity-100">
+          Training Hub AI
+        </span>
         <button
           onClick={() => setIsOpen(true)}
           aria-label="Open Training Hub AI"
-          title="Training Hub AI"
-          className={`group flex min-h-[64px] items-center gap-2 overflow-hidden rounded-full border border-blue-100 bg-white text-left shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2 ${isFabExpanded ? 'w-[232px] px-2.5 pr-4' : 'w-16 justify-center p-0.5'}`}
+          className="flex h-[61px] w-[61px] shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white p-0.5 shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2"
         >
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2F6798]">
+          <span className="flex h-[53px] w-[53px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2F6798]">
             <Player
               autoplay
               loop
               src="/animations/AI chatbot-2.json"
-              style={{ height: '52px', width: '52px' }}
+              style={{ height: '49px', width: '49px' }}
             />
           </span>
-          <span className={`min-w-0 flex-col ${isFabExpanded ? 'flex' : 'hidden'}`}>
-            <span className="text-sm font-bold leading-tight text-slate-900">Training Hub AI</span>
-            <span className="mt-1 text-[10px] font-medium leading-tight text-slate-500">Chat, quick prompts &amp; history</span>
-          </span>
-          <span className={`${isFabExpanded ? 'ml-auto' : 'hidden'} text-lg leading-none text-[#2F6798] transition-transform group-hover:translate-x-0.5`} aria-hidden="true">
+          <span className="hidden" aria-hidden="true">
             ›
           </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setIsFabExpanded(expanded => !expanded)}
-          aria-label={isFabExpanded ? 'Collapse AI launcher' : 'Expand AI launcher'}
-          aria-expanded={isFabExpanded}
-          title={isFabExpanded ? 'Collapse AI launcher' : 'Show AI launcher label'}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#2F6798] shadow-md transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6798] focus-visible:ring-offset-2"
-        >
-          {isFabExpanded ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
       </div>
+      )}
 
       {/* Slide-Over Drawer / Pop-up Chat */}
       <div
@@ -592,6 +637,8 @@ export default function AiHubDrawer() {
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {chatSessions.map((session) => {
                   const isActive = session.id === activeSessionId;
+                  const timestamp = Number(session.timestamp) || Number(session.id) || 0;
+                  const exactTime = formatExactSessionTime(timestamp);
                   return (
                     <div
                       key={session.id}
@@ -606,7 +653,21 @@ export default function AiHubDrawer() {
                           <p className={`text-sm font-medium truncate ${isActive ? 'text-[#2F6798] font-bold dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>
                             {session.title}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5">{formatSessionTime(Number(session.timestamp) || Number(session.id))}</p>
+                          <p
+                            className="group/time relative mt-0.5 w-fit text-xs text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            tabIndex={0}
+                            aria-label={`Last activity ${exactTime}`}
+                          >
+                            <time dateTime={timestamp > 0 ? new Date(timestamp).toISOString() : undefined}>
+                              {formatSessionTime(timestamp)}
+                            </time>
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden whitespace-nowrap rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-md group-hover/time:block group-focus-visible/time:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            >
+                              {exactTime}
+                            </span>
+                          </p>
                         </div>
                       </div>
 
@@ -644,35 +705,17 @@ export default function AiHubDrawer() {
                   </p>
                 </div>
 
-                {/* Compact 2x2 Grid of Action Buttons (Consistent rounded-xl shape) */}
+                {/* Compact 2x2 Grid of Role-Scoped Quick Prompts */}
                 <div className="grid grid-cols-2 gap-2 pt-1 text-left">
-                  <button
-                    onClick={() => handleSendQuery('Analyze training performance')}
-                    className="flex flex-col justify-center rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:border-[#2F6798] hover:bg-blue-50/50 hover:text-[#2F6798] transition-all cursor-pointer min-h-[36px]"
-                  >
-                    <span>Analyze training performance</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSendQuery('Show trainer reliability')}
-                    className="flex flex-col justify-center rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:border-[#2F6798] hover:bg-blue-50/50 hover:text-[#2F6798] transition-all cursor-pointer min-h-[36px]"
-                  >
-                    <span>Show trainer reliability</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSendQuery('Check traffic light statuses')}
-                    className="flex flex-col justify-center rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:border-[#2F6798] hover:bg-blue-50/50 hover:text-[#2F6798] transition-all cursor-pointer min-h-[36px]"
-                  >
-                    <span>Check traffic light statuses</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSendQuery('Show team attrition analytics')}
-                    className="flex flex-col justify-center rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:border-[#2F6798] hover:bg-blue-50/50 hover:text-[#2F6798] transition-all cursor-pointer min-h-[36px]"
-                  >
-                    <span>Show team attrition analytics</span>
-                  </button>
+                  {quickPrompts.map(({ label, prompt }) => (
+                    <button
+                      key={label}
+                      onClick={() => handleSendQuery(prompt)}
+                      className="flex min-h-[36px] cursor-pointer flex-col justify-center rounded-xl border border-slate-200/90 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 shadow-2xs transition-all hover:border-[#2F6798] hover:bg-blue-50/50 hover:text-[#2F6798] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 sm:text-[11px]"
+                    >
+                      <span>{label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

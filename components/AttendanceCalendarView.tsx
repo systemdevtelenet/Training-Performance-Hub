@@ -46,6 +46,7 @@ export interface TraineeAttendanceItem {
   notes?: string;
   updatedAt?: string;
   updatedBy?: string;
+  source?: 'TIME_TRACKER';
 }
 
 interface AttendanceCalendarViewProps {
@@ -718,7 +719,8 @@ export function AttendanceCalendarView({
         status: savedRecord?.status || t.status,
         notes: savedRecord?.notes || '',
         updatedAt: savedRecord?.updatedAt,
-        updatedBy: savedRecord?.updatedBy
+        updatedBy: savedRecord?.updatedBy,
+        source: savedRecord?.source
       };
     });
   }, [allTraineesList, dailyRecordsMap, selectedDate]);
@@ -892,6 +894,11 @@ export function AttendanceCalendarView({
     newTag: 'P' | 'L' | 'U' | 'A' | '',
     targetDate?: string
   ) => {
+    const attendanceKey = `${targetDate || selectedDate}___${trainee.name.trim().toLowerCase()}`;
+    if (dailyRecordsMap[attendanceKey]?.source === 'TIME_TRACKER') {
+      showToast('This attendance is synced from the time tracker and cannot be changed here.', 'info');
+      return;
+    }
     const effDate = targetDate || selectedDate;
     if (isAdmin && !isTrainer) {
       showToast('Admin Mode is Read-Only. Only assigned trainers can mark attendance.', 'info');
@@ -957,6 +964,11 @@ export function AttendanceCalendarView({
 
   // Cycle tag in Monthly Matrix Grid View: P -> L -> U -> A -> Clear
   const cycleMatrixTag = (trainee: TraineeAttendanceItem, dateStr: string) => {
+    const attendanceKey = `${dateStr}___${trainee.name.trim().toLowerCase()}`;
+    if (dailyRecordsMap[attendanceKey]?.source === 'TIME_TRACKER') {
+      showToast('This attendance is synced from the time tracker and cannot be changed here.', 'info');
+      return;
+    }
     if (isAdmin && !isTrainer) {
       showToast('Admin Mode is Read-Only. Only trainers can modify trainee attendance tags.', 'info');
       return;
@@ -991,6 +1003,11 @@ export function AttendanceCalendarView({
 
   // Handle Lifecycle Status change
   const handleStatusChange = async (trainee: TraineeAttendanceItem, newStatus: string) => {
+    const attendanceKey = `${selectedDate}___${trainee.name.trim().toLowerCase()}`;
+    if (dailyRecordsMap[attendanceKey]?.source === 'TIME_TRACKER') {
+      showToast('This trainee status is synced from the time tracker and cannot be changed here.', 'info');
+      return;
+    }
     if (isAdmin && !isTrainer) {
       showToast('Admin Mode is Read-Only. Only trainers can modify trainee statuses.', 'info');
       return;
@@ -1144,9 +1161,18 @@ export function AttendanceCalendarView({
 
     if (filteredTrainees.length === 0) return;
 
-    const untaggedOrAll = filteredTrainees.filter(t => t.attCode !== 'P');
+    const untaggedOrAll = filteredTrainees.filter(t => {
+      const key = `${selectedDate}___${t.name.trim().toLowerCase()}`;
+      return t.attCode !== 'P' && dailyRecordsMap[key]?.source !== 'TIME_TRACKER';
+    });
     if (untaggedOrAll.length === 0) {
-      showToast('All currently visible trainees are already marked Present.', 'info');
+      const hasTrackerAttendance = filteredTrainees.some(t => t.source === 'TIME_TRACKER');
+      showToast(
+        hasTrackerAttendance
+          ? 'Time-tracker attendance is synced and will not be changed by this action.'
+          : 'All currently visible trainees are already marked Present.',
+        'info'
+      );
       return;
     }
 
@@ -2259,6 +2285,10 @@ export function AttendanceCalendarView({
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (record?.source === 'TIME_TRACKER') {
+                                      showToast('Attendance synced from the time tracker.', 'info');
+                                      return;
+                                    }
                                     if (isAdmin && !isTrainer) {
                                       if (hasNote) {
                                         handleOpenNoteModal(trainee, day.iso, 'view');
@@ -2275,7 +2305,7 @@ export function AttendanceCalendarView({
                                       y: rect.bottom + 6
                                     });
                                   }}
-                                  title={`${trainee.name} - ${day.iso}${tagMatch ? `: ${tagMatch.label}` : ': Untagged'}${hasNote ? ` | Note: "${record.notes}"` : ''}${isAdmin && !isTrainer ? (hasNote ? ' (Click to view note)' : '') : ' (Click to open dropdown)'}`}
+                                  title={`${trainee.name} - ${day.iso}${tagMatch ? `: ${tagMatch.label}` : ': Untagged'}${record?.source === 'TIME_TRACKER' ? ' | Synced from time tracker' : ''}${hasNote ? ` | Note: "${record.notes}"` : ''}${record?.source === 'TIME_TRACKER' ? '' : isAdmin && !isTrainer ? (hasNote ? ' (Click to view note)' : '') : ' (Click to open dropdown)'}`}
                                   className={`w-7 h-7 mx-auto rounded-[7px] text-[11px] font-black border transition-all flex items-center justify-center relative ${
                                     tagMatch
                                       ? `${tagMatch.color} shadow-2xs hover:scale-110 active:scale-95 cursor-pointer`

@@ -5,7 +5,7 @@ export interface WorkforceAttendanceRecord {
   month: string;
   day: number;
   weekday: string;
-  status: 'P' | 'L' | 'UND' | 'L/UND';
+  status: 'P' | 'L' | 'UND' | 'L/UND' | 'A' | 'RD' | 'HOL' | 'VL' | '';
   source: 'WORKFORCE_PORTAL';
   clockIn: string | null;
   clockOut: string | null;
@@ -133,15 +133,33 @@ export async function fetchWorkforceAttendance(
     const [employeeId, date] = key.split('___');
     const shiftStarts = punches.filter(punch => isShiftStart(punch.type));
     const shiftEnds = punches.filter(punch => isShiftEnd(punch.type));
-    const isLate = shiftStarts.some(punch => punch.status.toUpperCase().includes('LATE'));
-    const isUndertime = shiftEnds.some(punch => punch.status.toUpperCase().includes('UNDERTIME'));
-    const status: WorkforceAttendanceRecord['status'] = isLate && isUndertime
-      ? 'L/UND'
-      : isUndertime
-        ? 'UND'
-        : isLate
-          ? 'L'
-          : 'P';
+    const overrides = punches.filter(punch => punch.type.toUpperCase().includes('ATTENDANCE OVERRIDE'));
+    const overrideStatus = overrides[overrides.length - 1]?.status.toUpperCase() || '';
+    const allStatuses = punches.map(punch => punch.status.toUpperCase());
+    const isAbsent = overrideStatus.includes('ABSENT') || shiftStarts.some(punch => punch.status.toUpperCase().includes('ABSENT'));
+    const isRestDay = overrideStatus.includes('REST DAY');
+    const isHoliday = overrideStatus.includes('HOLIDAY');
+    const isVacation = allStatuses.some(status => status.includes('VACATION LEAVE'));
+    const isLate = overrideStatus.includes('LATE') || shiftStarts.some(punch => punch.status.toUpperCase().includes('LATE'));
+    const isUndertime = overrideStatus.includes('UNDERTIME') || shiftEnds.some(punch => punch.status.toUpperCase().includes('UNDERTIME'));
+    const hasPresentShiftStart = (overrideStatus.includes('PRESENT') || shiftStarts.length > 0) && !isAbsent && !isVacation;
+    const status: WorkforceAttendanceRecord['status'] = isAbsent
+      ? 'A'
+      : isRestDay
+        ? 'RD'
+        : isHoliday
+          ? 'HOL'
+          : isVacation
+            ? 'VL'
+            : isLate && isUndertime
+              ? 'L/UND'
+              : isUndertime
+                ? 'UND'
+                : isLate
+                  ? 'L'
+                  : hasPresentShiftStart
+                    ? 'P'
+                    : '';
 
     const [year, month, day] = date.split('-').map(Number);
     const calendarDate = new Date(Date.UTC(year, month - 1, day));

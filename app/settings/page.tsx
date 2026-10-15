@@ -85,6 +85,7 @@ function SettingsContent() {
     theme: 'light',
     timezone: 'Asia/Manila',
     dateFormat: 'MM/DD/YYYY',
+    showAiFloating: true,
   });
 
   const profile = {
@@ -177,6 +178,7 @@ function SettingsContent() {
       localStorage.setItem(`user_preferences_${userEmail.toLowerCase().trim()}`, JSON.stringify(preferences));
     }
     window.dispatchEvent(new CustomEvent('notification-prefs-updated', { detail: notifications }));
+    window.dispatchEvent(new CustomEvent('ai-floating-visibility-updated', { detail: preferences.showAiFloating }));
     setTimeout(() => {
       setSaving(false);
       setShowSaved(true);
@@ -191,7 +193,7 @@ function SettingsContent() {
   };
 
   const confirmReset = () => {
-    const defaultPrefs = { theme: 'light', timezone: 'Asia/Manila', dateFormat: 'MM/DD/YYYY' };
+    const defaultPrefs = { theme: 'light', timezone: 'Asia/Manila', dateFormat: 'MM/DD/YYYY', showAiFloating: true };
     const defaultNotifs = {
       performanceAlerts: true,
       trainingUpdates: true,
@@ -205,6 +207,7 @@ function SettingsContent() {
       localStorage.setItem(`user_preferences_${userEmail.toLowerCase().trim()}`, JSON.stringify(defaultPrefs));
     }
     window.dispatchEvent(new CustomEvent('notification-prefs-updated', { detail: defaultNotifs }));
+    window.dispatchEvent(new CustomEvent('ai-floating-visibility-updated', { detail: true }));
     setHasUnsavedChanges(false);
     setShowResetDialog(false);
     setShowSaved(false);
@@ -796,6 +799,20 @@ function SettingsContent() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Training Hub floating assistant</h4>
+                      <p className="mt-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">Show the AI launcher on every page.</p>
+                    </div>
+                    <Toggle
+                      enabled={preferences.showAiFloating}
+                      onToggle={() => {
+                        setPreferences(prev => ({ ...prev, showAiFloating: !prev.showAiFloating }));
+                        markUnsaved();
+                      }}
+                      label="Show Training Hub AI floating launcher"
+                    />
                   </div>
                 </div>
               )}

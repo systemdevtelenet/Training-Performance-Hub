@@ -243,7 +243,8 @@ export function getFilteredData(
   filters: { month: string; quarter: string; account: string; search: string },
   userRole?: string,
   userName?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  trainerMatcher?: (assignedName?: string) => boolean
 ) {
   if (!data) return null;
   const { month: selectedMonth, quarter: selectedQuarter, account: selectedAccount, search: searchQuery } = filters;
@@ -271,8 +272,11 @@ export function getFilteredData(
         const group: BatchGroup = filtered[type].groups[acc][b];
         
         if (isTrainer && userName) {
-          const batchTrainerMatches = isTrainerMatch(group.trainer, userName);
-          const hasAssignedTrainee = group.members?.some(m => isTrainerMatch(m.assignedTrainer, userName));
+          const matchesTrainer = (name?: string) => trainerMatcher
+            ? trainerMatcher(name)
+            : isTrainerMatch(name, userName);
+          const batchTrainerMatches = matchesTrainer(group.trainer);
+          const hasAssignedTrainee = group.members?.some(m => matchesTrainer(m.assignedTrainer));
           if (!batchTrainerMatches && !hasAssignedTrainee) {
             delete filtered[type].groups[acc][b];
             continue;
@@ -281,7 +285,9 @@ export function getFilteredData(
 
         const matchedMembers = group.members.filter(m => {
           if (isTrainer && userName) {
-            const matchesTrainer = isTrainerMatch(group.trainer, userName) || isTrainerMatch(m.assignedTrainer, userName);
+            const matchesTrainer = trainerMatcher
+              ? trainerMatcher(group.trainer) || trainerMatcher(m.assignedTrainer)
+              : isTrainerMatch(group.trainer, userName) || isTrainerMatch(m.assignedTrainer, userName);
             if (!matchesTrainer) return false;
           }
           const mMatch = matchesMonthFilter(m.month, selectedMonth, m.status);
