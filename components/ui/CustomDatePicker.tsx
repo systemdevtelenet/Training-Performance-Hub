@@ -9,8 +9,10 @@ export interface CustomDatePickerProps {
   value?: string; // YYYY-MM-DD
   onChange: (value: string) => void;
   className?: string;
+  popoverClassName?: string;
   placeholder?: string;
   hasError?: boolean;
+  isDateDisabled?: (value: string) => boolean;
 }
 
 export function CustomDatePicker({
@@ -18,8 +20,10 @@ export function CustomDatePicker({
   value,
   onChange,
   className = '',
+  popoverClassName = '',
   placeholder = 'Select date...',
-  hasError = false
+  hasError = false,
+  isDateDisabled,
 }: CustomDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,11 +101,12 @@ export function CustomDatePicker({
       targetYear += 1;
     }
 
+    const formatted = formatOutputDate(targetYear, targetMonth, dayNum);
+    if (isDateDisabled?.(formatted)) return;
+
     setViewYear(targetYear);
     setViewMonth(targetMonth);
     setSelectedDay(dayNum);
-
-    const formatted = formatOutputDate(targetYear, targetMonth, dayNum);
     onChange(formatted);
   };
 
@@ -110,10 +115,13 @@ export function CustomDatePicker({
     const y = today.getFullYear();
     const m = today.getMonth();
     const d = today.getDate();
+    const formatted = formatOutputDate(y, m, d);
+    if (isDateDisabled?.(formatted)) return;
+
     setViewYear(y);
     setViewMonth(m);
     setSelectedDay(d);
-    onChange(formatOutputDate(y, m, d));
+    onChange(formatted);
     setIsOpen(false);
   };
 
@@ -160,7 +168,7 @@ export function CustomDatePicker({
       {/* Popover Calendar (Traffic Lights Style, Compact & Elegant) */}
       {isOpen && (
         <div
-          className="absolute top-[calc(100%+6px)] left-0 z-[120] w-[285px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-3 space-y-2 animate-in fade-in zoom-in-95 duration-150"
+          className={cn("absolute top-[calc(100%+6px)] left-0 z-[120] w-[285px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-3 space-y-2 animate-in fade-in zoom-in-95 duration-150", popoverClassName)}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header row: Month & Day title, Month/Year selectors, and Top Badge */}
@@ -298,14 +306,19 @@ export function CustomDatePicker({
                 {matrixDays.map((item, idx) => {
                   const isSelected = item.isCurr && item.dayNum === selectedDay;
                   const padNum = item.dayNum < 10 ? `0${item.dayNum}` : `${item.dayNum}`;
+                  const candidateDate = new Date(viewYear, viewMonth + item.offset, item.dayNum);
+                  const candidateValue = formatOutputDate(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate());
+                  const isDisabled = Boolean(isDateDisabled?.(candidateValue));
 
                   return (
                     <div key={idx} className="flex items-center justify-center p-0.5">
                       <button
                         type="button"
+                        disabled={isDisabled}
                         onClick={() => handleSelectDay(item.dayNum, item.isCurr, item.offset)}
                         className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer",
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all",
+                          isDisabled && "cursor-not-allowed text-slate-300/60 dark:text-slate-600/60",
                           isSelected
                             ? "bg-[#2F6798] text-white font-black shadow-md scale-105"
                             : item.isCurr
@@ -341,8 +354,9 @@ export function CustomDatePicker({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                disabled={Boolean(isDateDisabled?.(formatOutputDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())))}
                 onClick={handleSetToday}
-                className="flex-1 py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center"
+                className="flex-1 py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Today
               </button>

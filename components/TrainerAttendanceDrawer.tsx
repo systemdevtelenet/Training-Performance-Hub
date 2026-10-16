@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, ChevronRight } from 'lucide-react';
-import { getTrainerStatusCode, isTrainerAttendanceLoss, MONTH_ORDER } from '@/lib/analytics-utils';
+import { X, ChevronLeft, ChevronRight, CalendarDays, List } from 'lucide-react';
+import { getTrainerStatusCode, isTrainerAttendanceLoss } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
 import { useRouter } from 'next/navigation';
+import { CustomDatePicker } from '@/components/ui/CustomDatePicker';
 
 export interface TrainerAttendanceRecord {
   attendance_id?: number;
@@ -18,11 +19,11 @@ export interface TrainerAttendanceRecord {
   source?: 'WORKFORCE_PORTAL';
   clockIn?: string | null;
   clockOut?: string | null;
-  punchCount?: number;
 }
 
 export interface TrainerAttendanceData {
   name: string;
+  profilePic?: string | null;
   present: number;
   absent: number;
   suspension?: number;
@@ -42,19 +43,6 @@ function getRateColor(rate: number) {
   if (rate < 80) return 'text-rose-600';
   if (rate >= 95) return 'text-emerald-600';
   return 'text-[#2F6798]';
-}
-
-function formatWorkforcePunchTime(rawValue?: string | null) {
-  if (!rawValue) return '--';
-  const raw = String(rawValue).trim();
-  const match = raw.match(/\s(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (!match) return raw;
-
-  const hour = Number(match[1]);
-  const minute = match[2];
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour % 12 || 12;
-  return `${displayHour}:${minute} ${period}`;
 }
 
 function getStatusPill(status: string) {
@@ -113,7 +101,9 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
   const [rendered, setRendered] = useState(Boolean(trainer));
   const [open, setOpen] = useState(Boolean(trainer));
   const [displayed, setDisplayed] = useState<TrainerAttendanceData | null>(trainer);
-  const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
   
   const { actualRole, role: simulatedRole } = useRole();
@@ -124,6 +114,8 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
   useEffect(() => {
     if (trainer) {
       setDisplayed(trainer);
+      setSelectedDate(null);
+      setSelectedMonthIndex(0);
       setRendered(true);
       const frame = requestAnimationFrame(() => setOpen(true));
       return () => cancelAnimationFrame(frame);
@@ -140,15 +132,6 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, rendered]);
-
-  const toggleQuarter = useCallback((quarter: string) => {
-    setExpandedQuarters(prev => {
-      const next = new Set(prev);
-      if (next.has(quarter)) next.delete(quarter);
-      else next.add(quarter);
-      return next;
-    });
-  }, []);
 
   const handleStatusChange = async (attendanceId: number | undefined, newStatus: string) => {
     if (!attendanceId) return;
@@ -183,27 +166,41 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
   const grouped = useMemo(() => {
     if (!displayed) return [];
     
-    // Group records by month name
-    const mMap = new Map<string, TrainerAttendanceRecord[]>();
+    const mMap = new Map<string, { month: string; records: TrainerAttendanceRecord[] }>();
     for (const r of displayed.timeline) {
-      if (!mMap.has(r.month)) mMap.set(r.month, []);
-      mMap.get(r.month)!.push(r);
+      const parsedDate = new Date(`${r.date}T12:00:00`);
+      const validDate = !Number.isNaN(parsedDate.getTime());
+      const key = validDate ? r.date.slice(0, 7) : r.month;
+      const month = validDate
+        ? new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(parsedDate)
+        : r.month;
+      if (!mMap.has(key)) mMap.set(key, { month, records: [] });
+      mMap.get(key)!.records.push(r);
     }
     
-    // Sort months and records
     return Array.from(mMap.entries())
-      .sort((a, b) => MONTH_ORDER.indexOf(a[0]) - MONTH_ORDER.indexOf(b[0]))
-      .map(([month, records]) => ({
-        month,
-        records: records.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, group]) => ({
+        key,
+        month: group.month,
+        records: group.records.sort((a, b) => a.date.localeCompare(b.date)),
       }));
   }, [displayed]);
 
   useEffect(() => {
-    if (grouped.length > 0 && expandedQuarters.size === 0) {
-      setExpandedQuarters(new Set(grouped.map(g => g.month)));
-    }
+    setSelectedMonthIndex(Math.max(0, grouped.length - 1));
   }, [grouped]);
+
+  const changeViewMode = (mode: 'list' | 'calendar') => {
+    setViewMode(mode);
+    setSelectedDate(null);
+  };
+
+  const currentGroup = grouped[selectedMonthIndex];
+  const changeMonth = (offset: number) => {
+    setSelectedMonthIndex(index => Math.max(0, Math.min(grouped.length - 1, index + offset)));
+    setSelectedDate(null);
+  };
 
   if (!rendered || !displayed || typeof window === 'undefined') return null;
 
@@ -236,7 +233,7 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
         className={`absolute inset-0 w-full h-full bg-slate-900/40 dark:bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'} cursor-default`}
       />
       
-      <aside className={`absolute inset-y-0 right-0 top-0 bottom-0 flex w-full max-w-[520px] sm:max-w-[560px] flex-col overflow-hidden rounded-none bg-white dark:bg-slate-800 shadow-2xl border-l border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`absolute inset-y-0 right-0 top-0 bottom-0 flex w-full max-w-[520px] sm:max-w-[600px] flex-col overflow-hidden rounded-none bg-white dark:bg-slate-800 shadow-2xl border-l border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         
         {/* Header - Solid Primary with safe-area top padding */}
         <header className="bg-primary px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shrink-0 pt-[max(0.875rem,env(safe-area-inset-top))]">
@@ -250,10 +247,18 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
           {/* Profile Section */}
           <div className="p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 dark:border-slate-700/50">
             {/* Avatar */}
-            <div className="w-24 h-24 shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 border-4 border-white dark:border-slate-800 shadow-md flex items-center justify-center overflow-hidden">
+            <div className="relative w-24 h-24 shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 border-4 border-white dark:border-slate-800 shadow-md flex items-center justify-center overflow-hidden">
               <span className="text-3xl font-black text-slate-400 dark:text-slate-500">
                 {displayed.name.charAt(0).toUpperCase()}
               </span>
+              {displayed.profilePic && (
+                <img
+                  src={displayed.profilePic}
+                  alt={`${displayed.name} profile photo`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={event => { event.currentTarget.style.display = 'none'; }}
+                />
+              )}
             </div>
             
             {/* Info & Badges */}
@@ -304,84 +309,189 @@ export function TrainerAttendanceDrawer({ trainer, onClose }: TrainerAttendanceD
 
             {/* Timeline Sections */}
             <section>
-              <h3 className="mb-3 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Timeline</h3>
-              <div className="space-y-2">
-                {grouped.map(({ month, records }) => {
-                  const isExpanded = expandedQuarters.has(month);
-                  const mWorking = records.filter(r => !['RD', 'HOL'].includes(getTrainerStatusCode(r.status))).length;
-                  const mLosses = records.filter(r => isTrainerAttendanceLoss(r.status)).length;
-                  const mRate = mWorking > 0 ? ((Math.max(0, mWorking - mLosses) / mWorking) * 100).toFixed(1) : '100.0';
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Attendance Timeline</h3>
+                <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-900/50" role="group" aria-label="Attendance display mode">
+                  <button
+                    type="button"
+                    aria-pressed={viewMode === 'list'}
+                    onClick={() => changeViewMode('list')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${viewMode === 'list' ? 'bg-white text-[#2F6798] shadow-sm dark:bg-slate-800 dark:text-blue-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                  >
+                    <List className="h-3.5 w-3.5" /> List
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={viewMode === 'calendar'}
+                    onClick={() => changeViewMode('calendar')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${viewMode === 'calendar' ? 'bg-white text-[#2F6798] shadow-sm dark:bg-slate-800 dark:text-blue-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" /> Calendar
+                  </button>
+                </div>
+              </div>
+              {currentGroup ? (() => {
+                const { month, records } = currentGroup;
+                const mWorking = records.filter(r => !['RD', 'HOL'].includes(getTrainerStatusCode(r.status))).length;
+                const mLosses = records.filter(r => isTrainerAttendanceLoss(r.status)).length;
+                const mRate = mWorking > 0 ? ((Math.max(0, mWorking - mLosses) / mWorking) * 100).toFixed(1) : '100.0';
+                const [year, monthNumber] = records[0]?.date.split('-').map(Number) || [];
 
-                  return (
-                    <div key={month} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                return (
+                  <div className="rounded-lg border border-slate-200 shadow-sm dark:border-slate-700">
+                    <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700 dark:bg-slate-800/60">
                       <button
                         type="button"
-                        onClick={() => toggleQuarter(month)}
-                        className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-700/80 transition-colors text-left"
-                        aria-expanded={isExpanded}
+                        onClick={() => changeMonth(-1)}
+                        disabled={selectedMonthIndex <= 0}
+                        aria-label="Previous month"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-white disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-700"
                       >
-                        <div className="flex items-center gap-2.5">
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                          )}
-                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{month}</span>
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{records.length} record{records.length !== 1 ? 's' : ''}</span>
-                        </div>
-                        <span className="text-sm font-bold text-primary">{mRate}%</span>
+                        <ChevronLeft className="h-4 w-4" />
                       </button>
-                      {isExpanded && (
-                        <div className="border-t border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto overflow-x-auto custom-horizontal-scrollbar touch-pan-x">
-                          <table className="w-full text-sm min-w-[520px]">
-                            <thead className="bg-slate-100/50 dark:bg-slate-900/30 sticky top-0 z-10 backdrop-blur-sm">
-                              <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                <th className="text-left px-4 py-3 border-b border-slate-200 dark:border-slate-700">Date</th>
-                                <th className="text-left px-3 py-3 border-b border-slate-200 dark:border-slate-700">Day</th>
-                                <th className="text-left px-3 py-3 border-b border-slate-200 dark:border-slate-700">Workforce Punches</th>
-                                <th className="text-right px-4 py-3 border-b border-slate-200 dark:border-slate-700">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                              {records.map((r) => {
-                                const pill = getStatusPill(r.status);
-                                return (
-                                  <tr key={r.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
-                                    <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{new Date(r.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                                    <td className="px-3 py-3 font-medium text-slate-500 dark:text-slate-400">{r.weekday}</td>
-                                    <td className="px-3 py-3">
-                                      {r.source === 'WORKFORCE_PORTAL' ? (
-                                        <div className="space-y-0.5 whitespace-nowrap">
-                                          <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                                            In {formatWorkforcePunchTime(r.clockIn)} &middot; Out {formatWorkforcePunchTime(r.clockOut)}
-                                          </p>
-                                          <p className="text-[9px] font-bold uppercase text-[#2F6798] dark:text-blue-400">
-                                            Workforce Portal &middot; {r.punchCount || 0} punches
-                                          </p>
-                                        </div>
-                                      ) : (
-                                        <span className="text-[10px] font-semibold text-slate-400">Manual attendance</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs whitespace-nowrap ${pill.color}`}>
-                                        {pill.label}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <CustomDatePicker
+                          value={selectedDate || records[records.length - 1]?.date}
+                          onChange={date => {
+                            const index = grouped.findIndex(group => group.key === date.slice(0, 7));
+                            if (index >= 0) setSelectedMonthIndex(index);
+                            setSelectedDate(date);
+                          }}
+                          isDateDisabled={date => !displayed.timeline.some(record => record.date === date)}
+                          className="!h-8 !rounded-md !px-2 !py-1 !text-[11px] !shadow-none"
+                          popoverClassName="w-[min(285px,calc(100vw-72px))]"
+                        />
+                      </div>
+                      <span className="hidden shrink-0 text-[10px] font-semibold text-slate-400 sm:inline">{records.length} days</span>
+                      <span className="shrink-0 px-1 text-xs font-bold text-primary">{mRate}%</span>
+                      <button
+                        type="button"
+                        onClick={() => changeMonth(1)}
+                        disabled={selectedMonthIndex >= grouped.length - 1}
+                        aria-label="Next month"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-white disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-700"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
                     </div>
-                  );
-                })}
-                {grouped.length === 0 && (
-                  <p className="text-sm text-slate-400 dark:text-slate-500 italic py-6 text-center">No attendance records available.</p>
-                )}
-              </div>
+                    {viewMode === 'calendar' ? (() => {
+                      if (!year || !monthNumber) return null;
+                      const monthIndex = monthNumber - 1;
+                      const firstWeekday = new Date(year, monthIndex, 1).getDay();
+                      const daysInMonth = new Date(year, monthNumber, 0).getDate();
+                      const gridStart = new Date(year, monthIndex, 1 - firstWeekday);
+                      const gridDayCount = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+                      const recordsByDate = new Map(displayed.timeline.map(record => [record.date, record]));
+                      const selectedRecord = records.find(record => record.date === selectedDate);
+                      const cells = Array.from({ length: gridDayCount }, (_, index) => {
+                        const dateValue = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
+                        const date = `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`;
+                        return {
+                          key: date,
+                          date,
+                          day: dateValue.getDate(),
+                          inMonth: dateValue.getMonth() === monthIndex && dateValue.getFullYear() === year,
+                          record: recordsByDate.get(date),
+                        };
+                      });
+                      const today = new Date();
+                      const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                      return (
+                        <div className="overflow-hidden rounded-b-lg">
+                          <div className="grid grid-cols-7 bg-[#2F6798] text-center text-[9px] font-extrabold uppercase text-white sm:text-[10px]">
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(weekday => <span key={weekday} className="border-r border-white/20 py-2.5 last:border-r-0">{weekday}</span>)}
+                          </div>
+                          <div className="grid grid-cols-7 border-l border-slate-200 dark:border-slate-700">
+                            {cells.map(cell => {
+                              const record = cell.record;
+                              const pill = record ? getStatusPill(record.status) : null;
+                              const isSelected = selectedDate === cell.date;
+                              const isToday = todayValue === cell.date;
+                              const dateParts = cell.date.split('-').map(Number);
+                              const displayDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                              const shortMonth = displayDate.toLocaleDateString('en-US', { month: 'short' });
+                              const statusLabel = pill?.label.split(' - ').slice(-1)[0] || pill?.label;
+                              return (
+                                <button
+                                  key={cell.key}
+                                  type="button"
+                                  disabled={!record}
+                                  onClick={() => {
+                                    setSelectedDate(isSelected ? null : cell.date);
+                                    if (!cell.inMonth) {
+                                      const index = grouped.findIndex(group => group.key === cell.date.slice(0, 7));
+                                      if (index >= 0) setSelectedMonthIndex(index);
+                                    }
+                                  }}
+                                  aria-label={record ? `${record.weekday}, ${displayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}: ${pill?.label}` : `${displayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}: no attendance record`}
+                                  aria-pressed={isSelected}
+                                  className={`flex min-h-[104px] min-w-0 flex-col border-b border-r border-slate-200 p-1.5 text-left transition-colors sm:min-h-[148px] sm:p-2.5 dark:border-slate-700 ${cell.inMonth ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/70 dark:bg-slate-950/50'} ${record ? 'cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-950/20' : 'cursor-default'} ${isSelected ? 'relative z-[1] outline outline-2 outline-[#2F6798] outline-offset-[-2px] bg-blue-50/70 dark:bg-blue-950/30' : ''}`}
+                                >
+                                  <span className="mb-2 flex min-h-4 w-full items-center justify-between gap-1">
+                                    {isToday ? <span className="text-[8px] font-extrabold uppercase tracking-wide text-emerald-600">Today</span> : !cell.inMonth ? <span className="text-[8px] font-semibold text-slate-300 dark:text-slate-600">{shortMonth}</span> : <span />}
+                                    <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-extrabold sm:text-[11px] ${isToday ? 'bg-emerald-500 text-white' : cell.inMonth ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300 dark:text-slate-600'}`}>{cell.day}</span>
+                                  </span>
+                                  {record && pill && (
+                                    <>
+                                      <span className={`flex min-h-6 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border px-1 py-1 text-center text-[8px] font-bold leading-tight whitespace-normal break-words sm:min-h-7 sm:text-[10px] ${pill.color}`}>{statusLabel}</span>
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {selectedRecord && (
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                  {new Date(`${selectedRecord.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                </p>
+                              </div>
+                              <span className={`inline-flex h-auto min-h-7 w-[112px] min-w-0 shrink-0 items-center justify-center overflow-hidden whitespace-normal break-words rounded-full border px-1 py-1 text-center text-[9px] font-bold leading-tight ${getStatusPill(selectedRecord.status).color}`}>
+                                {getStatusPill(selectedRecord.status).label}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })() : (
+                      <div className="max-h-[420px] overflow-y-auto">
+                        <table className="w-full table-fixed text-[13px]">
+                          <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur dark:bg-slate-900/95">
+                            <tr className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400 sm:text-[10px]">
+                              <th className="w-[50%] border-b border-slate-200 px-3 py-2.5 text-left dark:border-slate-700 sm:w-[33%]">Date</th>
+                              <th className="hidden w-[22%] border-b border-slate-200 px-3 py-2.5 text-left dark:border-slate-700 sm:table-cell">Day</th>
+                              <th className="w-[50%] border-b border-slate-200 px-1 py-2.5 text-right dark:border-slate-700 sm:w-[45%] sm:px-2">Attendance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                            {records.map(record => {
+                              const pill = getStatusPill(record.status);
+                              return (
+                                <tr key={record.date} className={`${selectedDate === record.date ? 'bg-blue-50/70 dark:bg-blue-950/20' : ''} hover:bg-slate-50/70 dark:hover:bg-slate-700/40`}>
+                                  <td className="px-3 py-2.5 font-medium text-slate-700 dark:text-slate-200 sm:px-4">
+                                    <time dateTime={record.date}>{new Date(`${record.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</time>
+                                    <span className="block text-[10px] font-medium text-slate-400 sm:hidden">{record.weekday}</span>
+                                  </td>
+                                  <td className="hidden px-3 py-2.5 font-medium text-slate-500 dark:text-slate-400 sm:table-cell">{record.weekday}</td>
+                                  <td className="px-1 py-2.5 text-right sm:px-2">
+                                    <span className={`inline-flex h-auto min-h-7 w-[112px] min-w-0 shrink-0 items-center justify-center overflow-hidden whitespace-normal break-words rounded-full border px-1 py-1 text-center text-[9px] font-bold leading-tight ${pill.color}`}>
+                                      {pill.label}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
+                <p className="rounded-lg border border-slate-200 py-8 text-center text-[13px] text-slate-400 dark:border-slate-700">No attendance records available.</p>
+              )}
             </section>
           </div>
         </div>

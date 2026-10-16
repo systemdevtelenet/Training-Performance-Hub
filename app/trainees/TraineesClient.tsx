@@ -95,8 +95,10 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   const { role, actualRole, userName, email, isLoading, userMeta } = useRole();
   const toast = useToast();
   const currentRole = role || actualRole;
+  const hasHeadOfTrainingPosition = /head\s+of\s+training|\bHOT\b/i.test(userMeta.position || '');
   const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
-    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(role as any);
+    ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(role as any) ||
+    hasHeadOfTrainingPosition;
   const isTrainer = currentRole === 'TRAINER' || (!isPrivilegedAdmin && currentRole !== 'TRAINEE' && currentRole !== 'GUEST');
   const isTrainee = currentRole === 'TRAINEE';
   const isAdmin = isPrivilegedAdmin;
@@ -107,6 +109,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [initialTrainees, isTrainer, isTrainee, userName, email, userMeta]);
 
   const [trainees, setTrainees] = useState<Trainee[]>(scopedInitialTrainees);
+  const [headcountRecords, setHeadcountRecords] = useState<Trainee[]>(initialTrainees);
 
   useEffect(() => {
     setTrainees(scopedInitialTrainees);
@@ -151,6 +154,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
         const res = await fetch('/api/trainees');
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
+          setHeadcountRecords(data.data);
           setTrainees(scopeTraineeRecords(data.data, isTrainer, isTrainee, userName || '', email || ''));
         }
       } catch (e) {
@@ -267,6 +271,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       if (!response.ok || !result.success || !Array.isArray(result.data)) {
         throw new Error(result.error || 'Unable to retrieve trainee records.');
       }
+      setHeadcountRecords(result.data);
       setTrainees(scopeTraineeRecords(result.data, isTrainer, isTrainee, userName || '', email || ''));
       if (isAdmin) fetchPendingApprovalsCount();
       showToast('Trainee data is up to date.', 'Refreshed');
@@ -385,7 +390,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
   }, [trainees, rosterFilter, trackFilter, deferredSearchQuery, selectedAccount, selectedQuarter, selectedMonth]);
 
   const rosterSummaryCounts = useMemo(() => {
-    const summaryTrainees = trainees.filter(t =>
+    const summaryTrainees = headcountRecords.filter(t =>
       (selectedAccount === 'All' || t.accountName === selectedAccount) &&
       (selectedQuarter === 'All' || t.quarter === selectedQuarter) &&
       (selectedMonth === 'All' || t.month === selectedMonth)
@@ -396,7 +401,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       inhouse,
       pst: summaryTrainees.length - inhouse,
     };
-  }, [trainees, selectedAccount, selectedQuarter, selectedMonth]);
+  }, [headcountRecords, selectedAccount, selectedQuarter, selectedMonth]);
 
   // Reset pagination on filter change
   useEffect(() => {

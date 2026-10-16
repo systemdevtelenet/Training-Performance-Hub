@@ -9,7 +9,11 @@ export interface WorkforceAttendanceRecord {
   source: 'WORKFORCE_PORTAL';
   clockIn: string | null;
   clockOut: string | null;
-  punchCount: number;
+}
+
+export interface WorkforceAttendanceDateRange {
+  startDate: string;
+  endDateExclusive: string;
 }
 
 interface ParsedPunch {
@@ -91,6 +95,7 @@ function isShiftEnd(type: string) {
 export async function fetchWorkforceAttendance(
   supabase: SupabaseClient,
   employeeIds: string[],
+  dateRange?: WorkforceAttendanceDateRange,
 ): Promise<Map<string, WorkforceAttendanceRecord[]>> {
   const normalizedIds = Array.from(new Set(
     employeeIds
@@ -122,6 +127,8 @@ export async function fetchWorkforceAttendance(
 
   const grouped = new Map<string, ParsedPunch[]>();
   rows.map(normalizePunch).filter((row): row is ParsedPunch => Boolean(row)).forEach(row => {
+    if (dateRange && (row.date < dateRange.startDate || row.date >= dateRange.endDateExclusive)) return;
+
     const key = `${row.employeeId}___${row.date}`;
     const current = grouped.get(key) || [];
     current.push(row);
@@ -172,7 +179,6 @@ export async function fetchWorkforceAttendance(
       source: 'WORKFORCE_PORTAL',
       clockIn: shiftStarts[0]?.timestamp || null,
       clockOut: shiftEnds[shiftEnds.length - 1]?.timestamp || null,
-      punchCount: punches.length,
     };
 
     const employeeRecords = result.get(employeeId) || [];

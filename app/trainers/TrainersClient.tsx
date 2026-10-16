@@ -1913,6 +1913,7 @@ function AttendanceReliabilityView({
             <TrainerAttendanceDrawer
               trainer={{
                 name: selectedTrainer.name,
+                profilePic: getTrainerAvatar(selectedTrainer),
                 present: selectedTrainer.present,
                 absent: selectedTrainer.absent,
                 suspension: selectedTrainer.suspension || 0,

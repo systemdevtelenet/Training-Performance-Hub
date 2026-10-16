@@ -247,9 +247,9 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 relative">
-      <div className="absolute inset-0 bg-[url('https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-bg-image-1.png')] bg-cover bg-center" />
-      <div className="absolute inset-0 bg-black/50" />
+    <div className="fixed inset-0 z-[10000] min-h-screen w-screen flex items-center justify-center overflow-y-auto p-4">
+      <div className="fixed inset-0 bg-[url('https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-bg-image-1.png')] bg-cover bg-center" />
+      <div className="fixed inset-0 bg-black/50" />
 
       {/* Top-Right Logout Success Toast */}
       {showLogoutToast && (

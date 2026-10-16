@@ -493,6 +493,10 @@ export const getTrainersData = async () => {
     const workforceAttendanceMap = await fetchWorkforceAttendance(
       supabaseAdmin,
       consolidatedTrainers.map((trainer: any) => String(trainer.employee_num || trainer.trainer_id || '')),
+      {
+        startDate: `${new Date().getFullYear()}-09-01`,
+        endDateExclusive: `${new Date().getFullYear()}-10-01`,
+      },
     );
 
     const lossStatuses = ['FAIL', 'FAILED', 'DROP', 'DROPPED', 'FALLOUT', 'TERMINATED', 'RESIGNED', 'ATTRITION', 'INACTIVE', 'EOC', 'AWOL', 'LATERAL', 'REPROFILED'];

@@ -11,6 +11,69 @@ const OPENROUTER_MODELS = [
   'deepseek/deepseek-v4-flash-0731'
 ];
 
+const PRIVACY_BLOCKED_REPLY = 'Privacy protection stopped this request because it appears to contain personal or confidential information. Please remove employee identifiers, contact details, credentials, or sensitive personal details and try again.';
+const PRIVACY_ENTITY_CACHE_MS = 5 * 60 * 1000;
+let privacyEntityCache: { expiresAt: number; employeeCodes: string[]; employeeNames: string[] } | null = null;
+
+async function getPrivacyEntities() {
+  if (privacyEntityCache && privacyEntityCache.expiresAt > Date.now()) return privacyEntityCache;
+
+  const [employees, inhouseTrainees, pstTrainees] = await Promise.all([
+    supabase.from('employees').select('employee_code, employee_name'),
+    supabase.from('inhouse').select('name'),
+    supabase.from('product_spec_training').select('name'),
+  ]);
+  if (employees.error || inhouseTrainees.error || pstTrainees.error || !employees.data || !inhouseTrainees.data || !pstTrainees.data) {
+    throw new Error('Privacy screening data is unavailable.');
+  }
+
+  const peopleNames = [
+    ...employees.data.map((row: any) => row.employee_name),
+    ...inhouseTrainees.data.map((row: any) => row.name),
+    ...pstTrainees.data.map((row: any) => row.name),
+  ];
+
+  privacyEntityCache = {
+    expiresAt: Date.now() + PRIVACY_ENTITY_CACHE_MS,
+    employeeCodes: employees.data.map((row: any) => String(row.employee_code || '').trim()).filter((value: string) => value.length >= 3),
+    employeeNames: peopleNames.map((name: unknown) => String(name || '').trim()).filter((value: string) => value.length >= 8),
+  };
+  return privacyEntityCache;
+}
+
+function containsSensitiveContent(value: string, entities: Awaited<ReturnType<typeof getPrivacyEntities>>) {
+  const patterns = [
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    /(?:\+?63[\s-]?|0)9\d{2}[\s-]?\d{3}[\s-]?\d{4}/,
+    /\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b/,
+    /\b(?:\d[ -]*?){13,19}\b/,
+    /\b(?:SSS|TIN|PhilHealth|Pag-IBIG|passport|national ID|driver'?s license)\b/i,
+    /\b(?:password|passcode|API key|access token|secret key)\s*(?:is|:|=)\s*\S{4,}/i,
+    /\b(?:personal information|personal data|private information|sensitive information)\b/i,
+    /\b(?:medical record|diagnosed with|prescription|mental health condition|bank account|account number|payroll account|home address|personal address|date of birth|birth date|salary details|credit card|debit card|fingerprint|facial scan)\b/i,
+  ];
+  if (patterns.some(pattern => pattern.test(value))) return true;
+
+  const normalizedValue = normalizeIdentity(value);
+  if (entities.employeeNames.some(name => {
+    const normalizedName = normalizeIdentity(name);
+    return normalizedName.length >= 8 && ` ${normalizedValue} `.includes(` ${normalizedName} `);
+  })) return true;
+
+  return entities.employeeCodes.some(code => {
+    const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${escaped}(?![a-z0-9])`, 'i').test(value);
+  });
+}
+
+function filterSafeHistory(history: unknown[], entities: Awaited<ReturnType<typeof getPrivacyEntities>>) {
+  return history.slice(-12).flatMap((entry: any) => {
+    if (!entry || !['user', 'assistant'].includes(entry.role) || typeof entry.content !== 'string') return [];
+    if (containsSensitiveContent(entry.content, entities)) return [];
+    return [{ role: entry.role, content: entry.content.slice(0, 6000) }];
+  });
+}
+
 function getNavigationIntent(message: string) {
   const text = message.toLowerCase();
   if (!/\b(go to|open|show|take me to|navigate|view|launch|bring me to|check)\b/.test(text)) return null;
@@ -47,7 +110,7 @@ async function getCopilotAccess() {
   const [employeeResult, assignedRoleResult] = await Promise.all([
     supabase
       .from('employees')
-      .select('id, employee_code, employee_name, employee_email, roles!employees_role_id_fkey(role_name), positions!employees_position_id_fkey(position_code, position_name)')
+      .select('id, employee_name, employee_email, roles!employees_role_id_fkey(role_name), positions!employees_position_id_fkey(position_code, position_name)')
       .ilike('employee_email', user.email)
       .maybeSingle(),
     supabase
@@ -75,7 +138,6 @@ async function getCopilotAccess() {
     authenticated: true as const,
     scope: admin ? 'admin' as const : 'trainer' as const,
     employeeName: String(employee?.employee_name || user.email).trim(),
-    employeeCode: String(employee.employee_code || '').trim(),
   };
 }
 
@@ -177,7 +239,6 @@ async function getTrainerMetricsContext(employeeName: string) {
   return {
     source: 'Supabase live data, restricted to the authenticated trainer',
     generatedAt: liveData.generatedAt,
-    trainer: employeeName,
     assignedTrainees: {
       total: traineeSummary.totalHeadcount,
       ongoing: traineeSummary.inhouse.ongoing + traineeSummary.pst.ongoing,
@@ -215,6 +276,21 @@ export async function POST(req: Request) {
     if (access.scope === 'none') {
       return NextResponse.json({ error: 'Your account does not have access to the Training Hub AI.' }, { status: 403 });
     }
+
+    let privacyEntities: Awaited<ReturnType<typeof getPrivacyEntities>>;
+    try {
+      privacyEntities = await getPrivacyEntities();
+    } catch {
+      return NextResponse.json({
+        reply: 'Privacy screening is temporarily unavailable. Your message was not sent to the AI provider. Please try again shortly.',
+        modelUsed: 'Privacy Guard',
+      }, { status: 503 });
+    }
+
+    if (containsSensitiveContent(message, privacyEntities)) {
+      return NextResponse.json({ reply: PRIVACY_BLOCKED_REPLY, modelUsed: 'Privacy Guard', privacyBlocked: true }, { status: 200 });
+    }
+    const safeHistory = filterSafeHistory(history, privacyEntities);
 
     if (navigation) {
       return NextResponse.json({
@@ -271,10 +347,10 @@ Accuracy rules:
         },
         body: JSON.stringify({
           models: OPENROUTER_MODELS,
-          provider: { sort: 'throughput' },
+          provider: { sort: 'throughput', data_collection: 'deny', zdr: true },
           messages: [
             { role: 'system', content: systemPrompt },
-            ...(history || []).slice(-12),
+            ...safeHistory,
             { role: 'user', content: message }
           ],
           temperature: 0.3,
