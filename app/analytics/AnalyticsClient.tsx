@@ -25,53 +25,6 @@ function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-const applyAverageHeadcountAttrition = <T extends { activeHC: number; losses: number }>(points: T[]) =>
-  points.map(point => ({
-    ...point,
-    attritionRate: parseFloat(calculateRosterAttrition(point.losses, point.activeHC).rate.toFixed(1)),
-  }));
-
-// Default benchmark data matching user's official records with exact attendance tallies
-const defaultMonthlyInhouse = applyAverageHeadcountAttrition([
-  { period: 'January', activeHC: 22, losses: 4, attritionRate: 18.2, attendanceRate: 81.8, sumP: 18, sumA: 4 },
-  { period: 'February', activeHC: 17, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 15, sumA: 0 },
-  { period: 'March', activeHC: 2, losses: 1, attritionRate: 50.0, attendanceRate: 66.7, sumP: 2, sumA: 1 },
-  { period: 'April', activeHC: 3, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 12, sumA: 0 },
-  { period: 'May', activeHC: 8, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 7, sumA: 0 },
-  { period: 'June', activeHC: 9, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 18, sumA: 0 },
-  { period: 'July', activeHC: 15, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 30, sumA: 0 },
-  { period: 'August', activeHC: 3, losses: 1, attritionRate: 33.3, attendanceRate: 85.7, sumP: 6, sumA: 1 },
-]);
-
-const defaultMonthlyPst = applyAverageHeadcountAttrition([
-  { period: 'January', activeHC: 24, losses: 2, attritionRate: 8.3, attendanceRate: 94.2, sumP: 163, sumA: 10 },
-  { period: 'February', activeHC: 15, losses: 3, attritionRate: 20.0, attendanceRate: 96.7, sumP: 89, sumA: 3 },
-  { period: 'March', activeHC: 14, losses: 2, attritionRate: 14.3, attendanceRate: 85.3, sumP: 29, sumA: 5 },
-  { period: 'April', activeHC: 36, losses: 6, attritionRate: 16.7, attendanceRate: 97.2, sumP: 769, sumA: 22 },
-  { period: 'May', activeHC: 11, losses: 1, attritionRate: 9.1, attendanceRate: 94.6, sumP: 35, sumA: 2 },
-  { period: 'June', activeHC: 29, losses: 2, attritionRate: 6.9, attendanceRate: 98.5, sumP: 319, sumA: 5 },
-  { period: 'July', activeHC: 25, losses: 3, attritionRate: 12.0, attendanceRate: 96.7, sumP: 357, sumA: 12 },
-  { period: 'August', activeHC: 13, losses: 1, attritionRate: 7.7, attendanceRate: 93.0, sumP: 40, sumA: 3 },
-]);
-
-const defaultQuarterlyInhouse = applyAverageHeadcountAttrition([
-  { period: 'Q1', activeHC: 41, losses: 5, attritionRate: 12.2, attendanceRate: 92.0, sumP: 35, sumA: 5 },
-  { period: 'Q2', activeHC: 20, losses: 0, attritionRate: 0.0, attendanceRate: 100.0, sumP: 37, sumA: 0 },
-  { period: 'Q3', activeHC: 18, losses: 1, attritionRate: 5.6, attendanceRate: 97.3, sumP: 36, sumA: 1 },
-]);
-
-const defaultQuarterlyPst = applyAverageHeadcountAttrition([
-  { period: 'Q1', activeHC: 36, losses: 7, attritionRate: 19.4, attendanceRate: 93.4, sumP: 281, sumA: 18 },
-  { period: 'Q2', activeHC: 59, losses: 9, attritionRate: 15.3, attendanceRate: 97.5, sumP: 1123, sumA: 29 },
-  { period: 'Q3', activeHC: 29, losses: 4, attritionRate: 13.8, attendanceRate: 96.2, sumP: 383, sumA: 15 },
-]);
-
-const defaultQuarterlyOverall = applyAverageHeadcountAttrition([
-  { period: 'Q1', activeHC: 77, losses: 12, attritionRate: 15.6, attendanceRate: 93.2, sumP: 316, sumA: 23 },
-  { period: 'Q2', activeHC: 79, losses: 9, attritionRate: 11.4, attendanceRate: 97.6, sumP: 1160, sumA: 29 },
-  { period: 'Q3', activeHC: 47, losses: 5, attritionRate: 10.6, attendanceRate: 96.3, sumP: 419, sumA: 16 },
-]);
-
 function computeTrendsFromData(data: any) {
   if (!data?.inhouse?.groups && !data?.pst?.groups) return null;
 
@@ -213,11 +166,11 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(initialComputed?.inhouseMonthly || defaultMonthlyInhouse);
-  const [pstMonthlyData, setPstMonthlyData] = useState(initialComputed?.pstMonthly || defaultMonthlyPst);
-  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(initialComputed?.inhouseQuarterly || defaultQuarterlyInhouse);
-  const [pstQuarterlyData, setPstQuarterlyData] = useState(initialComputed?.pstQuarterly || defaultQuarterlyPst);
-  const [overallQuarterlyData, setOverallQuarterlyData] = useState(initialComputed?.overallQuarterly || defaultQuarterlyOverall);
+  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(initialComputed?.inhouseMonthly || []);
+  const [pstMonthlyData, setPstMonthlyData] = useState(initialComputed?.pstMonthly || []);
+  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(initialComputed?.inhouseQuarterly || []);
+  const [pstQuarterlyData, setPstQuarterlyData] = useState(initialComputed?.pstQuarterly || []);
+  const [overallQuarterlyData, setOverallQuarterlyData] = useState(initialComputed?.overallQuarterly || []);
 
   // Load real Supabase database data on mount dynamically if not provided
   useEffect(() => {
@@ -306,7 +259,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           setPstMonthlyData(computedPstMonthly);
         }
       } catch (e) {
-        console.warn('Using default analytics metrics:', e);
+        console.error('Unable to load analytics metrics:', e);
       }
     }
     loadData();
@@ -385,7 +338,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
   const { totalSummaryAttrition, totalSummaryAttendance, totalLossesSum, activeSummaryHC, avgHeadcount } = useMemo(() => {
     const list = currentOverallData;
     if (list.length === 0) {
-      return { totalSummaryAttrition: '0.0', totalSummaryAttendance: '97.5', totalLossesSum: 0, activeSummaryHC: 0, avgHeadcount: '0.0' };
+      return { totalSummaryAttrition: '0.0', totalSummaryAttendance: '0.0', totalLossesSum: 0, activeSummaryHC: 0, avgHeadcount: '0.0' };
     }
     const sumLoss = list.reduce((acc, d) => acc + (d.losses || 0), 0);
     const sumHC = list.reduce((acc, d) => acc + (d.activeHC || 0), 0);
