@@ -111,12 +111,16 @@ const getNavItems = (role: UserRole): NavItem[] => {
         { name: 'Scorecards & Attrition', href: '/analytics?tab=attrition', icon: Activity, desc: 'Risk flags & milestone scores' },
       ]
     },
-    { 
-      name: 'Traffic Lights', 
-      href: '/traffic-lights', 
+    {
+      name: role === 'TRAINER' ? 'Performance Tracking' : 'Traffic Lights',
+      href: '/traffic-lights',
       icon: Activity, 
       roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'TRAINEE'],
-      flyoutItems: [
+      subItems: role === 'TRAINER' ? [
+        { name: 'Traffic Lights', href: '/traffic-lights?account=all&view=traffic-lights', icon: Activity, desc: 'View traffic light statuses set by an administrator' },
+        { name: '30 60 90', href: '/traffic-lights?account=all&view=milestones', icon: ShieldCheck, desc: 'Trainee performance milestones' },
+      ] : undefined,
+      flyoutItems: role === 'TRAINER' ? undefined : [
         { name: 'Operational Health Grid', href: '/traffic-lights', icon: Activity, desc: 'Live Green / Yellow / Red status monitor' },
         { name: 'Critical & Attention Flags', href: '/traffic-lights?status=RED', icon: TrendingDown, desc: 'Batches needing manager intervention' },
         { name: 'Wave Milestones', href: '/traffic-lights?tab=milestones', icon: ShieldCheck, desc: 'Milestone compliance & SLA progress' },
@@ -154,7 +158,8 @@ export default function Sidebar() {
   }, [avatarUrl]);
 
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    '/trainers': true
+    '/trainers': true,
+    '/traffic-lights': true
   });
   // Auto-expand active parent menu on route change
   useEffect(() => {
@@ -287,7 +292,9 @@ export default function Sidebar() {
               const subList = item.subItems || [];
               const hasSubItems = subList.length > 0;
               const isExpanded = !!expandedMenus[item.href];
-              const isParentActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+              const isParentActive = item.href.includes('?')
+                ? isSubItemActive(item.href)
+                : pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
               
               return (
                 <div key={item.href} className="relative group">

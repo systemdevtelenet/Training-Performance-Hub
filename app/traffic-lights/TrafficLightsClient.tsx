@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   Search,
@@ -71,6 +72,25 @@ export const STATUS_OPTIONS = [
   { value: 'Account Removed', label: 'Account Removed', icon: UserX, color: 'text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-orange-600 text-white font-bold shadow-xs hover:bg-orange-700 border border-orange-700' },
 ];
 
+const TRAINER_MILESTONE_OPTIONS = [
+  STATUS_OPTIONS[0],
+  {
+    ...STATUS_OPTIONS[2],
+    value: 'Satisfactory',
+    label: 'Satisfactory',
+    color: 'text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/60 font-bold',
+    badgeStyle: 'bg-orange-600 text-white font-bold shadow-xs hover:bg-orange-700 border border-orange-700',
+  },
+  { ...STATUS_OPTIONS[2], value: 'Good', label: 'Good' },
+  { ...STATUS_OPTIONS[1], value: 'Excellent', label: 'Excellent' },
+];
+
+const TRAINER_MILESTONES: Record<string, { rating: string; attendance: string; qa: string; productivity: string }> = {
+  '30 days': { rating: 'Satisfactory', attendance: '95%', qa: '90%', productivity: '95%' },
+  '60 days': { rating: 'Good', attendance: '98%', qa: '98%', productivity: '98%' },
+  '90 days': { rating: 'Excellent', attendance: '100%', qa: '100%', productivity: '100%' },
+};
+
 export const QUICK_REASON_TAGS = [
   { label: 'Resignation', text: 'Resignation: Submitted formal resignation notice.', icon: LogOut },
   { label: 'Attendance', text: 'Attendance Issue: Multiple unexcused absences or NCNS recorded.', icon: UserMinus },
@@ -83,6 +103,9 @@ export const QUICK_REASON_TAGS = [
 export const getStatusConfig = (val: string) => {
   if (!val) return STATUS_OPTIONS[0];
   const v = val.toUpperCase().trim();
+  if (v === 'SATISFACTORY') return { ...TRAINER_MILESTONE_OPTIONS[1], value: val, label: val };
+  if (v === 'GOOD') return { ...STATUS_OPTIONS[2], value: val, label: val };
+  if (v === 'EXCELLENT') return { ...STATUS_OPTIONS[1], value: val, label: val };
   if (v === 'OKAY' || v === 'GREEN') return STATUS_OPTIONS[1];
   if (v === 'SHAKY' || v === 'AMBER' || v === 'YELLOW') return STATUS_OPTIONS[2];
   if (v === 'TERMINATED' || v === 'RED') return STATUS_OPTIONS[3];
@@ -106,7 +129,8 @@ function StatusSelect({
   isPending,
   remark,
   remarksList,
-  onOpenRemarks
+  onOpenRemarks,
+  options
 }: {
   value: string;
   onChange: (newValue: string) => void;
@@ -115,6 +139,7 @@ function StatusSelect({
   remark?: string;
   remarksList?: TrafficLightRemarkItem[];
   onOpenRemarks?: () => void;
+  options?: typeof STATUS_OPTIONS;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
@@ -353,7 +378,7 @@ function StatusSelect({
           className="z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-800 p-1.5 shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-100 custom-scrollbar"
         >
           <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 px-2 py-1">Set Status</div>
-          {STATUS_OPTIONS.map((opt) => {
+          {(options || STATUS_OPTIONS).map((opt) => {
             const OptIcon = opt.icon;
             const isSelected = (value || '').toUpperCase() === opt.value.toUpperCase();
             return (
@@ -423,6 +448,8 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
 }
 
 export default function TrafficLightsClient({ initialAccounts }: { initialAccounts?: { id: string; name: string }[] }) {
+  const searchParams = useSearchParams();
+  const isTrainerMilestoneView = searchParams?.get('view') === 'milestones';
   const { actualRole, role: simulatedRole, email, userName, userMeta } = useRole();
   const currentRole = simulatedRole || actualRole;
   const isPrivilegedAdmin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(currentRole as any) ||
@@ -505,6 +532,13 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   }, [accounts, isTrainer, trainerAccounts, trainerTraineeNames]);
 
   const [account, setAccount] = useState<string>('all');
+
+  useEffect(() => {
+    const requestedAccount = searchParams?.get('account');
+    if (requestedAccount && visibleAccounts.some(item => item.id === requestedAccount)) {
+      setAccount(requestedAccount);
+    }
+  }, [searchParams, visibleAccounts]);
 
   useEffect(() => {
     if (visibleAccounts.length > 0 && !visibleAccounts.some(a => a.id === account)) {
@@ -660,6 +694,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
       if (!k) return false;
       const clean = k.trim();
       const lower = clean.toLowerCase();
+      if (isTrainerMilestoneView && ['30 days', '60 days', '90 days'].includes(lower)) return true;
       if ([
         'id', 'created_at', 'account', 'position', '_account', 
         '_namecol', 'isaccountheader', 'isAccountHeader', 'isteamheader',
@@ -782,6 +817,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // Dynamically compute active displayed columns: Filter table dates strictly by selected Calendar Month
   const displayedDateColumns = useMemo(() => {
+    if (isTrainerMilestoneView) return ['30 days', '60 days', '90 days'];
     const targetYear = calendarCurrentDate.getFullYear();
     const targetMonth = calendarCurrentDate.getMonth(); // 0-indexed (e.g. 5 for June, 8 for Sept)
     const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -830,12 +866,14 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }
 
     return dates;
-  }, [allDateColumns, calendarCurrentDate, sortOrder]);
+  }, [allDateColumns, calendarCurrentDate, sortOrder, account, isTrainerMilestoneView]);
 
   const latestDateColumn = useMemo(() => {
-    if (allDateColumns.length === 0) return null;
-    return allDateColumns[allDateColumns.length - 1];
-  }, [allDateColumns]);
+    if (isTrainerMilestoneView) return '90 days';
+    const actualDateColumns = allDateColumns.filter(col => !['30 days', '60 days', '90 days'].includes(col.toLowerCase()));
+    if (actualDateColumns.length === 0) return null;
+    return actualDateColumns[actualDateColumns.length - 1];
+  }, [allDateColumns, account, isTrainerMilestoneView]);
 
   // Dynamically extract teams and member counts
   const teamsList = useMemo(() => {
@@ -857,7 +895,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     });
 
     return teams;
-  }, [data, nameColumnKey]);
+  }, [data, nameColumnKey, account, isTrainerMilestoneView]);
 
   // Discover all distinct trainers present in active traffic light data
   const trainersFilterList = useMemo(() => {
@@ -1248,6 +1286,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
       const rowAccount = row._account || account;
 
+      // Milestone view is for trainee progress, so trainer and leader rows do not belong here.
+      if (isTrainerMilestoneView && (rowAccount === 'trainers' || rowAccount === 'leaders')) return false;
+
+      // The trainer's Traffic Lights view is limited to their own admin-managed record.
+      if (isTrainer && !isTrainerMilestoneView && rowAccount !== 'trainers' && rowAccount !== 'leaders') return false;
+
       // 1. In Trainers / Leaders account: Trainers can ONLY see their own record (they cannot see other trainers)
       if (rowAccount === 'trainers' || rowAccount === 'leaders') {
         if (isTrainer) {
@@ -1385,7 +1429,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     }
 
     return result;
-  }, [data, nameColumnKey, isTrainer, isTrainee, account, userName, email, selectedTeam, selectedTrainer, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames, trainerAccounts, checkIsOwnTrainerRow]);
+  }, [data, nameColumnKey, isTrainer, isTrainee, account, isTrainerMilestoneView, userName, email, selectedTeam, selectedTrainer, statusFilter, searchQuery, teamsList, filterWithRemarksOnly, displayedDateColumns, remarksMap, trainerTraineeNames, trainerAccounts, checkIsOwnTrainerRow]);
 
   // Pagination State (Display 10 per page as requested)
   const [currentPage, setCurrentPage] = useState(1);
@@ -2004,6 +2048,9 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                     "w-2 h-2 rounded-full shrink-0",
                     statusFilter === 'Okay' ? 'bg-emerald-500' :
                     statusFilter === 'Shaky' ? 'bg-amber-400' :
+                    statusFilter === 'Satisfactory' ? 'bg-orange-500' :
+                    statusFilter === 'Good' ? 'bg-amber-400' :
+                    statusFilter === 'Excellent' ? 'bg-emerald-500' :
                     statusFilter === 'Terminated' ? 'bg-rose-500' :
                     statusFilter === 'Resigned' ? 'bg-red-500' : 'bg-orange-500'
                   )} />
@@ -2019,7 +2066,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
             {openDropdown === 'status' && (
               <div className="absolute top-[calc(100%+6px)] left-0 w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
-                {['ALL', 'Okay', 'Shaky', 'Terminated', 'Resigned', 'Account Removed'].map((st) => {
+                {(isTrainerMilestoneView
+                  ? ['ALL', 'Satisfactory', 'Good', 'Excellent']
+                  : ['ALL', 'Okay', 'Shaky', 'Terminated', 'Resigned', 'Account Removed']
+                ).map((st) => {
                   const isSelected = statusFilter === st;
                   return (
                     <button
@@ -2041,6 +2091,9 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                           "w-2 h-2 rounded-full shrink-0",
                           st === 'Okay' ? 'bg-emerald-500' :
                           st === 'Shaky' ? 'bg-amber-400' :
+                          st === 'Satisfactory' ? 'bg-orange-500' :
+                          st === 'Good' ? 'bg-amber-400' :
+                          st === 'Excellent' ? 'bg-emerald-500' :
                           st === 'Terminated' ? 'bg-rose-500' :
                           st === 'Resigned' ? 'bg-red-500' : 'bg-orange-500'
                         )} />
@@ -2565,7 +2618,8 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                         </th>
                       ) : (
                         displayedDateColumns.map((col) => {
-                          const isLatest = col === latestDateColumn;
+                          const milestone = isTrainerMilestoneView ? TRAINER_MILESTONES[col] : null;
+                          const isLatest = !milestone && col === latestDateColumn;
                           const dayOfWeek = getDayOfWeek(col);
                           const dateLabel = getFormattedDateLabel(col);
                           return (
@@ -2576,11 +2630,11 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                               }`}
                             >
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[9.5px] font-bold tracking-wider text-blue-100 uppercase">
-                                  {dayOfWeek}
-                                </span>
-                                <span className="text-[11px] font-black tracking-wide">
-                                  {dateLabel}
+                                {!milestone && (
+                                  <span className="text-[9.5px] font-bold tracking-wider text-blue-100 uppercase">{dayOfWeek}</span>
+                                )}
+                                <span className={`text-[11px] font-black tracking-wide ${milestone ? 'text-white' : ''}`}>
+                                  {milestone ? col.replace(' days', '') : dateLabel}
                                 </span>
                                 {isLatest && (
                                   <span className="bg-amber-400 text-slate-900 text-[7.5px] font-black px-1.5 py-0.2 rounded mt-0.5 tracking-wider">
@@ -2716,6 +2770,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                                     isPending={!!isPending}
                                     remark={existingRemark}
                                     remarksList={cellRemarksList}
+                                    options={isTrainerMilestoneView ? TRAINER_MILESTONE_OPTIONS : undefined}
                                     onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
                                   />
                                 </td>

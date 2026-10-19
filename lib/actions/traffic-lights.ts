@@ -281,6 +281,7 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
           accounts: tr.accounts || ''
         };
         dates.forEach(d => { row[d] = null; });
+        ['30 days', '60 days', '90 days'].forEach(d => { row[d] = null; });
         result.push(row);
       });
     } else {
@@ -328,6 +329,7 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
               startDate: t.start_date || t.startDate || t.date_hired || t.start || '-'
             };
             dates.forEach(d => { row[d] = null; });
+            ['30 days', '60 days', '90 days'].forEach(d => { row[d] = null; });
             result.push(row);
           });
         });
