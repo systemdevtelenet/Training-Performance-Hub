@@ -59,6 +59,18 @@ export type EmployeeRecord = {
   account_ids?: number[];
 };
 
+type EmployeeFormData = {
+  employee_code: string;
+  employee_name: string;
+  employee_email: string;
+  status_id: number;
+  role_id: number;
+  position_id: string | number;
+  hire_date: string;
+  vici_link: string;
+  account_id: string;
+};
+
 const isActiveEmployee = (employee: EmployeeRecord) =>
   employee.status_id === 1 || employee.status_name?.toLowerCase() === 'active';
 
@@ -117,12 +129,13 @@ export default function EmployeesClient({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<EmployeeFormData>({
     employee_code: '',
     employee_name: '',
     employee_email: '',
     status_id: 1,
     role_id: 1,
+    position_id: '',
     hire_date: '',
     vici_link: '',
     account_id: ''
@@ -748,6 +761,7 @@ export default function EmployeesClient({
                                     employee_email: emp.employee_email || '',
                                     status_id: emp.status_id || 1,
                                     role_id: emp.role_id || 1,
+                                    position_id: emp.position_id ?? '',
                                     hire_date: emp.hire_date || '',
                                     vici_link: emp.vici_link || '',
                                     account_id: (emp.account_ids && emp.account_ids[0]) ? String(emp.account_ids[0]) : ''
@@ -846,7 +860,10 @@ export default function EmployeesClient({
         <EmployeeFormDrawer
           isOpen={isAddModalOpen}
           mode="add"
-          initialData={formData}
+          initialData={{
+            ...formData,
+            position_id: formData.position_id ? Number(formData.position_id) : null
+          }}
           roles={rolesList}
           positions={positionsList}
           accounts={accounts}
@@ -891,7 +908,7 @@ export default function EmployeesClient({
             employee_email: editingEmp.employee_email || '',
             status_id: editingEmp.status_id || 1,
             role_id: editingEmp.role_id || 1,
-            position_id: editingEmp.position_id ?? '',
+            position_id: editingEmp.position_id ?? null,
             hire_date: editingEmp.hire_date || '',
             vici_link: editingEmp.vici_link || '',
             account_id: (editingEmp.account_ids && editingEmp.account_ids[0]) ? String(editingEmp.account_ids[0]) : ''
