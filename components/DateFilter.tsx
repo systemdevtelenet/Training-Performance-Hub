@@ -153,11 +153,11 @@ export default function DateFilter() {
 
       {/* Modern Calendar Popover */}
       {isOpen && (
-        <div className="fixed left-3 right-3 top-16 max-w-lg mx-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 flex flex-col sm:flex-row sm:w-[520px] origin-top-right overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
+        <div className="fixed left-3 right-3 top-16 max-w-lg mx-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 flex flex-col sm:flex-row sm:w-[460px] origin-top-right overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100 focus:outline-none dark:bg-slate-900 dark:ring-slate-800 animate-in fade-in zoom-in-95 duration-200 z-50">
           
           {/* Left Side: Presets */}
-          <div className="w-full sm:w-40 border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50 flex flex-col">
-            <div className="px-2 py-2 mb-1">
+          <div className="w-full sm:w-40 border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50/50 p-2.5 dark:border-slate-800 dark:bg-slate-900/50 flex flex-col">
+            <div className="px-2 py-1.5 mb-1">
               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Presets</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-1 gap-1 sm:space-y-0.5">
@@ -165,7 +165,7 @@ export default function DateFilter() {
                 <button
                   key={option}
                   onClick={() => handlePresetSelect(option)}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs text-left transition-colors ${
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-[11px] text-left transition-colors ${
                     selectedRange === option
                       ? 'bg-blue-100 text-[#2F6798] dark:bg-blue-900/40 dark:text-blue-400 font-bold'
                       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/80 font-medium'
@@ -179,9 +179,9 @@ export default function DateFilter() {
           </div>
 
           {/* Right Side: Calendar */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-5">
             {/* Header row: Title and Calendar Icon */}
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start justify-between mb-4">
               <div className="flex flex-col gap-2 mt-1">
                 <h2 className="text-xl leading-none font-black text-slate-900 dark:text-slate-50 tracking-tight">
                   {displayTitle}
@@ -249,7 +249,7 @@ export default function DateFilter() {
               </div>
               
               {/* Calendar Icon Illustration (Now shows Year) */}
-              <div className="relative flex h-[46px] w-[54px] flex-col items-center justify-center rounded-xl bg-[#2F6798] shadow-md shadow-[#2F6798]/30">
+              <div className="relative flex h-[40px] w-[48px] flex-col items-center justify-center rounded-xl bg-[#2F6798] shadow-md shadow-[#2F6798]/30">
                 {/* Binder rings */}
                 <div className="absolute -top-1 left-2 h-2.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-400"></div>
                 <div className="absolute -top-1 right-2 h-2.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-400"></div>
@@ -261,7 +261,7 @@ export default function DateFilter() {
             </div>
 
             {/* Grid Header */}
-            <div className="grid grid-cols-7 gap-1 text-center mb-4">
+            <div className="grid grid-cols-7 gap-1 text-center mb-3">
               {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
                 <div key={day} className={`text-[9px] font-black tracking-wider ${i === 0 ? 'text-[#2F6798] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
                   {day}
@@ -270,9 +270,9 @@ export default function DateFilter() {
             </div>
 
             {/* Grid Body */}
-            <div className="grid grid-cols-7 gap-y-2 gap-x-1 text-center">
+            <div className="grid grid-cols-7 gap-y-1 gap-x-1 text-center">
               {emptyCells.map((_, i) => (
-                <div key={`empty-${i}`} className="flex h-7 items-center justify-center text-xs font-bold text-slate-300 dark:text-slate-600">
+                <div key={`empty-${i}`} className="flex h-7 items-center justify-center text-[11px] font-bold text-slate-300 dark:text-slate-600">
                   {prevMonthDays - emptyCells.length + i + 1}
                 </div>
               ))}
@@ -304,7 +304,7 @@ export default function DateFilter() {
                     className="relative flex h-7 items-center justify-center group"
                   >
                     <div className={`flex items-center justify-center h-6 w-6 rounded-full transition-colors ${circleClasses}`}>
-                      <span className="text-xs font-bold">
+                      <span className="text-[10px] font-bold">
                         {day.toString().padStart(2, '0')}
                       </span>
                     </div>
@@ -314,7 +314,7 @@ export default function DateFilter() {
               
               {/* Trailing empty cells to fill the grid */}
               {Array.from({ length: 42 - (emptyCells.length + daysInMonth.length) }).map((_, i) => (
-                <div key={`trailing-${i}`} className="flex h-7 items-center justify-center text-xs font-bold text-slate-300 dark:text-slate-600">
+                <div key={`trailing-${i}`} className="flex h-7 items-center justify-center text-[11px] font-bold text-slate-300 dark:text-slate-600">
                   {(i + 1).toString().padStart(2, '0')}
                 </div>
               ))}
@@ -323,7 +323,7 @@ export default function DateFilter() {
             {/* Confirm Button */}
             <button 
               onClick={() => setIsOpen(false)}
-              className="mt-6 w-full rounded-xl bg-[#2F6798] py-2.5 text-sm font-bold text-white shadow-md shadow-[#2F6798]/20 transition-transform hover:scale-[1.02] active:scale-[0.98] dark:bg-blue-600 dark:shadow-blue-600/20"
+              className="mt-4 w-full rounded-xl bg-[#2F6798] py-2 text-xs font-bold text-white shadow-md shadow-[#2F6798]/20 transition-transform hover:scale-[1.02] active:scale-[0.98] dark:bg-blue-600 dark:shadow-blue-600/20"
             >
               Confirm
             </button>

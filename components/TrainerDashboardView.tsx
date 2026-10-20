@@ -411,45 +411,49 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
   return (
     <div className="space-y-5 text-[#363435] dark:text-slate-200">
       
-      {/* 1. Page Header with Trainer Greeting & Quick Action Shortcuts */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
-              TRAINER DASHBOARD
-            </span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight mt-0.5">
-            Welcome back, {userName || 'Trainer'}
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Monitor your assigned cohorts, trainee attendance, traffic light flags, and coaching remarks.
-          </p>
+      {/* 1. Welcome Banner with Trainer Greeting & Quick Actions */}
+      <div className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#2F6798] via-[#2F6798] to-[#24527a] p-5 sm:p-6 shadow-sm">
+        <div className="absolute -right-5 -bottom-4 w-72 sm:w-96 opacity-35 pointer-events-none select-none" aria-hidden="true">
+          <img src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/dark_mode_hero.png" alt="" className="w-full h-auto object-contain" />
         </div>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.14),transparent_48%)] pointer-events-none" aria-hidden="true" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="min-w-0">
+            <span className="inline-flex items-center rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-widest text-white/90">
+              Trainer Dashboard
+            </span>
+            <h2 className="mt-2.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Welcome, {userName || 'Trainer'}
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-xs sm:text-sm leading-relaxed text-blue-50/90">
+              Monitor your assigned cohorts, trainee attendance, traffic light flags, and coaching remarks.
+            </p>
+          </div>
 
-        {/* Quick Action Buttons */}
-        <div className="flex items-center flex-wrap gap-2">
-          <Link
-            href="/traffic-lights"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2F6798] text-white text-xs font-semibold shadow-xs hover:bg-[#24527a] transition-all"
-          >
-            <Activity className="w-3.5 h-3.5 text-white" />
-            <span>Update Traffic Lights</span>
-          </Link>
-          <Link
-            href="/trainees"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs hover:border-[#2F6798]/40 hover:text-[#2F6798] transition-all"
-          >
-            <Users className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>Manage Trainees</span>
-          </Link>
-          <Link
-            href="/trainers?tab=attendance"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs hover:border-[#2F6798]/40 hover:text-[#2F6798] transition-all"
-          >
-            <Calendar className="w-3.5 h-3.5 text-[#2F6798]" />
-            <span>My Reliability</span>
-          </Link>
+          {/* Quick Action Buttons */}
+          <div className="relative flex shrink-0 flex-wrap items-center gap-2">
+            <Link
+              href="/traffic-lights"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C8A54B] text-white text-xs font-bold shadow-sm hover:bg-[#b8943f] transition-all"
+            >
+              <Activity className="w-3.5 h-3.5 text-white" />
+              <span>Update Traffic Lights</span>
+            </Link>
+            <Link
+              href="/trainees"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-white/35 bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Manage Trainees</span>
+            </Link>
+            <Link
+              href="/trainers?tab=attendance"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-white/35 bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>My Reliability</span>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -561,7 +565,8 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       </div>
 
       {/* 3. Filter Bar (Quarter, Month, Search) */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-20">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+      <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-20">
         <div>
           <label htmlFor="trainer-quarter" className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
             <Calendar className="h-3.5 w-3.5 text-[#2F6798]" />Evaluation Quarter
@@ -614,7 +619,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       </div>
 
       {/* 4. At-Risk / Coaching Watchlist */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="p-5 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -699,7 +704,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       </div>
 
       {/* 5. Assigned Cohorts & Active Trainee Roster Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="p-5 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#2F6798] dark:text-blue-400 flex items-center justify-center shrink-0">
@@ -762,6 +767,8 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                   const rawStatus = tl?.status && tl.status.trim() !== '' ? tl.status.trim() : (t.isLoss ? 'Terminated' : 'None');
                   const sUpper = rawStatus.toUpperCase();
                   const isNone = sUpper === 'NONE' || sUpper === 'NOT SET' || sUpper === 'UNTAGGED';
+                  const traineeInitials = (t.name || '?').trim().split(/\s+/).map((part: string) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+                  const profilePic = t.profilePic || t.avatar_url || t.profile_pic || t.photo_url;
 
                   const totalDays = (t.p || 0) + (t.a || 0);
                   const attRate = totalDays > 0 ? `${(((t.p || 0) / totalDays) * 100).toFixed(0)}%` : '—';
@@ -769,7 +776,21 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">
-                        {t.name}
+                        <div className="flex items-center gap-2.5">
+                          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#2F6798]/20 bg-[#2F6798]/10 text-[10px] font-extrabold text-[#2F6798] dark:bg-[#2F6798]/20 dark:text-blue-300">
+                            <span aria-hidden="true">{traineeInitials}</span>
+                            {profilePic && (
+                              <img
+                                src={profilePic}
+                                alt=""
+                                aria-hidden="true"
+                                className="absolute inset-0 h-full w-full object-cover"
+                                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                              />
+                            )}
+                          </div>
+                          <span>{t.name}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
                         <span className="font-semibold text-slate-700 dark:text-slate-200">{t.accountName}</span>
@@ -911,6 +932,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
             </p>
           </div>
         )}
+      </div>
       </div>
 
     </div>

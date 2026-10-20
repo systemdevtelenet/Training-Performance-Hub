@@ -736,7 +736,17 @@ export const getTraineesData = async () => {
       .select('*')
       .order('name', { ascending: true });
 
+    const { data: employeeProfiles } = await supabaseAdmin
+      .from('employees')
+      .select('employee_name, avatar_url');
+
     const assignmentMap = await getTraineeTrainerAssignmentMap();
+    const avatarByName = new Map<string, string>();
+    (employeeProfiles || []).forEach((employee: any) => {
+      const name = String(employee.employee_name || '').trim().toLowerCase();
+      const avatar = String(employee.avatar_url || '').trim();
+      if (name && avatar) avatarByName.set(name, avatar);
+    });
 
     if (err1) console.error('Error fetching INHOUSE:', err1);
     if (err2) console.error('Error fetching PST:', err2);
@@ -768,6 +778,7 @@ export const getTraineesData = async () => {
         isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
         isLoss,
         assignedTrainer: resolvedTrainer,
+        profilePic: row.avatar_url || row.profile_pic || row.photo_url || avatarByName.get(cleanName) || '',
         batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
         accountName: row.account || row.acount || 'General',
         trainingType: 'INHOUSE' as const
@@ -802,6 +813,7 @@ export const getTraineesData = async () => {
         isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
         isLoss,
         assignedTrainer: resolvedTrainer,
+        profilePic: row.avatar_url || row.profile_pic || row.photo_url || avatarByName.get(cleanName) || '',
         batchName: batchName,
         accountName: acct,
         trainingType: 'PST' as const

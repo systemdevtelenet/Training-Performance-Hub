@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   Building2,
   TrendingDown,
-  GraduationCap
+  GraduationCap,
+  Gauge
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, UserRole } from '@/components/providers/RoleProvider';
@@ -112,19 +113,18 @@ const getNavItems = (role: UserRole): NavItem[] => {
       ]
     },
     {
-      name: role === 'TRAINER' ? 'Performance Tracking' : 'Traffic Lights',
+      name: role === 'TRAINEE' ? 'Traffic Lights' : 'Performance Tracking',
       href: '/traffic-lights',
-      icon: Activity, 
+      icon: Gauge,
       roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER', 'TRAINEE'],
       subItems: role === 'TRAINER' ? [
         { name: 'Traffic Lights', href: '/traffic-lights?account=all&view=traffic-lights', icon: Activity, desc: 'View traffic light statuses set by an administrator' },
         { name: '30 60 90', href: '/traffic-lights?account=all&view=milestones', icon: ShieldCheck, desc: 'Trainee performance milestones' },
-      ] : undefined,
-      flyoutItems: role === 'TRAINER' ? undefined : [
-        { name: 'Operational Health Grid', href: '/traffic-lights', icon: Activity, desc: 'Live Green / Yellow / Red status monitor' },
-        { name: 'Critical & Attention Flags', href: '/traffic-lights?status=RED', icon: TrendingDown, desc: 'Batches needing manager intervention' },
-        { name: 'Wave Milestones', href: '/traffic-lights?tab=milestones', icon: ShieldCheck, desc: 'Milestone compliance & SLA progress' },
-      ]
+      ] : role === 'TRAINEE' ? undefined : [
+        { name: 'Traffic Lights', href: '/traffic-lights?account=all&view=traffic-lights', icon: Activity, desc: 'Manage trainer traffic lights and review trainee statuses' },
+        { name: '30 60 90', href: '/traffic-lights?account=all&view=milestones', icon: ShieldCheck, desc: 'View trainee milestones by assigned trainer' },
+      ],
+      flyoutItems: undefined
     },
     { 
       name: 'Activity Log', 

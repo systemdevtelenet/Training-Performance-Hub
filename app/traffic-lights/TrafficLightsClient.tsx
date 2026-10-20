@@ -2766,12 +2766,12 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
                                   <StatusSelect
                                     value={val || ''}
                                     onChange={(newVal) => handleCellChange(actualIndex, col, newVal)}
-                                    disabled={!canEdit}
+                                    disabled={!canEdit || (isTrainerMilestoneView && isPrivilegedAdmin)}
                                     isPending={!!isPending}
                                     remark={existingRemark}
                                     remarksList={cellRemarksList}
                                     options={isTrainerMilestoneView ? TRAINER_MILESTONE_OPTIONS : undefined}
-                                    onOpenRemarks={() => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
+                                    onOpenRemarks={isTrainerMilestoneView && isPrivilegedAdmin ? undefined : () => handleOpenRemarks(nameVal, selectedTeam, col, val || '', actualIndex, row._account)}
                                   />
                                 </td>
                               );
