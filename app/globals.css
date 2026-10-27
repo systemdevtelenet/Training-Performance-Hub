@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -131,5 +133,19 @@
   to {
     width: 0%;
   }
+}
+
+.login-email-input:-webkit-autofill,
+.login-email-input:-webkit-autofill:hover,
+.login-email-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: #17283b;
+}
+
+.login-password-input:-webkit-autofill,
+.login-password-input:-webkit-autofill:hover,
+.login-password-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #e8f0fe inset;
+  -webkit-text-fill-color: #17283b;
 }
 

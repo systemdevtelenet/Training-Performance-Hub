@@ -717,13 +717,16 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
                       </span>
                     </p>
                     <div className="absolute top-0 right-0 -mt-8 mr-2 hidden group-hover:block bg-[#FAF6EA] dark:bg-[#252014] text-[#7A5E18] dark:text-[#E2BD5B] text-[10px] font-normal leading-relaxed p-2.5 rounded-xl shadow-xl border border-[#D8BA68]/60 w-52 z-30 pointer-events-none">
-                      Percentage of trainees who leave or are lost from the training process.
+                      EOC and AWOL losses divided by average headcount: (start + end) / 2.
                     </div>
                     {(() => {
                       const avgAttr = active.avgAttrition && active.avgAttrition !== 'N/A' 
                         ? active.avgAttrition 
                         : (active.batches && active.batches.length > 0
-                            ? `${(active.batches.reduce((sum: number, b: any) => sum + parseFloat(b.attritionRate || b.attrition || '0'), 0) / active.batches.length).toFixed(1)}%`
+                            ? calculateRosterAttrition(
+                                active.batches.reduce((sum: number, b: any) => sum + (b.losses || 0), 0),
+                                active.batches.reduce((sum: number, b: any) => sum + (b.headcount || 0), 0)
+                              ).formattedRate
                             : 'N/A');
                       
                       return (

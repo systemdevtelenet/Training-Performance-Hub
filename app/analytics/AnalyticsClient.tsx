@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
 import { supabase } from '@/lib/supabase';
-import { calculateRosterAttrition, matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
+import { calculateRosterAttrition, isAttritionLossStatus, matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
 
 function cn(...classes: any[]) {
@@ -39,7 +39,7 @@ function computeTrendsFromData(data: any) {
             month: m.month,
             quarter: m.quarter,
             status: m.status,
-            isLoss: m.isLoss,
+            isLoss: isAttritionLossStatus(m.status),
             p: m.p || 0,
             a: m.a || 0,
             account: m.accountName || acc,
@@ -182,12 +182,6 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
         const { data: pstData } = await supabase.from('product_spec_training').select('*');
 
         if ((inhouseData && inhouseData.length > 0) || (pstData && pstData.length > 0)) {
-          const isLossStatus = (st?: string) => {
-            if (!st) return false;
-            const s = st.toUpperCase().trim();
-            return ['LOSS', 'ATTRITION', 'EOC', 'AWOL', 'LATERAL', 'FAILED', 'RESIGNED', 'TERMINATED', 'RED', 'ACCOUNT REMOVED'].some(code => s.includes(code));
-          };
-
           const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
 
           const allInhouse = (inhouseData || []).map((row: any) => {
@@ -200,7 +194,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             return {
               month: row.month || '',
               status: row.status || 'ACTIVE',
-              isLoss: isLossStatus(row.status),
+              isLoss: isAttritionLossStatus(row.status),
               p: pCount,
               a: aCount
             };
@@ -216,7 +210,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             return {
               month: row.month || '',
               status: row.status || 'ACTIVE',
-              isLoss: isLossStatus(row.status),
+              isLoss: isAttritionLossStatus(row.status),
               p: pCount,
               a: aCount
             };
@@ -334,7 +328,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       : filterByQueryAndPeriod(overallMonthlyData, false);
   }, [trajectoryView, overallQuarterlyData, overallMonthlyData, quarterFilter, monthFilter, searchQuery]);
 
-  // Derived KPI cards summary using Official Average Headcount method
+  // Aggregate the selected roster before applying the same attrition formula.
   const { totalSummaryAttrition, totalSummaryAttendance, totalLossesSum, activeSummaryHC, avgHeadcount } = useMemo(() => {
     const list = currentOverallData;
     if (list.length === 0) {
@@ -342,19 +336,16 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     }
     const sumLoss = list.reduce((acc, d) => acc + (d.losses || 0), 0);
     const sumHC = list.reduce((acc, d) => acc + (d.activeHC || 0), 0);
-    const meanHC = sumHC / list.length;
+    const attrition = calculateRosterAttrition(sumLoss, sumHC);
     const sumAttd = list.reduce((acc, d) => acc + (d.attendanceRate || 0), 0);
     const lastHC = list[list.length - 1]?.activeHC || 0;
 
-    // Official WFM Average Headcount Attrition
-    const calculatedAttrition = meanHC > 0 ? ((sumLoss / meanHC) * 100).toFixed(1) : '0.0';
-
     return {
-      totalSummaryAttrition: calculatedAttrition,
+      totalSummaryAttrition: attrition.rate.toFixed(1),
       totalSummaryAttendance: (sumAttd / list.length).toFixed(1),
       totalLossesSum: sumLoss,
       activeSummaryHC: lastHC,
-      avgHeadcount: meanHC.toFixed(1)
+      avgHeadcount: attrition.averageHeadcount.toFixed(1)
     };
   }, [currentOverallData]);
 

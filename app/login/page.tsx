@@ -2,9 +2,8 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, EyeOff, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, UserRound, LockKeyhole, CheckCircle2, X, Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
 import { createClient, createAuthClient } from '@/utils/supabase/client';
 import { logActivity } from '@/lib/actions/logger';
 import { autoProvisionUser } from '@/lib/actions/auth-dynamic';
@@ -22,6 +21,13 @@ function LoginFormContent() {
   const [formData, setFormData] = useState({ email: '', password: '', rememberMe: false });
   const [showLogoutToast, setShowLogoutToast] = useState(false);
   const [logoutProgress, setLogoutProgress] = useState(100);
+  const [heroWord, setHeroWord] = useState(0);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const interval = window.setInterval(() => setHeroWord(index => (index + 1) % 3), 3000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('logout') === 'true') {
@@ -247,9 +253,7 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] min-h-screen w-screen flex items-center justify-center overflow-y-auto p-4">
-      <div className="fixed inset-0 bg-[url('https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-bg-image-1.png')] bg-cover bg-center" />
-      <div className="fixed inset-0 bg-black/50" />
+    <main className="fixed inset-0 z-[10000] grid min-h-screen w-full grid-cols-1 overflow-x-hidden overflow-y-auto bg-[#F8F8F6] font-['Geist',Arial,sans-serif] text-[#17283B] lg:h-screen lg:grid-cols-[1.35fr_1fr] lg:overflow-y-hidden">
 
       {/* Top-Right Logout Success Toast */}
       {showLogoutToast && (
@@ -293,41 +297,44 @@ function LoginFormContent() {
         </div>
       )}
 
-      {/* Centered Split Modal */}
-      <div className="w-full max-w-3xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 min-h-[440px] relative z-10">
-
-        {/* Left Hero Panel */}
-        <div className="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm p-8 flex flex-col items-center justify-center text-center space-y-8 relative border-r border-slate-200/50 dark:border-slate-700/50">
-          <div className="relative flex items-center justify-center w-full max-w-[280px]">
-            <Image src="https://zhdmsmwrskxowvytedgh.supabase.co/storage/v1/object/public/Images/ctnp-logo-full.png" alt="CTNP Logo Full" width={320} height={140} className="object-contain pointer-events-none select-none w-full h-auto drop-shadow-sm" priority />
-          </div>
-
-          <div className="space-y-1.5 pointer-events-none select-none">
-            <h1 className="text-[1.1rem] leading-tight font-black tracking-wider uppercase text-primary">
-              CEBU TELE-NET PHILIPPINES
-            </h1>
-            <p className="text-xs font-bold tracking-wide text-primary/80 uppercase">
-              Training Performance Hub
-            </p>
-          </div>
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#132B43] text-white lg:flex lg:flex-col lg:justify-between">
+        <Image src="/login-hero.png" alt="Customer service representative" fill sizes="57vw" className="pointer-events-none object-contain object-right opacity-[0.85]" priority />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#132B43] via-[#132B43]/45 to-[#132B43]/10" />
+        <div className="pointer-events-none absolute -bottom-[270px] -right-[480px] h-[620px] w-[620px] rounded-full border-[56px] border-[#2F6798]/40" />
+        <div className="pointer-events-none absolute -bottom-[310px] -right-[410px] h-[530px] w-[530px] rounded-full border-[28px] border-[#C8A54B]/30" />
+        <div className="relative z-10 mt-auto px-10 pb-44 xl:px-16">
+          <h1 className="text-[clamp(42px,4vw,60px)] font-semibold leading-[0.98]">
+            Train.<br />Track.<br /><span className="text-[#C8A54B]">{['Lead.', 'Improve.', 'Deliver.'][heroWord]}<span className="ml-1 inline-block h-[0.9em] w-[3px] animate-pulse bg-[#C8A54B] align-[-0.1em] motion-reduce:animate-none" /></span>
+          </h1>
+          <div className="mt-7 h-px w-16 bg-[#C8A54B]" />
+          <p className="mt-6 max-w-xl text-base leading-8 text-white/75 xl:text-lg">Manage training batches, track attendance, and monitor trainee performance in one place.</p>
         </div>
+        <div className="relative z-10 px-10 pb-4 xl:px-16">
+          <div className="grid grid-cols-3 gap-4 pb-4">
+            {[['BATCHES', 'Manage waves & rosters'], ['ATTENDANCE', 'Record daily status'], ['PERFORMANCE', 'Review trainee results']].map(([label, detail]) => <div key={label} className={`border-l pl-4 ${label === 'PERFORMANCE' ? 'border-[#C8A54B]' : 'border-white/25'}`}><p className={`text-[10px] font-semibold tracking-[0.18em] ${label === 'PERFORMANCE' ? 'text-[#C8A54B]' : 'text-[#91A6BC]'}`}>{label}</p><p className="mt-1 text-sm font-medium">{detail}</p></div>)}
+          </div>
+          <div className="flex justify-between border-t border-white/15 pt-5 text-[10px] font-semibold tracking-[0.22em] text-[#8CA5BD]"><span>TRAINING PERFORMANCE HUB</span><span>CTNP | PHILIPPINES</span></div>
+        </div>
+      </section>
 
-        {/* Right Form Panel */}
-        <div className="p-6 sm:px-6 sm:py-12 flex flex-col justify-center bg-white dark:bg-slate-800">
-          <div className="mb-8 text-center space-y-2 pointer-events-none select-none">
-            <h2 className="text-3xl font-bold text-[#2F6798] tracking-wider uppercase dark:text-[#5a9fd4]">
-              LOGIN
-            </h2>
-            <p className="text-xs text-slate-400 font-normal">
-              Enter your credentials to access the Training Performance Hub.
-            </p>
+      <section className="flex min-h-screen flex-col items-center justify-center overflow-y-auto px-6 py-10 sm:px-10 lg:h-screen lg:px-12">
+        <div className="w-full max-w-[466px]">
+          <div className="text-center">
+            <Image src="/login-logo.png" alt="CTNP" width={220} height={84} className="mx-auto h-auto w-[152px] sm:w-[160px]" priority />
+            <p className="mt-8 text-xs font-semibold text-[#C8A54B] lg:hidden">TRAIN. TRACK. LEAD.</p>
+            <h2 className="mt-5 text-[30px] font-semibold leading-tight text-[#17283B]">Welcome back</h2>
+            <p className="mt-2 text-sm text-[#6A7583]">Sign in to your Training Performance Hub.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3" noValidate>
             <div>
+              <label htmlFor="login-email" className="mb-1.5 block text-xs font-semibold tracking-[0.12em] text-[#536172]">EMAIL</label>
+              <div className="relative">
+              <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8190A0]" />
               <input
+                id="login-email"
                 type="email"
-                placeholder="Email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => {
                   setFormData({ ...formData, email: e.target.value });
@@ -335,21 +342,26 @@ function LoginFormContent() {
                   if (errors.general) setErrors({ ...errors, general: '' });
                 }}
                 disabled={!!lockoutUntil}
-                className={`w-full px-4 py-3 text-xs rounded-lg border focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all placeholder:text-slate-400 dark:bg-slate-900 disabled:opacity-50 ${
+                className={`login-email-input h-12 w-full rounded-xl border bg-white pl-12 pr-4 text-[15px] text-[#17283B] outline-none transition focus:border-[#2F6798] focus:ring-4 focus:ring-[#2F6798]/10 disabled:opacity-50 ${
                   errors.email || errors.general
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 text-red-600' 
-                    : 'border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-300'
+                    ? 'border-red-500'
+                    : 'border-[#D7DDE3]'
                 }`}
               />
+              </div>
               {errors.email && (
                 <p className="text-red-500 text-[0.65rem] mt-1 ml-1 font-medium">{errors.email}</p>
               )}
             </div>
 
-            <div className="relative">
+            <div>
+              <label htmlFor="login-password" className="mb-1.5 block text-xs font-semibold tracking-[0.12em] text-[#536172]">PASSWORD</label>
+              <div className={`flex h-12 w-full items-center overflow-hidden rounded-xl border bg-white transition focus-within:border-[#2F6798] focus-within:ring-4 focus-within:ring-[#2F6798]/10 ${errors.password || errors.general ? 'border-red-500' : 'border-[#D7DDE3]'}`}>
+              <LockKeyhole className="ml-4 mr-3 h-5 w-5 shrink-0 text-[#8190A0]" />
               <input
+                id="login-password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Password"
+                autoComplete="current-password"
                 value={formData.password}
                 onChange={(e) => {
                   setFormData({ ...formData, password: e.target.value });
@@ -357,20 +369,18 @@ function LoginFormContent() {
                   if (errors.general) setErrors({ ...errors, general: '' });
                 }}
                 disabled={!!lockoutUntil}
-                className={`w-full px-4 py-3 pr-10 text-xs rounded-lg border focus:outline-none focus:ring-2 focus:ring-[#2F6798] transition-all placeholder:text-slate-400 dark:bg-slate-900 disabled:opacity-50 ${
-                  errors.password || errors.general
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 text-red-600' 
-                    : 'border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-300'
-                }`}
+                className="login-password-input h-full min-w-0 flex-1 bg-[#E8F0FE] px-2 text-[15px] text-[#17283B] outline-none disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={!!lockoutUntil}
-                className="absolute right-3 top-[22px] -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 transition-colors disabled:opacity-50"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="flex h-full w-14 shrink-0 items-center justify-center text-[#8190A0] hover:text-[#244F78] disabled:opacity-50"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
+              </div>
               {errors.password && !errors.general && (
                 <p className="text-red-500 text-[0.65rem] mt-1 ml-1 font-medium">{errors.password}</p>
               )}
@@ -382,38 +392,41 @@ function LoginFormContent() {
               </p>
             )}
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="rememberMe"
                 checked={formData.rememberMe}
                 onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
                 disabled={!!lockoutUntil}
-                className="w-4 h-4 rounded border-slate-300 text-[#2F6798] focus:ring-[#2F6798] accent-[#2F6798] disabled:opacity-50"
+                className="h-4 w-4 accent-[#2F6798] disabled:opacity-50"
               />
-              <label htmlFor="rememberMe" className="text-xs text-slate-600 dark:text-slate-400 font-medium cursor-pointer select-none">
+              <label htmlFor="rememberMe" className="cursor-pointer select-none text-sm text-[#6A7583]">
                 Remember me
               </label>
+              </div>
+              <button type="button" onClick={() => setErrors(prev => ({ ...prev, general: 'Please contact your system administrator for account help.' }))} className="text-sm font-medium text-[#244F78] hover:text-[#C8A54B]">Need help?</button>
             </div>
 
-            <div className="pt-2 flex flex-col items-center">
-              <Button
+            <div>
+              <button
                 type="submit"
                 disabled={!!lockoutUntil || isSubmitLoading}
-                className="w-10/12 py-5 rounded-lg bg-[#2F6798] hover:bg-[#24527a] text-white font-bold text-sm tracking-wider uppercase transition-all shadow-md hover:shadow-lg mx-auto flex items-center justify-center disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-[#244F78] text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(36,79,120,0.16)] transition hover:bg-[#173B5D] disabled:opacity-50"
               >
                 {isSubmitLoading ? (
                   <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 ) : (
-                  'LOGIN'
+                  'Sign In'
                 )}
-              </Button>
-              <Button
+              </button>
+              <div className="my-5 flex items-center gap-4 text-xs text-[#9AA4AF]"><span className="h-px flex-1 bg-[#E0E4E8]" /><span>OR</span><span className="h-px flex-1 bg-[#E0E4E8]" /></div>
+              <button
                 type="button"
-                variant="outline"
                 onClick={handleGoogleLogin}
                 disabled={isGoogleLoading || !!lockoutUntil}
-                className="w-10/12 py-2 mt-6 -mb-3 rounded-lg border border-slate-200 hover:bg-slate-50 bg-slate-50/50 text-slate-700 font-normal text-xs transition-all shadow-sm mx-auto flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#D7DDE3] bg-white text-[15px] font-medium text-[#17283B] transition hover:bg-[#F0F3F5] disabled:opacity-50"
               >
                 {isGoogleLoading ? (
                   <span className="w-4 h-4 border-2 border-[#2F6798] border-t-transparent rounded-full animate-spin"></span>
@@ -425,14 +438,14 @@ function LoginFormContent() {
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
                 )}
-                {isGoogleLoading ? 'Connecting...' : 'Continue with Google'}
-              </Button>
+                {isGoogleLoading ? 'Connecting...' : 'Sign in with Google'}
+              </button>
             </div>
           </form>
+          <p className="mt-5 text-center text-[9px] font-semibold tracking-[0.2em] text-[#A2ABB5]">TRAINING PERFORMANCE HUB | INTERNAL USE ONLY</p>
         </div>
-
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
 

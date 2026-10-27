@@ -9,6 +9,7 @@ import {
   isTrainerMatch,
   isTrainerReliabilityLoss,
   isTraineeLossStatus,
+  isAttritionLossStatus,
 } from '@/lib/analytics-utils';
 import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
 import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition } from '@/lib/trainer-position';
@@ -108,8 +109,9 @@ export const getDashboardData = async () => {
     });
 
     const totalEvaluatedTrainers = activeTrainers + trainerLosses;
+    const trainerAttritionLosses = Array.from(trainerStatusMap.values()).filter(isAttritionLossStatus).length;
     const trainerAttrition = calculateAttrition(
-      trainerLosses,
+      trainerAttritionLosses,
       totalEvaluatedTrainers,
       activeTrainers,
     );
@@ -133,7 +135,7 @@ export const getDashboardData = async () => {
 
       const statusUpper = (item.status || '').toUpperCase();
       const isLoss = isTraineeLossStatus(statusUpper);
-      if (isLoss) totalLosses++;
+      if (isAttritionLossStatus(statusUpper)) totalLosses++;
 
       let pCount = 0, aCount = 0;
       for (const col of inhouseAttCols) {
@@ -173,7 +175,7 @@ export const getDashboardData = async () => {
 
       const statusUpper = (item.status || '').toUpperCase();
       const isLoss = isTraineeLossStatus(statusUpper);
-      if (isLoss) totalLosses++;
+      if (isAttritionLossStatus(statusUpper)) totalLosses++;
 
       let pCount = 0, aCount = 0;
       for (let i = 1; i <= 62; i++) {
@@ -291,7 +293,7 @@ export const getDashboardData = async () => {
       startingHeadcount: trainerAttrition.startingHeadcount,
       endingHeadcount: trainerAttrition.endingHeadcount,
       averageHeadcount: trainerAttrition.averageHeadcount,
-      totalLosses: trainerLosses,
+      totalLosses: trainerAttritionLosses,
       attritionRate: trainerAttritionRate,
       attendanceRate: trainerAttendanceRate,
       reliabilityRate: trainerReliabilityRate
@@ -609,10 +611,11 @@ export const getTrainersData = async () => {
         totalHeadcount++;
 
         const s = (row.status || '').toUpperCase();
-        if (lossStatuses.some(ls => s.includes(ls))) {
+        if (isAttritionLossStatus(s)) {
           batchMap[fullKey].losses++;
           totalTraineeLosses++;
-        } else {
+        }
+        if (!lossStatuses.some(ls => s.includes(ls))) {
           batchMap[fullKey].passed++;
           totalPassed++;
         }

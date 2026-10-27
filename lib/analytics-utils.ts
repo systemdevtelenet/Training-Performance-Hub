@@ -31,6 +31,11 @@ export function isTraineeLossStatus(status?: string): boolean {
     .some(code => normalized.includes(code));
 }
 
+// Only EOC and AWOL are included in the instructed attrition numerator.
+export function isAttritionLossStatus(status?: string): boolean {
+  return /(?:^|[^A-Z])(EOC|AWOL)(?:$|[^A-Z])/.test(String(status || '').toUpperCase());
+}
+
 export function calculateAttrition(
   losses: number,
   startingHeadcount: number,
@@ -51,7 +56,8 @@ export function calculateAttrition(
   };
 }
 
-// Current roster tables contain the period's starting population and its losses.
+// Current roster tables lack dated headcount snapshots, so end headcount is
+// estimated from the starting roster and qualifying losses.
 export function calculateRosterAttrition(losses: number, startingHeadcount: number) {
   return calculateAttrition(
     losses,
@@ -301,7 +307,7 @@ export function getFilteredData(
         group.members = matchedMembers;
         group.totalCount = matchedMembers.length;
         group.endorsed = matchedMembers.filter(m => m.isEndorsed).length;
-        group.losses = matchedMembers.filter(m => m.isLoss).length;
+        group.losses = matchedMembers.filter(m => isAttritionLossStatus(m.status)).length;
         
         let totalP = 0, totalA = 0;
         matchedMembers.forEach(m => {
@@ -472,7 +478,7 @@ export function generateTrendAnalytics(rawData: any, filters: { month: string; q
     dynamicMonths = monthsList.map(m => {
       const activeMembers = allMembers.filter(t => matchesMonthFilter(t.month, m, t.status));
       const hc = activeMembers.length;
-      const losses = activeMembers.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.toLowerCase().slice(0, 3))).length;
+      const losses = activeMembers.filter(t => isAttritionLossStatus(t.status) && (t.month || '').toLowerCase().startsWith(m.toLowerCase().slice(0, 3))).length;
       const p = activeMembers.reduce((sum, t) => sum + (t.p || 0), 0);
       const a = activeMembers.reduce((sum, t) => sum + (t.a || 0), 0);
       const attrNum = parseFloat(calculateRosterAttrition(losses, hc).rate.toFixed(1));
@@ -494,7 +500,7 @@ export function generateTrendAnalytics(rawData: any, filters: { month: string; q
     dynamicQuarters = quartersList.map(q => {
       const activeMembers = allMembers.filter(t => matchesQuarterFilter(t.quarter, q, t.status));
       const hc = activeMembers.length;
-      const losses = activeMembers.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q)).length;
+      const losses = activeMembers.filter(t => isAttritionLossStatus(t.status) && (t.quarter || '').toUpperCase().includes(q)).length;
       const p = activeMembers.reduce((sum, t) => sum + (t.p || 0), 0);
       const a = activeMembers.reduce((sum, t) => sum + (t.a || 0), 0);
       const attrNum = parseFloat(calculateRosterAttrition(losses, hc).rate.toFixed(1));
@@ -571,7 +577,7 @@ export function generateAccountMetrics(rawData: any, filters: any) {
       for (const b in filteredData[type].groups[accName]) {
         filteredData[type].groups[accName][b].members.forEach((m: any) => {
           accountsMap[displayAcc].headcount++;
-          if (m.isLoss) accountsMap[displayAcc].losses++;
+          if (isAttritionLossStatus(m.status)) accountsMap[displayAcc].losses++;
           
           if (m.status && m.status.toString().trim().toLowerCase() === 'ongoing') {
             accountsMap[displayAcc].ongoing++;
