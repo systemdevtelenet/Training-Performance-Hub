@@ -9,7 +9,6 @@ import {
   Users,
   UserCheck,
   BarChart,
-  Sparkles,
   User,
   Settings,
   LogOut,
@@ -102,13 +101,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
       ]
     },
     { 
-      name: 'Analytics & AI Insights', 
+      name: 'Analytics',
       href: '/analytics', 
       icon: BarChart, 
       roles: ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'],
       flyoutItems: [
         { name: 'Performance Analytics', href: '/analytics', icon: BarChart, desc: 'Interactive charts & wave metrics' },
-        { name: 'AI Insights & Trends', href: '/analytics?tab=trends', icon: Sparkles, desc: 'Predictive trends & forecasts' },
         { name: 'Scorecards & Attrition', href: '/analytics?tab=attrition', icon: Activity, desc: 'Risk flags & milestone scores' },
       ]
     },

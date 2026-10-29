@@ -1,8 +1,12 @@
 import { ExecutiveAIReport } from '@/components/ExecutiveAIReport';
+import { redirect } from 'next/navigation';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 export const dynamic = 'force-dynamic';
 
 export default function AIInsightsPage() {
+  if (!AI_FEATURES_ENABLED) redirect('/analytics');
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
       

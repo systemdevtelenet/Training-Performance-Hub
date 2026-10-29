@@ -37,6 +37,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useRole } from '@/components/providers/RoleProvider';
 import { uploadAvatar, deleteAvatar } from '@/lib/actions/avatar';
 import { useToast } from '@/components/CustomToast';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 type SettingsTab = 'profile' | 'notifications' | 'general';
 
@@ -800,7 +801,7 @@ function SettingsContent() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+                  {AI_FEATURES_ENABLED && <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
                     <div className="min-w-0">
                       <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Training Hub floating assistant</h4>
                       <p className="mt-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">Show the AI launcher on every page.</p>
@@ -813,7 +814,7 @@ function SettingsContent() {
                       }}
                       label="Show Training Hub AI floating launcher"
                     />
-                  </div>
+                  </div>}
                 </div>
               )}
             </>

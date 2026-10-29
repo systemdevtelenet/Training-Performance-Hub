@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { searchGlobal, type SearchResultItem } from '@/lib/actions/search';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme();
@@ -612,7 +613,7 @@ export default function Topbar() {
                   <User className="h-4 w-4 text-slate-400" />
                   My Profile
                 </button>
-                <button 
+                {AI_FEATURES_ENABLED && <button
                   onClick={() => {
                     window.dispatchEvent(new Event('open-ai-copilot'));
                     setIsProfileOpen(false);
@@ -621,7 +622,7 @@ export default function Topbar() {
                 >
                   <HelpCircle className="h-4 w-4 text-slate-400" />
                   Help & Support
-                </button>
+                </button>}
                 <button 
                   onClick={() => {
                     router.push('/settings');

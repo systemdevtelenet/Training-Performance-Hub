@@ -4,6 +4,7 @@ import { createClient as createAuthClient } from '@/utils/supabase/server';
 import { getDashboardData } from '@/lib/data-fetcher';
 import { calculateRosterAttrition, getFilteredData } from '@/lib/analytics-utils';
 import { isTrainerEmployee } from '@/lib/trainer-position';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 const OPENROUTER_MODELS = [
   'google/gemini-3.7-flash',
@@ -261,6 +262,10 @@ async function getTrainerMetricsContext(employeeName: string) {
 }
 
 export async function POST(req: Request) {
+  if (!AI_FEATURES_ENABLED) {
+    return NextResponse.json({ error: 'AI features are temporarily unavailable.' }, { status: 503 });
+  }
+
   try {
     const body = await req.json();
     const message = typeof body.message === 'string' ? body.message.trim() : '';

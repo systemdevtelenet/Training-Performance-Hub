@@ -16,22 +16,22 @@ import {
 import { 
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { fetchDashboardData, TraineeRecord } from '@/lib/data-loader';
-import { supabase } from '@/lib/supabase';
-import { calculateRosterAttrition, isAttritionLossStatus, matchesMonthFilter, matchesQuarterFilter } from '@/lib/analytics-utils';
+import { calculateRosterAttrition, isAttritionLossStatus, MONTH_ORDER } from '@/lib/analytics-utils';
 import { useRole } from '@/components/providers/RoleProvider';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-function computeTrendsFromData(data: any) {
+function computeTrendsFromData(data: any, accountFilter: string) {
   if (!data?.inhouse?.groups && !data?.pst?.groups) return null;
 
   const extract = (groups: any) => {
     const list: any[] = [];
     if (!groups) return list;
     for (const acc in groups) {
+      if (accountFilter !== 'All' && acc !== accountFilter) continue;
       for (const b in groups[acc]) {
         (groups[acc][b].members || []).forEach((m: any) => {
           list.push({
@@ -54,64 +54,59 @@ function computeTrendsFromData(data: any) {
   const allInhouse = extract(data.inhouse?.groups);
   const allPst = extract(data.pst?.groups);
 
-  const months = [
-    { key: 'Jan', label: 'January' },
-    { key: 'Feb', label: 'February' },
-    { key: 'Mar', label: 'March' },
-    { key: 'Apr', label: 'April' },
-    { key: 'May', label: 'May' },
-    { key: 'Jun', label: 'June' },
-    { key: 'Jul', label: 'July' },
-    { key: 'Aug', label: 'August' }
-  ];
+  const allTrainees = [...allInhouse, ...allPst];
+  const months = MONTH_ORDER
+    .map(label => ({ key: label.slice(0, 3), label }))
+    .filter(month => allTrainees.some(t => String(t.month || '').toLowerCase().startsWith(month.key.toLowerCase())));
+  if (allTrainees.some(t => t.month === 'Unspecified')) {
+    months.push({ key: 'Uns', label: 'Unspecified' });
+  }
 
   const inhouseMonthly = months.map(m => {
-    const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
+    const inhouseM = allInhouse.filter(t => String(t.month || '').toLowerCase().startsWith(m.key.toLowerCase()));
     const activeHC = inhouseM.length;
     const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
     const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
-    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : null;
     return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
   });
 
   const pstMonthly = months.map(m => {
-    const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
+    const pstM = allPst.filter(t => String(t.month || '').toLowerCase().startsWith(m.key.toLowerCase()));
     const activeHC = pstM.length;
     const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
     const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
-    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : null;
     return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
   });
 
-  const quarters = [
-    { key: 'Q1', label: 'Q1' },
-    { key: 'Q2', label: 'Q2' },
-    { key: 'Q3', label: 'Q3' }
-  ];
+  const quarters = ['Q1', 'Q2', 'Q3', 'Q4', 'Unspecified']
+    .filter(key => allTrainees.some(t => String(t.quarter || '').toUpperCase() === key.toUpperCase()))
+    .map(key => ({ key, label: key }));
 
   const inhouseQuarterly = quarters.map(q => {
-    const inhouseQ = allInhouse.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
+    const inhouseQ = allInhouse.filter(t => String(t.quarter || '').toUpperCase() === q.key.toUpperCase());
     const activeHC = inhouseQ.length;
-    const losses = inhouseQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
+    const losses = inhouseQ.filter(t => t.isLoss).length;
     const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = inhouseQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = inhouseQ.reduce((acc, t) => acc + (t.a || 0), 0);
-    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : null;
     return { period: q.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
   });
 
   const pstQuarterly = quarters.map(q => {
-    const pstQ = allPst.filter(t => matchesQuarterFilter(t.quarter, q.key, t.status));
+    const pstQ = allPst.filter(t => String(t.quarter || '').toUpperCase() === q.key.toUpperCase());
     const activeHC = pstQ.length;
-    const losses = pstQ.filter(t => t.isLoss && (t.quarter || '').toUpperCase().includes(q.key)).length;
+    const losses = pstQ.filter(t => t.isLoss).length;
     const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
     const sumP = pstQ.reduce((acc, t) => acc + (t.p || 0), 0);
     const sumA = pstQ.reduce((acc, t) => acc + (t.a || 0), 0);
-    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
+    const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : null;
     return { period: q.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
   });
 
@@ -123,7 +118,7 @@ function computeTrendsFromData(data: any) {
     const totalAttr = parseFloat(calculateRosterAttrition(totalLoss, totalHC).rate.toFixed(1));
     const totalP = inh.sumP + pst.sumP;
     const totalA = inh.sumA + pst.sumA;
-    const totalAttd = (totalP + totalA) > 0 ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) : 100.0;
+    const totalAttd = (totalP + totalA) > 0 ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) : null;
     return { period: q.label, activeHC: totalHC, losses: totalLoss, attritionRate: totalAttr, attendanceRate: totalAttd, sumP: totalP, sumA: totalA };
   });
 
@@ -140,19 +135,22 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     if (!isRoleLoading && !isAdmin) router.replace('/');
   }, [isRoleLoading, isAdmin, router]);
 
-  const initialComputed = useMemo(() => computeTrendsFromData(initialData), [initialData]);
-
   const [trajectoryView, setTrajectoryView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [overallView, setOverallView] = useState<'quarterly' | 'monthly'>('quarterly');
   const [showInhouseTable, setShowInhouseTable] = useState<boolean>(false);
   const [showPstTable, setShowPstTable] = useState<boolean>(false);
   const [showOverallTable, setShowOverallTable] = useState<boolean>(false);
-  const [metric, setMetric] = useState<'Attrition' | 'Attendance' | 'Losses' | 'Active HC'>('Attrition');
+  const [metric, setMetric] = useState<'Attrition' | 'Attendance' | 'Losses' | 'Roster Count'>('Attrition');
   const [quarterFilter, setQuarterFilter] = useState<string>('All');
   const [monthFilter, setMonthFilter] = useState<string>('All');
   const [accountFilter, setAccountFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [openDropdown, setOpenDropdown] = useState<'quarter' | 'month' | 'account' | null>(null);
+  const initialComputed = useMemo(() => computeTrendsFromData(initialData, accountFilter), [initialData, accountFilter]);
+  const accountOptions = useMemo(
+    () => ['All', ...(Array.isArray(initialData?.allAccounts) ? initialData.allAccounts : [])],
+    [initialData],
+  );
 
   // Close custom dropdowns on click outside
   useEffect(() => {
@@ -166,115 +164,26 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [inhouseMonthlyData, setInhouseMonthlyData] = useState(initialComputed?.inhouseMonthly || []);
-  const [pstMonthlyData, setPstMonthlyData] = useState(initialComputed?.pstMonthly || []);
-  const [inhouseQuarterlyData, setInhouseQuarterlyData] = useState(initialComputed?.inhouseQuarterly || []);
-  const [pstQuarterlyData, setPstQuarterlyData] = useState(initialComputed?.pstQuarterly || []);
-  const [overallQuarterlyData, setOverallQuarterlyData] = useState(initialComputed?.overallQuarterly || []);
-
-  // Load real Supabase database data on mount dynamically if not provided
-  useEffect(() => {
-    if (initialComputed) return;
-
-    async function loadData() {
-      try {
-        const { data: inhouseData } = await supabase.from('inhouse').select('*');
-        const { data: pstData } = await supabase.from('product_spec_training').select('*');
-
-        if ((inhouseData && inhouseData.length > 0) || (pstData && pstData.length > 0)) {
-          const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
-
-          const allInhouse = (inhouseData || []).map((row: any) => {
-            let pCount = 0, aCount = 0;
-            for (const col of inhouseAttCols) {
-              const val = (row[col] || '').trim().toUpperCase();
-              if (val === 'P') pCount++;
-              if (val === 'A') aCount++;
-            }
-            return {
-              month: row.month || '',
-              status: row.status || 'ACTIVE',
-              isLoss: isAttritionLossStatus(row.status),
-              p: pCount,
-              a: aCount
-            };
-          });
-
-          const allPst = (pstData || []).map((row: any) => {
-            let pCount = 0, aCount = 0;
-            for (let i = 1; i <= 62; i++) {
-              const val = (row[`att_status_day_${i}`] || '').trim().toUpperCase();
-              if (val === 'P') pCount++;
-              if (val === 'A') aCount++;
-            }
-            return {
-              month: row.month || '',
-              status: row.status || 'ACTIVE',
-              isLoss: isAttritionLossStatus(row.status),
-              p: pCount,
-              a: aCount
-            };
-          });
-
-          const months = [
-            { key: 'Jan', label: 'January' },
-            { key: 'Feb', label: 'February' },
-            { key: 'Mar', label: 'March' },
-            { key: 'Apr', label: 'April' },
-            { key: 'May', label: 'May' },
-            { key: 'Jun', label: 'June' },
-            { key: 'Jul', label: 'July' },
-            { key: 'Aug', label: 'August' }
-          ];
-
-          const computedInhouseMonthly = months.map(m => {
-            const inhouseM = allInhouse.filter(t => matchesMonthFilter(t.month, m.label, t.status));
-            const activeHC = inhouseM.length;
-            const losses = inhouseM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-            const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
-            const sumP = inhouseM.reduce((acc, t) => acc + (t.p || 0), 0);
-            const sumA = inhouseM.reduce((acc, t) => acc + (t.a || 0), 0);
-            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
-            return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
-          });
-
-          const computedPstMonthly = months.map(m => {
-            const pstM = allPst.filter(t => matchesMonthFilter(t.month, m.label, t.status));
-            const activeHC = pstM.length;
-            const losses = pstM.filter(t => t.isLoss && (t.month || '').toLowerCase().startsWith(m.key.toLowerCase())).length;
-            const attritionRate = parseFloat(calculateRosterAttrition(losses, activeHC).rate.toFixed(1));
-            const sumP = pstM.reduce((acc, t) => acc + (t.p || 0), 0);
-            const sumA = pstM.reduce((acc, t) => acc + (t.a || 0), 0);
-            const attendanceRate = (sumP + sumA) > 0 ? parseFloat(((sumP / (sumP + sumA)) * 100).toFixed(1)) : 100.0;
-            return { period: m.label, activeHC, losses, attritionRate, attendanceRate, sumP, sumA };
-          });
-
-          setInhouseMonthlyData(computedInhouseMonthly);
-          setPstMonthlyData(computedPstMonthly);
-        }
-      } catch (e) {
-        console.error('Unable to load analytics metrics:', e);
-      }
-    }
-    loadData();
-  }, [initialComputed]);
+  const inhouseMonthlyData = initialComputed?.inhouseMonthly || [];
+  const pstMonthlyData = initialComputed?.pstMonthly || [];
+  const inhouseQuarterlyData = initialComputed?.inhouseQuarterly || [];
+  const pstQuarterlyData = initialComputed?.pstQuarterly || [];
+  const overallQuarterlyData = initialComputed?.overallQuarterly || [];
 
   // Compute overall monthly data using exact weighted attendance formula (Total P / Total (P + A))
   const overallMonthlyData = useMemo(() => {
     return inhouseMonthlyData.map((inh, idx) => {
       const inhAny = inh as any;
-      const pstAny = (pstMonthlyData[idx] || { activeHC: 0, losses: 0, attendanceRate: 100, sumP: 0, sumA: 0 }) as any;
+      const pstAny = (pstMonthlyData[idx] || { activeHC: 0, losses: 0, sumP: 0, sumA: 0 }) as any;
       const totalHC = inh.activeHC + pstAny.activeHC;
       const totalLoss = inh.losses + pstAny.losses;
       const totalAttr = parseFloat(calculateRosterAttrition(totalLoss, totalHC).rate.toFixed(1));
       
       const totalP = (inhAny.sumP || 0) + (pstAny.sumP || 0);
       const totalA = (inhAny.sumA || 0) + (pstAny.sumA || 0);
-      const totalAttd = (totalP + totalA) > 0 
-        ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1)) 
-        : (totalHC > 0 
-            ? parseFloat((((inh.attendanceRate * inh.activeHC) + (pstAny.attendanceRate * pstAny.activeHC)) / totalHC).toFixed(1)) 
-            : 100.0);
+      const totalAttd = totalP + totalA > 0
+        ? parseFloat(((totalP / (totalP + totalA)) * 100).toFixed(1))
+        : null;
 
       return {
         period: inh.period,
@@ -294,13 +203,10 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       if (isQuarter) {
         if (quarterFilter !== 'All' && d.period !== quarterFilter) return false;
       } else {
-        if (quarterFilter === 'Q1' && !['January', 'February', 'March'].includes(d.period)) return false;
-        if (quarterFilter === 'Q2' && !['April', 'May', 'June'].includes(d.period)) return false;
-        if (quarterFilter === 'Q3' && !['July', 'August'].includes(d.period)) return false;
-        if (monthFilter !== 'All') {
-          const mLabel = { 'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April', 'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August' }[monthFilter] || monthFilter;
-          if (d.period !== mLabel) return false;
-        }
+        const monthIndex = MONTH_ORDER.indexOf(d.period);
+        const monthQuarter = monthIndex >= 0 ? `Q${Math.floor(monthIndex / 3) + 1}` : 'Unspecified';
+        if (quarterFilter !== 'All' && monthQuarter !== quarterFilter) return false;
+        if (monthFilter !== 'All' && d.period.slice(0, 3).toLowerCase() !== monthFilter.toLowerCase()) return false;
       }
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -329,23 +235,24 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
   }, [trajectoryView, overallQuarterlyData, overallMonthlyData, quarterFilter, monthFilter, searchQuery]);
 
   // Aggregate the selected roster before applying the same attrition formula.
-  const { totalSummaryAttrition, totalSummaryAttendance, totalLossesSum, activeSummaryHC, avgHeadcount } = useMemo(() => {
+  const { totalSummaryAttrition, totalSummaryAttendance, totalLossesSum, activeSummaryHC } = useMemo(() => {
     const list = currentOverallData;
     if (list.length === 0) {
-      return { totalSummaryAttrition: '0.0', totalSummaryAttendance: '0.0', totalLossesSum: 0, activeSummaryHC: 0, avgHeadcount: '0.0' };
+      return { totalSummaryAttrition: 'N/A', totalSummaryAttendance: 'N/A', totalLossesSum: 0, activeSummaryHC: 0 };
     }
     const sumLoss = list.reduce((acc, d) => acc + (d.losses || 0), 0);
     const sumHC = list.reduce((acc, d) => acc + (d.activeHC || 0), 0);
     const attrition = calculateRosterAttrition(sumLoss, sumHC);
-    const sumAttd = list.reduce((acc, d) => acc + (d.attendanceRate || 0), 0);
-    const lastHC = list[list.length - 1]?.activeHC || 0;
+    const totalPresent = list.reduce((acc, d) => acc + (d.sumP || 0), 0);
+    const totalAbsent = list.reduce((acc, d) => acc + (d.sumA || 0), 0);
 
     return {
       totalSummaryAttrition: attrition.rate.toFixed(1),
-      totalSummaryAttendance: (sumAttd / list.length).toFixed(1),
+      totalSummaryAttendance: totalPresent + totalAbsent > 0
+        ? ((totalPresent / (totalPresent + totalAbsent)) * 100).toFixed(1)
+        : 'N/A',
       totalLossesSum: sumLoss,
-      activeSummaryHC: lastHC,
-      avgHeadcount: attrition.averageHeadcount.toFixed(1)
+      activeSummaryHC: sumHC,
     };
   }, [currentOverallData]);
 
@@ -367,7 +274,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       return (
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-500/40 shadow-xl rounded-xl p-3 text-xs min-w-[150px] animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-800">
-            <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label} 2026</span>
+            <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700/50">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               TREND
@@ -406,9 +313,12 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       {/* Top Header - Tight Spacing */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 pb-1">
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">Analytics &amp; AI Insights</h1>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">Analytics</h1>
           <p className="text-xs font-normal text-slate-400 dark:text-slate-400 mt-0.5">
-            Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">{quarterFilter === 'All' ? 'Jan–Aug 2026' : quarterFilter} &middot; {accountFilter === 'All' ? 'All Accounts' : accountFilter}</span>
+            Showing: <span className="text-slate-700 dark:text-slate-300 font-bold">{monthFilter !== 'All' ? (overallMonthlyData.find(row => row.period.slice(0, 3) === monthFilter)?.period || monthFilter) : quarterFilter === 'All' ? 'All recorded periods' : quarterFilter} &middot; {accountFilter === 'All' ? 'All Accounts' : accountFilter}</span>
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+            Attrition uses EOC/AWOL losses and estimated ending headcount until dated headcount snapshots are recorded.
           </p>
         </div>
       </div>
@@ -417,15 +327,15 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { 
-            label: quarterFilter === 'All' && monthFilter === 'All' ? 'YTD Attrition' : (quarterFilter !== 'All' ? `${quarterFilter} Attrition` : `${monthFilter} Attrition`), 
-            val: `${totalSummaryAttrition}%`, 
+            label: 'Estimated Attrition',
+            val: totalSummaryAttrition === 'N/A' ? 'N/A' : `${totalSummaryAttrition}%`,
             valueColor: 'text-red-600 dark:text-red-400',
             iconBg: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
             icon: TrendingDown
           },
           { 
-            label: 'Avg Attendance', 
-            val: `${totalSummaryAttendance}%`, 
+            label: 'Attendance Rate',
+            val: totalSummaryAttendance === 'N/A' ? 'N/A' : `${totalSummaryAttendance}%`,
             valueColor: 'text-emerald-600 dark:text-emerald-400',
             iconBg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
             icon: TrendingUp
@@ -438,7 +348,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             icon: TrendingDown
           },
           { 
-            label: 'Active HC', 
+            label: 'Roster Count',
             val: `${activeSummaryHC}`, 
             valueColor: 'text-slate-800 dark:text-slate-100',
             iconBg: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400',
@@ -463,8 +373,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
         })}
       </div>
 
-      {/* Hidden Training Hub AI Bar (Hidden as per company policy, logic preserved) */}
-      <div className="hidden">
+      {AI_FEATURES_ENABLED && <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-[#2F6798] border border-blue-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-md text-white">
@@ -508,7 +417,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           {[
             { 
               label: 'Explain March Attrition Spike', 
-              prompt: 'Analyze the March 2026 20% attrition spike and explain the primary drivers.',
+              prompt: 'Analyze the recorded attrition trend and explain the primary drivers.',
               icon: <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
             },
             { 
@@ -518,7 +427,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             },
             { 
               label: 'Generate Q3 Summary', 
-              prompt: 'Draft a bulleted executive summary of Q3 2026 performance.',
+              prompt: 'Draft a bulleted summary of the recorded training performance.',
               icon: <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> 
             },
             { 
@@ -539,7 +448,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* ONE Single External Container Wrapping Filters, Controls, and Graphs */}
       <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
@@ -568,7 +477,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
             {openDropdown === 'quarter' && (
               <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 space-y-0.5 animate-in fade-in zoom-in-95">
-                {['All', 'Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+                {['All', ...overallQuarterlyData.map(row => row.period)].map((q) => {
                   const label = q === 'All' ? 'All Quarters' : q;
                   const isSelected = quarterFilter === q;
                   return (
@@ -577,6 +486,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                       type="button"
                       onClick={() => {
                         setQuarterFilter(q);
+                        setMonthFilter('All');
                         setOpenDropdown(null);
                       }}
                       className={cn(
@@ -606,9 +516,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
               className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-[#2F6798]"
             >
               <span className="truncate">
-                {monthFilter === 'All' ? 'All Months' : (
-                  { 'Jan': 'January', 'Feb': 'February', 'Mar': 'March', 'Apr': 'April', 'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Aug': 'August', 'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dec': 'December' }[monthFilter] || monthFilter
-                )}
+                {monthFilter === 'All' ? 'All Months' : (overallMonthlyData.find(row => row.period.slice(0, 3) === monthFilter)?.period || monthFilter)}
               </span>
               {openDropdown === 'month' ? (
                 <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
@@ -621,18 +529,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
               <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
                 {[
                   { val: 'All', label: 'All Months' },
-                  { val: 'Jan', label: 'January' },
-                  { val: 'Feb', label: 'February' },
-                  { val: 'Mar', label: 'March' },
-                  { val: 'Apr', label: 'April' },
-                  { val: 'May', label: 'May' },
-                  { val: 'Jun', label: 'June' },
-                  { val: 'Jul', label: 'July' },
-                  { val: 'Aug', label: 'August' },
-                  { val: 'Sep', label: 'September' },
-                  { val: 'Oct', label: 'October' },
-                  { val: 'Nov', label: 'November' },
-                  { val: 'Dec', label: 'December' }
+                  ...overallMonthlyData.map(row => ({ val: row.period.slice(0, 3), label: row.period })),
                 ].map((m) => {
                   const isSelected = monthFilter === m.val;
                   return (
@@ -641,6 +538,11 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                       type="button"
                       onClick={() => {
                         setMonthFilter(m.val);
+                        setQuarterFilter('All');
+                        if (m.val !== 'All') {
+                          setTrajectoryView('monthly');
+                          setOverallView('monthly');
+                        }
                         setOpenDropdown(null);
                       }}
                       className={cn(
@@ -679,23 +581,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
 
             {openDropdown === 'account' && (
               <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100/90 dark:border-slate-800 p-1.5 z-40 max-h-60 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95">
-                {[
-                  'All',
-                  'Inhouse',
-                  'PST',
-                  'HAMMERHEAD',
-                  'CTS',
-                  'COVA',
-                  'XPN - CXL',
-                  'XPN - NEGO',
-                  'FLEXAR',
-                  'FLEET',
-                  'ONO',
-                  'RM - NEGO',
-                  'SPA ASUKA',
-                  'RM - CXL',
-                  'DEFERIT'
-                ].map((acct) => {
+                {accountOptions.map((acct: string) => {
                   const label = acct === 'All' ? 'All Client Accounts' : acct;
                   const isSelected = accountFilter === acct;
                   return (
@@ -704,6 +590,8 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                       type="button"
                       onClick={() => {
                         setAccountFilter(acct);
+                        setQuarterFilter('All');
+                        setMonthFilter('All');
                         setOpenDropdown(null);
                       }}
                       className={cn(
@@ -748,7 +636,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setTrajectoryView('quarterly')}
+                onClick={() => { setTrajectoryView('quarterly'); setMonthFilter('All'); }}
                 className={cn(
                   "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                   trajectoryView === 'quarterly'
@@ -777,7 +665,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">METRIC:</span>
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
-              {['Attrition', 'Attendance', 'Losses', 'Active HC'].map(m => (
+              {['Attrition', 'Attendance', 'Losses', 'Roster Count'].map(m => (
                 <button 
                   key={m}
                   onClick={() => setMetric(m as any)}
@@ -871,7 +759,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                 <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-2.5">PERIOD TITLE</th>
-                    <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
+                    <th className="px-4 py-2.5 text-center">ROSTER COUNT</th>
                     <th className="px-4 py-2.5 text-center">LOSSES</th>
                     <th className="px-4 py-2.5 text-center">ATTRITION RATE</th>
                     <th className="px-4 py-2.5 text-right">ATTENDANCE RATE</th>
@@ -897,7 +785,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {row.attendanceRate.toFixed(1)}%
+                          {row.attendanceRate == null ? 'N/A' : `${row.attendanceRate.toFixed(1)}%`}
                         </td>
                       </tr>
                     );
@@ -981,7 +869,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                 <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-2.5">PERIOD TITLE</th>
-                    <th className="px-4 py-2.5 text-center">ACTIVE HC</th>
+                    <th className="px-4 py-2.5 text-center">ROSTER COUNT</th>
                     <th className="px-4 py-2.5 text-center">LOSSES</th>
                     <th className="px-4 py-2.5 text-center">ATTRITION RATE</th>
                     <th className="px-4 py-2.5 text-right">ATTENDANCE RATE</th>
@@ -1007,7 +895,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {row.attendanceRate.toFixed(1)}%
+                          {row.attendanceRate == null ? 'N/A' : `${row.attendanceRate.toFixed(1)}%`}
                         </td>
                       </tr>
                     );
@@ -1026,10 +914,10 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
             <div className="space-y-1">
               <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                Overall Departmental Trends
+                Combined Training Trends
               </h2>
               <p className="text-[11px] font-bold text-[#2F6798] dark:text-blue-400 uppercase tracking-wide">
-                OVERALL DEPARTMENTAL TRENDS - {overallView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''})
+                COMBINED TRAINING TRENDS - {overallView.toUpperCase()} TRAJECTORY ({metric.toUpperCase()} {metric === 'Attrition' || metric === 'Attendance' ? '%' : ''})
               </p>
             </div>
 
@@ -1037,7 +925,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-inner border border-slate-200/60 dark:border-slate-700 shrink-0 self-start sm:self-auto">
               <button
                 type="button"
-                onClick={() => setOverallView('quarterly')}
+                onClick={() => { setOverallView('quarterly'); setMonthFilter('All'); }}
                 className={cn(
                   "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                   overallView === 'quarterly'
@@ -1127,7 +1015,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
               <thead className="bg-slate-50 dark:bg-slate-800/70 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                 <tr>
                   <th className="px-5 py-3">{overallView === 'quarterly' ? 'QUARTER PERIOD' : 'MONTH TITLE'}</th>
-                  <th className="px-5 py-3 text-center">ACTIVE HC</th>
+                  <th className="px-5 py-3 text-center">ROSTER COUNT</th>
                   <th className="px-5 py-3 text-center">LOSSES</th>
                   <th className="px-5 py-3 text-center">ATTRITION RATE</th>
                   <th className="px-5 py-3 text-right">ATTENDANCE RATE</th>
@@ -1153,7 +1041,7 @@ export default function AnalyticsPage({ initialData }: { initialData?: any }) {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {row.attendanceRate.toFixed(1)}%
+                        {row.attendanceRate == null ? 'N/A' : `${row.attendanceRate.toFixed(1)}%`}
                       </td>
                     </tr>
                   );

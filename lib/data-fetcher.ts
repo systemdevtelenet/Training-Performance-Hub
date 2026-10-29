@@ -10,6 +10,7 @@ import {
   isTrainerReliabilityLoss,
   isTraineeLossStatus,
   isAttritionLossStatus,
+  MONTH_ORDER,
 } from '@/lib/analytics-utils';
 import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
 import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition } from '@/lib/trainer-position';
@@ -120,6 +121,14 @@ export const getDashboardData = async () => {
     const totalTrainees = inhouseList.length + pstList.length;
     let totalLosses = 0;
     const accountsSet = new Set<string>();
+    const getQuarterFromMonth = (month: string) => {
+      const monthPrefix = String(month || '').trim().slice(0, 3).toLowerCase();
+      if (!monthPrefix) return 'Unspecified';
+      const monthIndex = MONTH_ORDER.findIndex(item =>
+        item.toLowerCase().startsWith(monthPrefix),
+      );
+      return monthIndex >= 0 ? `Q${Math.floor(monthIndex / 3) + 1}` : 'Unspecified';
+    };
 
     const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
 
@@ -154,8 +163,8 @@ export const getDashboardData = async () => {
         status: item.status || 'ACTIVE',
         accountName,
         batchName,
-        month: item.month || 'January',
-        quarter: item.quarter || 'Q1',
+        month: item.month || 'Unspecified',
+        quarter: item.quarter || getQuarterFromMonth(item.month),
         isLoss,
         p: pCount,
         a: aCount
@@ -194,8 +203,8 @@ export const getDashboardData = async () => {
         status: item.status || 'ACTIVE',
         accountName,
         batchName,
-        month: item.month || 'January',
-        quarter: item.quarter || 'Q1',
+        month: item.month || 'Unspecified',
+        quarter: item.quarter || getQuarterFromMonth(item.month),
         isLoss,
         p: pCount,
         a: aCount
@@ -215,14 +224,6 @@ export const getDashboardData = async () => {
     let totalTrainerAttendanceLosses = 0;
     let totalTrainerReliabilityPresent = 0;
     let totalTrainerReliabilityLosses = 0;
-
-    const getQuarterFromMonth = (month: string) => {
-      const monthIndex = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December',
-      ].findIndex(item => item.toLowerCase() === String(month || '').toLowerCase());
-      return monthIndex >= 0 ? `Q${Math.floor(monthIndex / 3) + 1}` : 'Unknown';
-    };
 
     trainerPerformance.forEach((trainer: any) => {
       const attendanceMembers: any[] = [];

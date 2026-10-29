@@ -53,7 +53,7 @@ export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE')
     { title: 'Trainers Attendance Matrix', subtitle: 'Daily attendance logs, leaves, and absences', href: '/trainers?tab=attendance', keywords: ['trainer attendance', 'leaves', 'sl', 'vl', 'absences'] },
     { title: 'Trainers Reliability Analytics', subtitle: 'Performance reliability scores and breakdown', href: '/trainers?tab=reliability', keywords: ['trainer reliability', 'reliability rate', 'trainer score'] },
     { title: 'Employees Management', subtitle: 'Employee records, codes, vici links, and assignments', href: '/employees', keywords: ['employee', 'employees', 'management', 'vici', 'staff'] },
-    { title: 'Analytics & AI Insights', subtitle: 'Predictive attrition analytics and AI recommendations', href: '/analytics', keywords: ['analytics', 'ai', 'insights', 'predictions', 'attrition'] },
+    { title: 'Analytics', subtitle: 'Training performance and attrition trends', href: '/analytics', keywords: ['analytics', 'performance', 'trends', 'attrition'] },
     { title: 'Activity Log & History', subtitle: 'System audit logs, remarks history, and notifications', href: '/history', keywords: ['activity', 'log', 'history', 'audit', 'notifications', 'trail'] },
     { title: 'Account Profile & Settings', subtitle: 'User avatar, preferences, and personal details', href: '/settings?tab=profile', keywords: ['profile', 'settings', 'avatar', 'preferences', 'photo'] },
   ];

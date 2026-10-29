@@ -13,6 +13,7 @@ import { RoleProvider, useRole } from '@/components/providers/RoleProvider';
 import AccessRestrictedView from '@/components/AccessRestrictedView';
 import PageLoading from '@/components/PageLoading';
 import IdleSessionGuard from '@/components/IdleSessionGuard';
+import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 const AiHubDrawer = dynamic(() => import('@/components/AiHubDrawer'), { ssr: false });
 
@@ -75,7 +76,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         </div>
         <MobileBottomNav />
       </div>
-      <AiHubDrawer />
+      {AI_FEATURES_ENABLED && <AiHubDrawer />}
       <DataSyncOverlay />
       <IdleSessionGuard />
     </>
