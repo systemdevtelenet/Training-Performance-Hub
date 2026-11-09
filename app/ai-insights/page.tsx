@@ -1,10 +1,12 @@
 import { ExecutiveAIReport } from '@/components/ExecutiveAIReport';
 import { redirect } from 'next/navigation';
 import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
+import { APP_PAGE_ROLES, requirePageRole } from '@/lib/auth/access';
 
 export const dynamic = 'force-dynamic';
 
-export default function AIInsightsPage() {
+export default async function AIInsightsPage() {
+  await requirePageRole(APP_PAGE_ROLES);
   if (!AI_FEATURES_ENABLED) redirect('/analytics');
 
   return (

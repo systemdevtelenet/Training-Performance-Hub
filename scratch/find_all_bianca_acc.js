@@ -16,10 +16,6 @@ async function findBiancaAllAccounts() {
   const { data: tp } = await supabase.from('trainers_profile').select('*').ilike('trainer_name', '%bianca%');
   console.log(tp);
 
-  console.log('=== CHECK TRAINERS ===');
-  const { data: tr } = await supabase.from('trainers').select('*').ilike('name', '%bianca%');
-  console.log(tr);
-
   console.log('=== CHECK PRODUCT SPEC TRAINING ASSIGNED TRAINER ===');
   const { data: pst } = await supabase.from('product_spec_training').select('account, assigned_trainer').ilike('assigned_trainer', '%bianca%');
   const pstAccounts = Array.from(new Set(pst.map(r => r.account)));

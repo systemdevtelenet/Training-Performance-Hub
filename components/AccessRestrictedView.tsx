@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 
 interface AccessRestrictedProps {
+  role: string;
   email: string | null;
   userName: string | null;
   userMeta?: {
@@ -15,7 +16,7 @@ interface AccessRestrictedProps {
   };
 }
 
-export default function AccessRestrictedView({ email, userName, userMeta }: AccessRestrictedProps) {
+export default function AccessRestrictedView({ role, email, userName, userMeta }: AccessRestrictedProps) {
   const [isChecking, setIsChecking] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -73,7 +74,7 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
             Authorization Required
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-normal leading-relaxed">
-            The <span className="font-semibold text-slate-900 dark:text-white">Training Performance Hub</span> is dedicated exclusively to trainers and Head of Training access.
+            The <span className="font-semibold text-slate-900 dark:text-white">Training Performance Hub</span> is available to Admin, Head of Training, QA Supervisor, and Trainer accounts.
           </p>
         </div>
 
@@ -82,7 +83,7 @@ export default function AccessRestrictedView({ email, userName, userMeta }: Acce
           <div className="flex items-center justify-between text-white/85 dark:text-slate-300 font-medium">
             <span className="text-[11px] font-semibold tracking-wide">Signed In Account</span>
             <span className="text-[11px] font-bold font-mono bg-white dark:bg-slate-800 text-[#2F6798] dark:text-sky-400 px-3 py-0.5 rounded-full shadow-xs border border-transparent dark:border-slate-700">
-              {userMeta?.employeeId && userMeta.employeeId !== 'N/A' ? `ID: ${userMeta.employeeId}` : 'Employee'}
+              {userMeta?.employeeId && userMeta.employeeId !== 'N/A' ? `ID: ${userMeta.employeeId}` : role.replaceAll('_', ' ')}
             </span>
           </div>
           <div className="space-y-0.5">

@@ -3,6 +3,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { logActivity } from './logger';
 import { isTrainerMatch } from '@/lib/analytics-utils';
+import { APP_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
+
+const TRAFFIC_LIGHT_ROLES = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'] as const;
+const TRAFFIC_LIGHT_EDIT_ROLES = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'] as const;
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -22,14 +26,21 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
 });
 
 export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?: string) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
   try {
+    // A trainer may only query their own roster; client supplied identifiers
+    // are retained for admin views that intentionally inspect another trainer.
+    if (actor.role === 'TRAINER') {
+      trainerEmail = actor.email;
+      trainerName = actor.name;
+    }
     const normalizeStr = (s?: string) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     const cleanEmail = (trainerEmail || '').toLowerCase().trim();
     const cleanName = (trainerName || '').toLowerCase().trim();
     const normName = normalizeStr(trainerName);
 
-    const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
-    const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
+    const { data: ih } = await supabaseAdmin.schema('training_system').from('inhouse').select('*');
+    const { data: pst } = await supabaseAdmin.schema('training_system').from('product_spec_training').select('*');
     const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
     const assignmentMap = await getTraineeTrainerAssignmentMap();
 
@@ -95,11 +106,120 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
   }
 }
 
+export async function getTrainerDashboardReliability() {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
+  if (actor.role !== 'TRAINER') return null;
+
+  const { data: employee } = await supabaseAdmin
+    .from('employees')
+    .select('id')
+    .ilike('employee_email', actor.email)
+    .maybeSingle();
+  if (!employee?.id) return null;
+
+  const { data, error } = await supabaseAdmin
+    .schema('training_system').from('trainer_attendance_strat')
+    .select('status')
+    .eq('trainer_id', employee.id);
+  if (error) throw error;
+
+  let present = 0;
+  let absent = 0;
+  (data || []).forEach((row: any) => {
+    const status = String(row.status || '').toUpperCase().trim();
+    if (['A', 'ABSENT', 'SL', 'VL'].includes(status)) absent++;
+    else present++;
+  });
+  const total = present + absent;
+  const rate = total ? (present / total) * 100 : 100;
+  return {
+    rate,
+    present,
+    absent,
+    status: rate >= 95 ? 'Excellent' : rate >= 90 ? 'Good' : rate >= 80 ? 'Needs Attention' : 'Critical',
+  };
+}
+
+export async function getTrainerDashboardTrafficLights() {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
+  if (actor.role !== 'TRAINER') return {};
+
+  const scope = await getTrainerTraineeNames(actor.email, actor.name);
+  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const allowedNames = new Set(scope.names.map(normalize));
+  if (!allowedNames.size) return {};
+
+  const rows: any[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabaseAdmin
+      .schema('training_system').from('traffic_light_metrics')
+      .select('source_table, traffic_status, metric_date, remarks')
+      .neq('metric_group', 'offboard_pending')
+      .order('metric_date', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const result: Record<string, { status: string; remarks: string; date: string }> = {};
+  rows.forEach((row) => {
+    const parts = String(row.source_table || '').split('::');
+    const staffName = parts.length >= 3 ? parts[2].trim() : '';
+    if (!staffName || !row.traffic_status || !allowedNames.has(normalize(staffName))) return;
+    result[staffName.toLowerCase()] = {
+      status: row.traffic_status,
+      remarks: row.remarks || '',
+      date: row.metric_date || '',
+    };
+  });
+  return result;
+}
+
+export async function getEmployeeTrafficLightHistory() {
+  const actor = await requireActionRole(APP_PAGE_ROLES);
+  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const actorName = normalize(actor.name);
+  const rows: any[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabaseAdmin
+      .schema('training_system').from('traffic_light_metrics')
+      .select('metric_group, metric_date, traffic_status, remarks, source_table')
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const history = rows
+    .filter((row) => {
+      const parts = String(row.source_table || '').split('::');
+      return parts.length >= 4 && normalize(parts[2]) === actorName && row.traffic_status;
+    })
+    .sort((a, b) => String(b.metric_date || '').localeCompare(String(a.metric_date || '')))
+    .map((row) => ({
+      period: row.metric_date || String(row.source_table).split('::').slice(3).join('::'),
+      status: row.traffic_status,
+      trainer: actor.name,
+      remarks: row.remarks || 'Traffic light status recorded.',
+    }));
+
+  return {
+    currentStatus: history[0]?.status || 'Okay',
+    latestDate: history[0]?.period || 'Current Period',
+    remarks: history[0]?.remarks || '',
+    history,
+  };
+}
+
 export async function getAvailableTrafficLightAccounts() {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
   try {
     const url = `${supabaseUrl}/rest/v1/?apikey=${supabaseKey}`;
     const res = await fetch(url, {
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Accept-Profile': 'training_system' }
     });
     if (!res.ok) return [];
 
@@ -146,7 +266,9 @@ export async function getAvailableTrafficLightAccounts() {
         resultList.push({ id, name });
       }
     });
-    return resultList;
+    if (actor.role !== 'TRAINER') return resultList;
+    const scope = await getTrainerTraineeNames(actor.email, actor.name);
+    return resultList.filter(item => trainerCanAccessAccount(item.id, scope.accounts));
   } catch (e) {
     console.error('Error fetching traffic light accounts:', e);
     return [];
@@ -176,6 +298,51 @@ function matchesTrafficLightAccount(accId: string, traineeAcc: string): boolean 
   if ((cleanId === 'otheracc' || cleanId === 'other') && (cleanTrainee.includes('general') || ['spa', 'cova', 'soas', 'corpqa', 'cts', 'bilingualcsr', 'bilingual'].some(s => cleanTrainee.includes(s)))) return true;
 
   return false;
+}
+
+function normalizeScopeValue(value: string) {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+function trainerCanAccessAccount(account: string, assignedAccounts: string[]) {
+  const target = normalizeScopeValue(account);
+  if (target === 'trainers') return true;
+  return assignedAccounts.some(assigned =>
+    matchesTrafficLightAccount(account, assigned) || matchesTrafficLightAccount(assigned, account) ||
+    normalizeScopeValue(assigned) === target
+  );
+}
+
+function trainerCanAccessStaff(staffName: string, actorName: string, traineeNames: string[]) {
+  const target = normalizeScopeValue(staffName);
+  return isTrainerMatch(staffName, actorName) ||
+    traineeNames.some(name => normalizeScopeValue(name) === target);
+}
+
+function scopeTrafficLightRows(rows: any[], actorName: string, traineeNames: string[], account: string) {
+  const visibleRows = rows.filter(row => {
+    if (row.isAccountHeader || row.isTeamHeader) return false;
+    if (normalizeScopeValue(account) === 'trainers') return isTrainerMatch(row.teams || row.name, actorName);
+    return trainerCanAccessStaff(String(row.teams || row.name || ''), actorName, traineeNames) ||
+      isTrainerMatch(String(row.assigned_trainer || ''), actorName);
+  });
+  if (!visibleRows.length) return [];
+  return rows.filter(row => row.isAccountHeader || row.isTeamHeader || visibleRows.includes(row));
+}
+
+function scopeTrafficLightRemarks(
+  remarks: Record<string, TrafficLightRemarkItem[]>,
+  actorName: string,
+  traineeNames: string[],
+  account: string,
+) {
+  return Object.fromEntries(Object.entries(remarks).flatMap(([key, items]) => {
+    const staffName = items[0]?.staffName || key.split('::')[0];
+    const isVisible = normalizeScopeValue(account) === 'trainers'
+      ? isTrainerMatch(staffName, actorName)
+      : trainerCanAccessStaff(staffName, actorName, traineeNames);
+    return isVisible ? [[key, items]] : [];
+  }));
 }
 
 function getQuarterDateColumns(quarter: string) {
@@ -208,11 +375,18 @@ function standardizeTrafficLightRow(row: any, fallbackAccount?: string) {
 }
 
 export async function getTrafficLightData(account: string, quarter: string, accountList?: string[]) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
   try {
+    const trainerScope = actor.role === 'TRAINER'
+      ? await getTrainerTraineeNames(actor.email, actor.name)
+      : null;
     if (account === 'all') {
-      const targetAccounts = accountList && accountList.length > 0
+      const requestedAccounts = accountList && accountList.length > 0
         ? accountList.filter(a => a !== 'all')
         : ['trainers', 'general', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
+      const targetAccounts = trainerScope
+        ? requestedAccounts.filter(acc => trainerCanAccessAccount(acc, trainerScope.accounts))
+        : requestedAccounts;
 
       const combined: any[] = [];
       const labelFormatting: Record<string, string> = {
@@ -234,7 +408,10 @@ export async function getTrafficLightData(account: string, quarter: string, acco
 
       for (const acc of targetAccounts) {
         const res = await getSingleTrafficLightData(acc, quarter);
-        if (res.data && res.data.length > 0) {
+        const rows = trainerScope
+          ? scopeTrafficLightRows(res.data || [], actor.name, trainerScope.names, acc)
+          : (res.data || []);
+        if (rows.length > 0) {
           const accLabel = labelFormatting[acc.toLowerCase()] || acc.toUpperCase().replace(/_/g, ' ');
 
           combined.push({
@@ -244,7 +421,7 @@ export async function getTrafficLightData(account: string, quarter: string, acco
             _account: acc
           });
 
-          res.data.forEach((r: any) => {
+          rows.forEach((r: any) => {
             combined.push(standardizeTrafficLightRow(r, acc));
           });
         }
@@ -252,8 +429,14 @@ export async function getTrafficLightData(account: string, quarter: string, acco
       return { data: combined, error: null };
     }
 
+    if (trainerScope && !trainerCanAccessAccount(account, trainerScope.accounts)) {
+      return { data: [], error: null };
+    }
     const res = await getSingleTrafficLightData(account, quarter);
-    const standardized = (res.data || []).map((r: any) => standardizeTrafficLightRow(r, account));
+    const rows = trainerScope
+      ? scopeTrafficLightRows(res.data || [], actor.name, trainerScope.names, account)
+      : (res.data || []);
+    const standardized = rows.map((r: any) => standardizeTrafficLightRow(r, account));
     return { data: standardized, error: res.error };
   } catch (e: any) {
     console.error('Error fetching traffic light data:', e);
@@ -286,8 +469,8 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
       });
     } else {
       // 2. For client accounts: Retrieve live trainees from inhouse and product_spec_training (matching Trainees page)
-      const { data: ih } = await supabaseAdmin.from('inhouse').select('*');
-      const { data: pst } = await supabaseAdmin.from('product_spec_training').select('*');
+      const { data: ih } = await supabaseAdmin.schema('training_system').from('inhouse').select('*');
+      const { data: pst } = await supabaseAdmin.schema('training_system').from('product_spec_training').select('*');
       const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
       const assignmentMap = await getTraineeTrainerAssignmentMap();
       const allTrainees = [...(ih || []), ...(pst || [])];
@@ -338,7 +521,7 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
 
     // 3. Overlay any saved status values from traffic_light_metrics and legacy tables
     const { data: metrics } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('person_id, metric_date, traffic_status, source_table')
       .eq('metric_group', account);
 
@@ -384,7 +567,7 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
       ];
 
       for (const tbl of candidateTableNames) {
-        const { data: res, error: err } = await supabaseAdmin.from(tbl).select('*');
+        const { data: res, error: err } = await supabaseAdmin.schema('training_system').from(tbl).select('*');
         if (!err && res && res.length > 0) {
           return { data: res, error: null };
         }
@@ -406,6 +589,7 @@ export async function updateTrafficLightCell(
   colKeyArg?: string,
   newValueArg?: string
 ) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
   try {
     let account = '';
     let quarter = '';
@@ -433,18 +617,19 @@ export async function updateTrafficLightCell(
     const cleanAccount = (account || '').toLowerCase().trim();
     const cleanQuarter = (quarter || 'q2').toLowerCase().trim();
     const cleanStaffName = String(matchValue || '').trim();
+    await assertTrafficLightTarget(actor, cleanAccount, cleanStaffName);
     const isoDate = parseDateToISO(colKey);
     const sourceTable = `${cleanAccount}::${cleanQuarter}::${cleanStaffName}::${colKey}`;
 
     // 1. Save / Update in traffic_light_metrics
     const { data: existingRecords } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('metric_id')
       .eq('source_table', sourceTable);
 
     if (existingRecords && existingRecords.length > 0) {
       await supabaseAdmin
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .update({
           traffic_status: newValue || null,
           metric_date: isoDate,
@@ -453,7 +638,7 @@ export async function updateTrafficLightCell(
         .eq('source_table', sourceTable);
     } else {
       await supabaseAdmin
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .insert({
           metric_group: cleanAccount,
           metric_date: isoDate,
@@ -478,7 +663,7 @@ export async function updateTrafficLightCell(
       for (const mKey of candidateMatchKeys) {
         try {
           await supabaseAdmin
-            .from(tbl)
+            .schema('training_system').from(tbl)
             .update({ [colKey]: newValue })
             .eq(mKey, cleanStaffName);
         } catch (ignored) {}
@@ -517,23 +702,38 @@ export interface TrafficLightRemarkItem {
 }
 
 export async function getTrafficLightRemarks(account: string, quarter: string, accountList?: string[]) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
   try {
+    const trainerScope = actor.role === 'TRAINER'
+      ? await getTrainerTraineeNames(actor.email, actor.name)
+      : null;
     if (account === 'all') {
-      const targetAccounts = accountList && accountList.length > 0
+      const requestedAccounts = accountList && accountList.length > 0
         ? accountList.filter(a => a !== 'all')
         : ['trainers', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
+      const targetAccounts = trainerScope
+        ? requestedAccounts.filter(acc => trainerCanAccessAccount(acc, trainerScope.accounts))
+        : requestedAccounts;
 
       const combinedMap: Record<string, TrafficLightRemarkItem[]> = {};
       for (const acc of targetAccounts) {
         const res = await getSingleTrafficLightRemarks(acc, quarter);
         if (res.data) {
-          Object.assign(combinedMap, res.data);
+          Object.assign(combinedMap, trainerScope
+            ? scopeTrafficLightRemarks(res.data, actor.name, trainerScope.names, acc)
+            : res.data);
         }
       }
       return { data: combinedMap, error: null };
     }
 
-    return await getSingleTrafficLightRemarks(account, quarter);
+    if (trainerScope && !trainerCanAccessAccount(account, trainerScope.accounts)) {
+      return { data: {}, error: null };
+    }
+    const result = await getSingleTrafficLightRemarks(account, quarter);
+    return trainerScope && result.data
+      ? { ...result, data: scopeTrafficLightRemarks(result.data, actor.name, trainerScope.names, account) }
+      : result;
   } catch (e: any) {
     console.error('Error in getTrafficLightRemarks:', e);
     return { data: {}, error: e.message };
@@ -544,7 +744,7 @@ async function getSingleTrafficLightRemarks(account: string, quarter: string) {
   try {
     const prefix = `${account.toLowerCase()}::${quarter.toLowerCase()}::`;
     const { data, error } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('*')
       .like('source_table', `${prefix}%`)
       .order('metric_id', { ascending: true });
@@ -600,10 +800,12 @@ export async function addTrafficLightRemark({
   remarks: string;
   author?: string;
 }) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
   try {
     const cleanAccount = account.toLowerCase();
     const cleanQuarter = quarter.toLowerCase();
     const sourceKey = `${cleanAccount}::${cleanQuarter}::${staffName}::${columnKey}`;
+    await assertTrafficLightTarget(actor, cleanAccount, staffName);
     const trimmedRemarks = (remarks || '').trim();
     const actionAuthor = author || 'Authorized Manager';
 
@@ -612,7 +814,7 @@ export async function addTrafficLightRemark({
     }
 
     const { data: inserted, error } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .insert({
         metric_group: cleanAccount,
         metric_date: parseDateToISO(columnKey),
@@ -656,8 +858,10 @@ export async function updateTrafficLightRemark({
   quarter: string;
   author?: string;
 }) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
   try {
     const trimmedRemarks = (remarks || '').trim();
+    await assertTrafficLightTarget(actor, account.toLowerCase(), staffName);
     const actionAuthor = author || 'Authorized Manager';
 
     if (!trimmedRemarks) {
@@ -665,9 +869,10 @@ export async function updateTrafficLightRemark({
     }
 
     const { error } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .update({ remarks: trimmedRemarks })
-      .eq('metric_id', metric_id);
+      .eq('metric_id', metric_id)
+      .eq('source_table', `${account.toLowerCase()}::${quarter.toLowerCase()}::${staffName}::${columnKey}`);
 
     if (error) throw error;
 
@@ -700,13 +905,16 @@ export async function deleteTrafficLightRemarkItem({
   quarter: string;
   author?: string;
 }) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
   try {
     const actionAuthor = author || 'Authorized Manager';
+    await assertTrafficLightTarget(actor, account.toLowerCase(), staffName);
 
     const { error } = await supabaseAdmin
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .delete()
-      .eq('metric_id', metric_id);
+      .eq('metric_id', metric_id)
+      .eq('source_table', `${account.toLowerCase()}::${quarter.toLowerCase()}::${staffName}::${columnKey}`);
 
     if (error) throw error;
 
@@ -744,11 +952,33 @@ export async function deleteTrafficLightRemark(params: {
   columnKey: string;
   author?: string;
 }) {
+  const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
+  await assertTrafficLightTarget(actor, params.account.toLowerCase(), params.staffName);
   const sourceKey = `${params.account.toLowerCase()}::${params.quarter.toLowerCase()}::${params.staffName}::${params.columnKey}`;
   const { error } = await supabaseAdmin
-    .from('traffic_light_metrics')
+    .schema('training_system').from('traffic_light_metrics')
     .delete()
     .eq('source_table', sourceKey);
   return { success: !error, error: error?.message };
+}
+
+async function assertTrafficLightTarget(
+  actor: Awaited<ReturnType<typeof requireActionRole>>,
+  account: string,
+  staffName: string,
+) {
+  if (actor.role !== 'TRAINER') return;
+  const scope = await getTrainerTraineeNames(actor.email, actor.name);
+  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const allowedNames = new Set(scope.names.map(normalize));
+  const trainerAccount = normalizeScopeValue(account) === 'trainers';
+  if (!trainerAccount && !trainerCanAccessAccount(account, scope.accounts)) {
+    throw new Error('Trainers may only edit traffic-light data for their assigned accounts.');
+  }
+  if (trainerAccount
+    ? !isTrainerMatch(staffName, actor.name)
+    : !allowedNames.has(normalize(staffName)) && !isTrainerMatch(staffName, actor.name)) {
+    throw new Error('Trainers may only edit traffic-light data for their own roster.');
+  }
 }
 

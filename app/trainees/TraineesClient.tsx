@@ -41,8 +41,8 @@ import { useRole } from '@/components/providers/RoleProvider';
 import { useToast } from '@/components/CustomToast';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import PageLoading from '@/components/PageLoading';
-import { createClient } from '@/utils/supabase/client';
 import { isTraineeLossStatus, isTrainerMatch } from '@/lib/analytics-utils';
+import { scopeTraineeRecords } from '@/lib/trainee-scope';
 
 export type Trainee = {
   id: string;
@@ -64,28 +64,6 @@ export type Trainee = {
 };
 
 const isLossStatus = (status?: string) => isTraineeLossStatus(status);
-
-function scopeTraineeRecords(records: Trainee[], isTrainer: boolean, isTrainee: boolean, userName: string, email: string) {
-  if (isTrainer) {
-    const qTrainer = userName || '';
-    const qEmail = (email || '').toLowerCase().split('@')[0];
-    return records.filter(t => {
-      if (!t.assignedTrainer || t.assignedTrainer === 'Unassigned') return false;
-      return isTrainerMatch(t.assignedTrainer, qTrainer) ||
-        isTrainerMatch(qTrainer, t.assignedTrainer) ||
-        Boolean(email && qEmail.length >= 3 && t.assignedTrainer.toLowerCase() === qEmail);
-    });
-  }
-  if (isTrainee) {
-    const qName = (userName || '').toLowerCase();
-    const qEmail = (email || '').toLowerCase().split('@')[0];
-    return records.filter(t => {
-      const tName = (t.name || '').toLowerCase();
-      return Boolean((qName && (tName === qName || isTrainerMatch(tName, qName))) || (qEmail && tName.includes(qEmail)));
-    });
-  }
-  return records;
-}
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char));
@@ -146,9 +124,8 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
     }
   }, [isAdmin]);
 
-  // Real-time synchronization for trainees and assignments from Supabase
+  // Refresh the server-scoped trainee list every 15 seconds.
   useEffect(() => {
-    const supabase = createClient();
     const fetchFreshTrainees = async () => {
       try {
         const res = await fetch('/api/trainees');
@@ -158,20 +135,12 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           setTrainees(scopeTraineeRecords(data.data, isTrainer, isTrainee, userName || '', email || ''));
         }
       } catch (e) {
-        console.warn('Realtime trainees refresh error:', e);
+        console.warn('Trainees refresh error:', e);
       }
     };
 
-    const channel = supabase
-      .channel('trainees_realtime_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inhouse' }, fetchFreshTrainees)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_spec_training' }, fetchFreshTrainees)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, fetchFreshTrainees)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(fetchFreshTrainees, 15000);
+    return () => clearInterval(interval);
   }, [isTrainer, isTrainee, userName, email]);
 
   // Sync search and tab params from URL if navigated from Topbar / Sidebar

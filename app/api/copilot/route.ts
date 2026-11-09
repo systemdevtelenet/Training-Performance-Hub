@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { createClient as createAuthClient } from '@/utils/supabase/server';
+import { getRequestActor } from '@/lib/auth/access';
 import { getDashboardData } from '@/lib/data-fetcher';
 import { calculateRosterAttrition, getFilteredData } from '@/lib/analytics-utils';
-import { isTrainerEmployee } from '@/lib/trainer-position';
 import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
 
 const OPENROUTER_MODELS = [
@@ -21,8 +20,8 @@ async function getPrivacyEntities() {
 
   const [employees, inhouseTrainees, pstTrainees] = await Promise.all([
     supabase.from('employees').select('employee_code, employee_name'),
-    supabase.from('inhouse').select('name'),
-    supabase.from('product_spec_training').select('name'),
+    supabase.schema('training_system').from('inhouse').select('name'),
+    supabase.schema('training_system').from('product_spec_training').select('name'),
   ]);
   if (employees.error || inhouseTrainees.error || pstTrainees.error || !employees.data || !inhouseTrainees.data || !pstTrainees.data) {
     throw new Error('Privacy screening data is unavailable.');
@@ -104,41 +103,18 @@ function getNavigationIntent(message: string) {
 }
 
 async function getCopilotAccess() {
-  const authClient = await createAuthClient();
-  const { data: { user }, error: authError } = await authClient.auth.getUser();
-  if (authError || !user?.email) return { authenticated: false as const };
-
-  const [employeeResult, assignedRoleResult] = await Promise.all([
-    supabase
-      .from('employees')
-      .select('id, employee_name, employee_email, roles!employees_role_id_fkey(role_name), positions!employees_position_id_fkey(position_code, position_name)')
-      .ilike('employee_email', user.email)
-      .maybeSingle(),
-    supabase
-      .from('user_roles')
-      .select('role')
-      .ilike('email', user.email)
-      .maybeSingle()
-  ]);
-
-  if (employeeResult.error || assignedRoleResult.error) throw new Error('Unable to verify the current user role.');
-  const employee = employeeResult.data as any;
-  const employeeRole = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles;
-  const employeePosition = Array.isArray(employee?.positions) ? employee.positions[0] : employee?.positions;
-  const grantedRole = String(assignedRoleResult.data?.role || '').toUpperCase();
-  const roleName = String(employeeRole?.role_name || '').toUpperCase();
-  const position = `${employeePosition?.position_code || ''} ${employeePosition?.position_name || ''}`.toUpperCase();
-  const admin = grantedRole.includes('ADMIN') || roleName.includes('ADMIN') || /\bHOT\b|HEAD OF TRAINING/.test(position);
-  const trainer = grantedRole === 'TRAINER' || roleName === 'TRAINER' ||
-    isTrainerEmployee(employeePosition, roleName);
-  if ((!employee && !admin) || (!admin && !trainer)) {
+  const actor = await getRequestActor();
+  if (!actor) return { authenticated: false as const };
+  const admin = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN'].includes(actor.role);
+  const trainer = actor.role === 'TRAINER';
+  if (!admin && !trainer) {
     return { authenticated: true as const, scope: 'none' as const };
   }
 
   return {
     authenticated: true as const,
     scope: admin ? 'admin' as const : 'trainer' as const,
-    employeeName: String(employee?.employee_name || user.email).trim(),
+    employeeName: actor.name,
   };
 }
 

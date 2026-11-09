@@ -3,7 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
-import { createClient as createAuthClient } from '@/utils/supabase/server';
+import { authorizeAuthenticatedRequest, authorizeTrainerOrAdminRequest } from '@/lib/auth/access';
+import { isTrainerMatch } from '@/lib/analytics-utils';
+import { getTraineesData } from '@/lib/data-fetcher';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +14,6 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
 });
-
-async function hasAuthenticatedUser() {
-  const authClient = await createAuthClient();
-  const { data: { user }, error } = await authClient.auth.getUser();
-  return !error && Boolean(user);
-}
 
 interface DailyAttendanceEntry {
   date: string; // YYYY-MM-DD
@@ -43,7 +39,7 @@ function getRecordKey(date: string, traineeName: string): string {
 async function fetchDbRecords(): Promise<Record<string, DailyAttendanceEntry>> {
   try {
     const { data, error } = await supabase
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('source_table, traffic_status, remarks, metric_date')
       .eq('metric_group', 'daily_attendance');
 
@@ -103,8 +99,8 @@ async function fetchEndorsedTraineeAttendance(
   manualRecords: Record<string, DailyAttendanceEntry>,
 ): Promise<Record<string, DailyAttendanceEntry>> {
   const [inhouseResult, pstResult, employeeResult, trackerEmployeeResult] = await Promise.all([
-    supabase.from('inhouse').select('name, status, batch, acount'),
-    supabase.from('product_spec_training').select('name, status, wave, account'),
+    supabase.schema('training_system').from('inhouse').select('name, status, batch, acount'),
+    supabase.schema('training_system').from('product_spec_training').select('name, status, wave, account'),
     supabase.from('employees').select('employee_code, employee_name'),
     supabase.from('time_tracker_employees').select('"Employee ID"'),
   ]);
@@ -197,10 +193,9 @@ async function fetchEndorsedTraineeAttendance(
 
 // GET: Retrieve attendance records for a specific date or range from Supabase
 export async function GET(req: Request) {
+  const access = await authorizeAuthenticatedRequest();
+  if (!access.ok) return access.response;
   try {
-    if (!(await hasAuthenticatedUser())) {
-      return NextResponse.json({ error: 'Please sign in to view attendance.' }, { status: 401 });
-    }
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date'); // e.g. 2026-09-18
     const trainer = searchParams.get('trainer');
@@ -210,6 +205,13 @@ export async function GET(req: Request) {
     const trackerRecords = await fetchEndorsedTraineeAttendance(allRecords);
     Object.assign(allRecords, trackerRecords);
     let recordsList = Object.values(allRecords);
+
+    if (access.actor.role === 'TRAINER') {
+      recordsList = recordsList.filter(record => isTrainerMatch(record.trainerName, access.actor.name));
+    } else if (access.actor.role === 'TRAINEE') {
+      const traineeName = access.actor.name.toLowerCase();
+      recordsList = recordsList.filter(record => (record.traineeName || '').toLowerCase() === traineeName);
+    }
 
     if (date) {
       recordsList = recordsList.filter(r => r.date === date);
@@ -227,7 +229,7 @@ export async function GET(req: Request) {
       success: true,
       count: recordsList.length,
       data: recordsList,
-      map: allRecords
+      map: Object.fromEntries(recordsList.map(record => [getRecordKey(record.date, record.traineeName), record]))
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -236,12 +238,12 @@ export async function GET(req: Request) {
 
 // POST: Save or update attendance records, status, and reason notes in Supabase
 export async function POST(req: Request) {
+  const access = await authorizeTrainerOrAdminRequest();
+  if (!access.ok) return access.response;
   try {
-    if (!(await hasAuthenticatedUser())) {
-      return NextResponse.json({ error: 'Please sign in to update attendance.' }, { status: 401 });
-    }
     const body = await req.json();
-    const { date, records, updatedBy, actionType } = body;
+    const { date, records, actionType } = body;
+    const updatedBy = access.actor.name;
 
     const rawList: DailyAttendanceEntry[] = Array.isArray(records)
       ? records
@@ -251,6 +253,17 @@ export async function POST(req: Request) {
 
     if (!rawList || rawList.length === 0) {
       return NextResponse.json({ error: 'No attendance records provided' }, { status: 400 });
+    }
+    if (access.actor.role === 'TRAINER') {
+      const trainees = await getTraineesData();
+      const isAssignedTrainee = (item: DailyAttendanceEntry) => trainees.some((trainee: any) =>
+        String(trainee.name || '').trim().toLowerCase() === String(item.traineeName || '').trim().toLowerCase() &&
+        isTrainerMatch(trainee.assignedTrainer, access.actor.name) &&
+        (!item.trainingType || String(trainee.trainingType || '').toUpperCase().includes(String(item.trainingType).toUpperCase()))
+      );
+      if (rawList.some(item => !item.traineeName || !isAssignedTrainee(item))) {
+        return NextResponse.json({ error: 'Trainers may only update attendance for their own assigned trainees.' }, { status: 403 });
+      }
     }
 
     const currentRecords = await fetchDbRecords();
@@ -292,6 +305,7 @@ export async function POST(req: Request) {
         ...item,
         date: itemDate,
         traineeName: cleanName,
+        trainerName: access.actor.role === 'TRAINER' ? access.actor.name : item.trainerName,
         updatedAt: timestamp,
         updatedBy: author
       };
@@ -335,14 +349,14 @@ export async function POST(req: Request) {
     for (const row of dbRowsToInsert) {
       // Delete any prior record for this date and trainee
       await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .delete()
         .eq('metric_group', 'daily_attendance')
         .eq('source_table', row.source_table);
 
       // Insert updated record
       const { error: insErr } = await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .insert(row);
 
       if (insErr) {
@@ -360,14 +374,14 @@ export async function POST(req: Request) {
         }
 
         await supabase
-          .from(targetTable)
+          .schema('training_system').from(targetTable)
           .update(payload)
           .eq('name', update.name);
 
         // Also update standard trainees table
         try {
           await supabase
-            .from('trainees')
+            .schema('training_system').from('trainees')
             .update({
               status: update.status,
               isEndorsed: update.isEndorsed,
@@ -386,7 +400,7 @@ export async function POST(req: Request) {
         const targetTable = noteUpdate.isPst ? 'product_spec_training' : 'inhouse';
         try {
           await supabase
-            .from(targetTable)
+            .schema('training_system').from(targetTable)
             .update({ remarks: noteUpdate.notes })
             .eq('name', noteUpdate.name);
         } catch (e) {

@@ -12,10 +12,6 @@ async function findUser() {
   const { data: tp } = await supabase.from('trainers_profile').select('*').or('gmail_account.ilike.%colonia%,thunderbird_account.ilike.%colonia%,name.ilike.%colonia%');
   console.log('trainers_profile:', tp);
 
-  console.log('--- Searching trainers ---');
-  const { data: tr } = await supabase.from('trainers').select('*').or('name.ilike.%colonia%,employee_num.eq.1772,employee_num.eq.CTNP-1772');
-  console.log('trainers:', tr);
-
   console.log('--- Searching employees ---');
   const { data: emp } = await supabase.from('employees').select('*').or('employee_email.ilike.%colonia%,employee_name.ilike.%colonia%,employee_code.ilike.%1772%');
   console.log('employees:', emp);

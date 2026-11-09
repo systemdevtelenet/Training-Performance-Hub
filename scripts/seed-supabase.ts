@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import csv from 'csv-parser';
+import { importTrainerEmployees } from './import-trainer-employees';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -65,8 +66,9 @@ async function seedSupabase(csvFilePath: string) {
         trainers.push({
           name: row.trainer_name || row.name,
           status: row.trainer_status || row.status || 'Active',
-          pos: row.position || '',
+          position: row.position || '',
           employeeNo: row.employee_no || '',
+          email: row.email || row.employee_email || '',
           startDate: row.start_date || '',
           accounts: row.accounts || '',
           attRate: row.attendance_rate || '100%',
@@ -87,15 +89,11 @@ async function seedSupabase(csvFilePath: string) {
       }
     }
 
-    // Insert trainers
+    // Import trainer rows into the authoritative employees table.
     if (trainers.length > 0) {
-      console.log(`\n📤 Inserting ${trainers.length} trainers...`);
-      const { error: trainerError } = await supabase.from('trainers').insert(trainers);
-      if (trainerError) {
-        console.error('❌ Error inserting trainers:', trainerError);
-      } else {
-        console.log('✅ Trainers inserted successfully');
-      }
+      console.log(`\n📤 Importing ${trainers.length} trainer employee records...`);
+      await importTrainerEmployees(supabase, trainers);
+      console.log('✅ Trainer employees imported successfully');
     }
 
     console.log('\n🎉 Seeding complete!');

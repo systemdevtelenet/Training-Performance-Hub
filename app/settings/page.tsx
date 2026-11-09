@@ -43,7 +43,7 @@ type SettingsTab = 'profile' | 'notifications' | 'general';
 
 function SettingsContent() {
   const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
-  const { userName, email: userEmail, userMeta } = useRole();
+  const { userName, email: userEmail, userMeta, isLoading: isProfileLoading } = useRole();
   const toast = useToast();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as SettingsTab) || 'profile';
@@ -55,7 +55,7 @@ function SettingsContent() {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
-  const [isHydrating, setIsHydrating] = useState(true);
+  const isHydrating = isProfileLoading;
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -134,11 +134,6 @@ function SettingsContent() {
       }
     }
   }, [userEmail]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsHydrating(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Close avatar dropdown when clicking outside
   useEffect(() => {
@@ -348,7 +343,7 @@ function SettingsContent() {
 
         const formData = new FormData();
         formData.append('file', blob, 'avatar.png');
-        formData.append('employeeId', userMeta?.employeeId || profile.employeeId || '1597');
+        formData.append('employeeId', userMeta?.employeeId || profile.employeeId || '');
         formData.append('email', userEmail || '');
         formData.append('name', userName || '');
 

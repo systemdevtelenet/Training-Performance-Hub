@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase';
 import mockData from '@/data/dashboard-mock.json';
+import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
 
 export interface TraineeRecord {
   id: string;
@@ -54,6 +55,50 @@ export interface DashboardData {
   };
 }
 
+async function loadTrainerRecords(): Promise<TrainerRecord[]> {
+  const [employeesResult, rolesResult, positionsResult, statusesResult, assignmentsResult, accountsResult] = await Promise.all([
+    supabase.from('employees').select('id, employee_code, employee_name, status_id, role_id, position_id, hire_date, avatar_url'),
+    supabase.from('roles').select('role_id, role_name'),
+    supabase.from('positions').select('position_id, position_name, position_code'),
+    supabase.from('statuses').select('status_id, status_name'),
+    supabase.from('employee_assignments').select('employee_id, account_id'),
+    supabase.from('accounts').select('account_id, account_name, account_code'),
+  ]);
+  const sourceError = employeesResult.error || rolesResult.error || positionsResult.error || statusesResult.error || assignmentsResult.error || accountsResult.error;
+  if (sourceError) throw sourceError;
+
+  const roleById = new Map((rolesResult.data || []).map((row: any) => [Number(row.role_id), row.role_name]));
+  const positionById = new Map((positionsResult.data || []).map((row: any) => [Number(row.position_id), row]));
+  const statusById = new Map((statusesResult.data || []).map((row: any) => [Number(row.status_id), String(row.status_name || '')]));
+  const accountById = new Map((accountsResult.data || []).map((row: any) => [Number(row.account_id), String(row.account_name || row.account_code || '')]));
+  const accountsByEmployeeId = new Map<string, string[]>();
+  (assignmentsResult.data || []).forEach((row: any) => {
+    const employeeId = String(row.employee_id || '');
+    const account = accountById.get(Number(row.account_id));
+    if (!employeeId || !account) return;
+    const current = accountsByEmployeeId.get(employeeId) || [];
+    if (!current.includes(account)) current.push(account);
+    accountsByEmployeeId.set(employeeId, current);
+  });
+
+  return (employeesResult.data || [])
+    .filter((employee: any) => isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id))))
+    .map((employee: any) => {
+      const status = String(statusById.get(Number(employee.status_id)) || '').toUpperCase();
+      const isInactive = /RESIGNED|TERMINATED|INACTIVE|AWOL/.test(status);
+      return {
+        id: String(employee.employee_code || employee.id),
+        name: String(employee.employee_name || ''),
+        status: isInactive ? 'INACTIVE' : 'ACTIVE',
+        pos: getTrainingPositionLabel(positionById.get(Number(employee.position_id))),
+        employeeNo: employee.employee_code ? String(employee.employee_code) : undefined,
+        startDate: employee.hire_date || undefined,
+        accounts: accountsByEmployeeId.get(String(employee.id)) || [],
+        profilePic: employee.avatar_url || undefined,
+      };
+    });
+}
+
 /**
  * Fetch dashboard data from Supabase
  * Transforms rows into the expected dashboard structure
@@ -66,19 +111,12 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       return mockData as unknown as DashboardData;
     }
 
-    // Fetch trainees
-    const { data: trainees, error: traineesError } = await supabase
-      .from('trainees')
-      .select('*');
-
+    const [traineesResult, trainers] = await Promise.all([
+      supabase.schema('training_system').from('trainees').select('*'),
+      loadTrainerRecords(),
+    ]);
+    const { data: trainees, error: traineesError } = traineesResult;
     if (traineesError) throw traineesError;
-
-    // Fetch trainers
-    const { data: trainers, error: trainersError } = await supabase
-      .from('trainers')
-      .select('*');
-
-    if (trainersError) throw trainersError;
 
     // Transform data into dashboard structure
     const dashboardData: DashboardData = {
@@ -88,7 +126,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       trainerReliability: {},
       summary: {
         totalTrainees: trainees?.length || 0,
-        totalTrainers: trainers?.length || 0,
+        totalTrainers: trainers.length,
       },
     };
 
@@ -108,7 +146,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     }
 
     // Populate trainer attendance/reliability
-    if (trainers) {
+    if (trainers.length) {
       trainers.forEach((trainer: TrainerRecord) => {
         if (!dashboardData.trainerAttendance[trainer.name]) {
           dashboardData.trainerAttendance[trainer.name] = [];
@@ -137,7 +175,7 @@ export async function fetchTrainees(): Promise<TraineeRecord[]> {
       throw new Error('Supabase not configured');
     }
 
-    const { data, error } = await supabase.from('trainees').select('*');
+    const { data, error } = await supabase.schema('training_system').from('trainees').select('*');
 
     if (error) throw error;
     return data || [];
@@ -156,10 +194,7 @@ export async function fetchTrainers(): Promise<TrainerRecord[]> {
       throw new Error('Supabase not configured');
     }
 
-    const { data, error } = await supabase.from('trainers').select('*');
-
-    if (error) throw error;
-    return data || [];
+    return await loadTrainerRecords();
   } catch (error) {
     console.error('Error fetching trainers:', error);
     return [];

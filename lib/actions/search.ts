@@ -2,6 +2,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
+import { APP_PAGE_ROLES, ADMIN_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
+import { getTraineesData } from '@/lib/data-fetcher';
+import { isTrainerMatch } from '@/lib/analytics-utils';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -30,13 +33,14 @@ export interface SearchResultItem {
   href: string;
 }
 
-export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE'): Promise<SearchResultItem[]> {
+export async function searchGlobal(query: string, _userRole: string = 'EMPLOYEE'): Promise<SearchResultItem[]> {
+  const actor = await requireActionRole(APP_PAGE_ROLES);
   const q = (query || '').trim();
   if (!q) return [];
 
   const results: SearchResultItem[] = [];
   const lowerQ = q.toLowerCase();
-  const isEmployee = userRole === 'EMPLOYEE' || userRole === 'GUEST';
+  const isEmployee = actor.role === 'TRAINEE';
 
   // 1. Navigation Pages Match (Role-Filtered)
   const systemPages = isEmployee ? [
@@ -74,8 +78,32 @@ export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE')
     }
   });
 
+  if (!ADMIN_PAGE_ROLES.includes(actor.role) && actor.role !== 'TRAINER') return results;
+
   const cleanQ = q.replace(/[,()%\\]/g, '').trim();
   if (!cleanQ) return results;
+
+  if (actor.role === 'TRAINER') {
+    try {
+      const trainees = await getTraineesData();
+      trainees
+        .filter((trainee: any) => isTrainerMatch(trainee.assignedTrainer, actor.name))
+        .filter((trainee: any) => [trainee.name, trainee.batchName, trainee.accountName, trainee.status]
+          .some(value => String(value || '').toLowerCase().includes(cleanQ.toLowerCase())))
+        .slice(0, 8)
+        .forEach((trainee: any) => results.push({
+          id: `trainee-${trainee.trainingType}-${trainee.name}-${trainee.batchName}`,
+          title: trainee.name || 'Trainee',
+          subtitle: `${trainee.trainingType || 'Training'} • ${trainee.batchName || 'Unassigned'} (${trainee.accountName || 'General'})`,
+          category: 'trainee',
+          badge: trainee.status || 'Active',
+          href: `/trainees?search=${encodeURIComponent(trainee.name || '')}`,
+        }));
+    } catch (err) {
+      console.error('Error searching assigned trainees:', err);
+    }
+    return results;
+  }
 
   try {
     // 2. Search trainer-roster employees
@@ -107,13 +135,13 @@ export async function searchGlobal(query: string, userRole: string = 'EMPLOYEE')
 
     // 3. Search Trainees (inhouse & product_spec_training)
     const { data: inhouseData } = await supabaseAdmin
-      .from('inhouse')
+      .schema('training_system').from('inhouse')
       .select('name, batch, status, acount, account')
       .or(`name.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,acount.ilike.%${cleanQ}%`)
       .limit(8);
 
     const { data: pstData } = await supabaseAdmin
-      .from('product_spec_training')
+      .schema('training_system').from('product_spec_training')
       .select('name, wave, batch, status, account, accountName')
       .or(`name.ilike.%${cleanQ}%,wave.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,account.ilike.%${cleanQ}%`)
       .limit(8);

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
+import { authorizeAdminRequest, authorizeManagementReadRequest } from '@/lib/auth/access';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -10,22 +11,29 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // GET: Fetch all employees with status and assigned accounts
 export async function GET() {
+  const access = await authorizeManagementReadRequest();
+  if (!access.ok) return access.response;
   try {
-    const { data: employees, error: empErr } = await supabase
-      .from('employees')
-      .select('*')
-      .order('id', { ascending: false });
+    const [employeesResult, statusesResult, accountsResult, rolesResult, assignmentsResult, positionsResult] = await Promise.all([
+      supabase.from('employees').select('*').order('id', { ascending: false }),
+      supabase.from('statuses').select('*'),
+      supabase.from('accounts').select('*'),
+      supabase.from('roles').select('*'),
+      supabase.from('employee_assignments').select('*'),
+      supabase.from('positions').select('position_id, position_name, position_code'),
+    ]);
+    const { data: employees, error: empErr } = employeesResult;
 
     if (empErr) {
       console.error('Error fetching employees:', empErr);
       return NextResponse.json({ error: empErr.message }, { status: 500 });
     }
 
-    const { data: statuses } = await supabase.from('statuses').select('*');
-    const { data: accounts } = await supabase.from('accounts').select('*');
-    const { data: roles } = await supabase.from('roles').select('*');
-    const { data: assignments } = await supabase.from('employee_assignments').select('*');
-    const { data: positions } = await supabase.from('positions').select('position_id, position_name, position_code');
+    const { data: statuses } = statusesResult;
+    const { data: accounts } = accountsResult;
+    const { data: roles } = rolesResult;
+    const { data: assignments } = assignmentsResult;
+    const { data: positions } = positionsResult;
 
     // Create lookup maps
     const statusMap = new Map<number, string>();
@@ -56,7 +64,7 @@ export async function GET() {
     const resultList: any[] = [];
 
     // Employees is the single profile/status source. Trainer membership comes from
-    // the trainers roster by employee code, so unrelated employees are never changed.
+    // trainer role and position, so unrelated employees are never changed.
     (employees || []).forEach(emp => {
       const code = String(emp.employee_code || '').trim().toLowerCase();
       const trainerPosition = positionById.get(Number(emp.position_id));
@@ -110,6 +118,8 @@ export async function GET() {
 
 // POST: Add new employee
 export async function POST(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const { employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, vici_link, account_id } = body;
@@ -163,20 +173,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // A role-10 employee is enrolled in the trainer roster without duplicating
-    // identity fields outside employees.
-    if (Number(payload.role_id) === 10) {
-      try {
-        await supabase.from('trainers').upsert([{
-          employee_num: payload.employee_code,
-          position: 'Trainer',
-          status: 'ACTIVE'
-        }], { onConflict: 'employee_num' });
-      } catch (tpErr) {
-        console.warn('Could not enroll employee in trainers roster:', tpErr);
-      }
-    }
-
     await logActivity({
       title: 'Employee Profile Created',
       description: `Created new employee record for ${employee_name} (${employee_code || 'No Code'}).`,
@@ -199,6 +195,8 @@ export async function POST(req: Request) {
 
 // PUT: Update employee
 export async function PUT(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const { id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, vici_link, account_id } = body;
@@ -284,6 +282,8 @@ export async function PUT(req: Request) {
 
 // DELETE: Remove employee
 export async function DELETE(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

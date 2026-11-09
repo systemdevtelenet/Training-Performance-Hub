@@ -4,6 +4,7 @@ import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 import { isTrainerMatch } from '@/lib/analytics-utils';
 import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
+import { authorizeAdminRequest, authorizeManagementReadRequest } from '@/lib/auth/access';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -13,19 +14,21 @@ const LOSS_STATUSES = ['RESIGNED', 'TERMINATED', 'FAILED', 'AWOL', 'ACCOUNT REMO
 
 // GET: Fetch list of trainers with their active trainee count and pending handovers
 export async function GET() {
+  const access = await authorizeManagementReadRequest();
+  if (!access.ok) return access.response;
   try {
     const { data: empList } = await supabase.from('employees').select('*');
     const { data: statuses } = await supabase.from('statuses').select('status_id, status_name');
     const { data: positions } = await supabase.from('positions').select('position_id, position_name, position_code');
     const { data: roles } = await supabase.from('roles').select('role_id, role_name');
-    const { data: pstData } = await supabase.from('product_spec_training').select('name, wave, account, assigned_trainer, status');
-    const { data: inhData } = await supabase.from('inhouse').select('name, batch, acount, account, status');
+    const { data: pstData } = await supabase.schema('training_system').from('product_spec_training').select('name, wave, account, assigned_trainer, status');
+    const { data: inhData } = await supabase.schema('training_system').from('inhouse').select('name, batch, acount, account, status');
     const { data: asgData } = await supabase
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('source_table, traffic_status')
       .eq('metric_group', 'trainee_trainer_assignment');
     const { data: offboardHistory } = await supabase
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('*')
       .ilike('source_table', 'trainer_offboard::%')
       .order('metric_date', { ascending: false });
@@ -57,7 +60,7 @@ export async function GET() {
       (roles || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]),
     );
 
-    // Employees is authoritative; membership is restricted to the trainers roster.
+    // Employees plus roles and positions define the trainer roster.
     (empList || []).forEach((emp: any) => {
       const position = positionById.get(Number(emp.position_id));
       if (!isTrainerEmployee(position, roleById.get(Number(emp.role_id)))) return;
@@ -147,6 +150,8 @@ export async function GET() {
 
 // POST: Execute trainer resignation and active batch/trainee handover
 export async function POST(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const {
@@ -158,8 +163,8 @@ export async function POST(req: Request) {
       remarks,
       reassignActiveTrainees = true,
       revokeAccess = true,
-      adminName = 'Super Admin'
     } = body;
+    const adminName = access.actor.name;
 
     if (!trainerName || !trainerName.trim()) {
       return NextResponse.json({ success: false, error: 'Trainer name is required.' }, { status: 400 });
@@ -178,7 +183,7 @@ export async function POST(req: Request) {
     if (reassignActiveTrainees && cleanReplacement && cleanReplacement !== 'Unassigned') {
       // (a) Reassign in traffic_light_metrics assignment map
       const { data: assignments } = await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .select('*')
         .eq('metric_group', 'trainee_trainer_assignment');
 
@@ -191,7 +196,7 @@ export async function POST(req: Request) {
 
       for (const m of matchesToUpdate) {
         await supabase
-          .from('traffic_light_metrics')
+          .schema('training_system').from('traffic_light_metrics')
           .update({
             traffic_status: cleanReplacement,
             remarks: JSON.stringify({
@@ -207,7 +212,7 @@ export async function POST(req: Request) {
 
       // (b) Reassign in product_spec_training table
       const { data: pstRows } = await supabase
-        .from('product_spec_training')
+        .schema('training_system').from('product_spec_training')
         .select('name, assigned_trainer, status');
 
       const pstToUpdate: string[] = [];
@@ -220,7 +225,7 @@ export async function POST(req: Request) {
 
       for (const name of pstToUpdate) {
         await supabase
-          .from('product_spec_training')
+          .schema('training_system').from('product_spec_training')
           .update({ assigned_trainer: cleanReplacement })
           .eq('name', name);
         reassignedCount++;
@@ -229,7 +234,7 @@ export async function POST(req: Request) {
       // (c) Reassign in onboarding_trainees table (if exists)
       try {
         const { data: onbRows } = await supabase
-          .from('onboarding_trainees')
+          .schema('training_system').from('onboarding_trainees')
           .select('name, assignedTrainer, isLoss');
 
         const onbToUpdate: string[] = [];
@@ -241,7 +246,7 @@ export async function POST(req: Request) {
 
         for (const name of onbToUpdate) {
           await supabase
-            .from('onboarding_trainees')
+            .schema('training_system').from('onboarding_trainees')
             .update({ assignedTrainer: cleanReplacement })
             .eq('name', name);
         }
@@ -250,24 +255,29 @@ export async function POST(req: Request) {
       }
     }
 
-    // Update exactly one rostered trainer. This cannot touch unrelated employees.
-    const { data: trainerRoster } = await supabase.from('trainers').select('trainer_id, employee_num');
-    const trainerCodes = new Set((trainerRoster || []).map((row: any) => String(row.employee_num || '').trim().toLowerCase()));
-    const { data: employeeRows } = await supabase
-      .from('employees')
-      .select('id, employee_code, employee_name, employee_email');
+    // Employees and roles define the trainer roster; no duplicate roster table is needed.
+    const [employeeResult, positionResult, roleResult] = await Promise.all([
+      supabase.from('employees').select('id, employee_code, employee_name, employee_email, role_id, position_id'),
+      supabase.from('positions').select('position_id, position_name, position_code'),
+      supabase.from('roles').select('role_id, role_name'),
+    ]);
+    const sourceError = employeeResult.error || positionResult.error || roleResult.error;
+    if (sourceError) {
+      return NextResponse.json({ success: false, error: sourceError.message }, { status: 500 });
+    }
+    const positionById = new Map((positionResult.data || []).map((position: any) => [Number(position.position_id), position]));
+    const roleById = new Map((roleResult.data || []).map((role: any) => [Number(role.role_id), String(role.role_name || '')]));
     const normalizedTrainerName = cleanTrainer.toLowerCase();
     const normalizedTrainerEmail = String(trainerEmail || '').trim().toLowerCase();
-    const trainerEmployee = (employeeRows || []).find((employee: any) => {
-      const code = String(employee.employee_code || '').trim().toLowerCase();
-      if (!trainerCodes.has(code)) return false;
+    const trainerEmployee = (employeeResult.data || []).find((employee: any) => {
+      if (!isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id)))) return false;
       const nameMatches = String(employee.employee_name || '').trim().toLowerCase() === normalizedTrainerName;
       const emailMatches = Boolean(normalizedTrainerEmail) && String(employee.employee_email || '').trim().toLowerCase() === normalizedTrainerEmail;
       return nameMatches || emailMatches;
     });
 
     if (!trainerEmployee) {
-      return NextResponse.json({ success: false, error: 'The selected trainer was not found in the employee trainer roster.' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'The selected trainer was not found in employees and roles.' }, { status: 404 });
     }
 
     const { data: resignedStatus } = await supabase
@@ -286,11 +296,6 @@ export async function POST(req: Request) {
     if (employeeStatusError) {
       return NextResponse.json({ success: false, error: employeeStatusError.message }, { status: 500 });
     }
-
-    await supabase
-      .from('trainers')
-      .update({ status: 'RESIGNED' })
-      .eq('employee_num', String(trainerEmployee.employee_code));
 
     // 5. Revoke / Demote Role Access if requested
     const targetEmail = trainerEmail?.trim().toLowerCase();
@@ -322,7 +327,7 @@ export async function POST(req: Request) {
       offboardedAt: new Date().toISOString()
     };
 
-    await supabase.from('traffic_light_metrics').upsert([{
+    await supabase.schema('training_system').from('traffic_light_metrics').upsert([{
       source_table: archiveKey,
       metric_group: 'trainer_offboard',
       traffic_status: 'RESIGNED',

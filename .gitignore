@@ -7,6 +7,9 @@ node_modules/
 out/
 
 # Environment Variables
+.env
+.env.*
+!.env.docker.example
 .env.local
 .env*.local
 

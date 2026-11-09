@@ -135,17 +135,28 @@
   }
 }
 
-.login-email-input:-webkit-autofill,
-.login-email-input:-webkit-autofill:hover,
-.login-email-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
-  -webkit-text-fill-color: #17283b;
+.login-hero-image {
+  object-position: right center;
 }
 
-.login-password-input:-webkit-autofill,
-.login-password-input:-webkit-autofill:hover,
-.login-password-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #e8f0fe inset;
-  -webkit-text-fill-color: #17283b;
+.login-hero-word {
+  min-width: 8ch;
+}
+
+.login-hero-cursor {
+  display: inline-block;
+  animation: loginCursorBlink 1s step-end infinite;
+}
+
+@keyframes loginCursorBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-hero-cursor {
+    animation: none;
+  }
 }
 

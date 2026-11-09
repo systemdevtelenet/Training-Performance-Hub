@@ -60,7 +60,6 @@ import {
   type TrafficLightRemarkItem
 } from '@/lib/actions/traffic-lights';
 import { isTrainerMatch } from '@/lib/analytics-utils';
-import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export const STATUS_OPTIONS = [
@@ -70,6 +69,23 @@ export const STATUS_OPTIONS = [
   { value: 'Terminated', label: 'Terminated', icon: XCircle, color: 'text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-rose-600 text-white font-bold shadow-xs hover:bg-rose-700 border border-rose-700' },
   { value: 'Resigned', label: 'Resigned', icon: UserMinus, color: 'text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-red-700 text-white font-bold shadow-xs hover:bg-red-800 border border-red-800' },
   { value: 'Account Removed', label: 'Account Removed', icon: UserX, color: 'text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/60 font-bold', iconColor: 'text-white', badgeStyle: 'bg-orange-600 text-white font-bold shadow-xs hover:bg-orange-700 border border-orange-700' },
+];
+
+const DEFAULT_TRAFFIC_LIGHT_ACCOUNTS = [
+  { id: 'trainers', name: 'Trainers' },
+  { id: 'general', name: 'General' },
+  { id: 'rm', name: 'RM' },
+  { id: 'xpn', name: 'XPN' },
+  { id: 'fleet', name: 'Fleet' },
+  { id: 'leaders', name: 'Leaders' },
+  { id: 'dft', name: 'DFT' },
+  { id: 'js', name: 'JS' },
+  { id: 'ono', name: 'ONO' },
+  { id: 'awd', name: 'AWD' },
+  { id: 'flexar', name: 'FLEXAR' },
+  { id: 'hh', name: 'HH' },
+  { id: 'mm_transpo', name: 'MM Transpo' },
+  { id: 'other_acc', name: 'Other Acc' },
 ];
 
 const TRAINER_MILESTONE_OPTIONS = [
@@ -472,22 +488,7 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
     );
   }, [userName, email]);
 
-  const accounts = (initialAccounts && initialAccounts.length > 0) ? initialAccounts : [
-    { id: 'trainers', name: 'Trainers' },
-    { id: 'general', name: 'General' },
-    { id: 'rm', name: 'RM' },
-    { id: 'xpn', name: 'XPN' },
-    { id: 'fleet', name: 'Fleet' },
-    { id: 'leaders', name: 'Leaders' },
-    { id: 'dft', name: 'DFT' },
-    { id: 'js', name: 'JS' },
-    { id: 'ono', name: 'ONO' },
-    { id: 'awd', name: 'AWD' },
-    { id: 'flexar', name: 'FLEXAR' },
-    { id: 'hh', name: 'HH' },
-    { id: 'mm_transpo', name: 'MM Transpo' },
-    { id: 'other_acc', name: 'Other Acc' },
-  ];
+  const accounts = (initialAccounts && initialAccounts.length > 0) ? initialAccounts : DEFAULT_TRAFFIC_LIGHT_ACCOUNTS;
 
   const [trainerTraineeNames, setTrainerTraineeNames] = useState<string[]>([]);
   const [trainerAccounts, setTrainerAccounts] = useState<string[]>([]);
@@ -532,20 +533,23 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   }, [accounts, isTrainer, trainerAccounts, trainerTraineeNames]);
 
   const [account, setAccount] = useState<string>('all');
+  const requestedAccount = searchParams?.get('account');
 
   useEffect(() => {
-    const requestedAccount = searchParams?.get('account');
-    if (requestedAccount && visibleAccounts.some(item => item.id === requestedAccount)) {
+    if (requestedAccount && requestedAccount !== account && visibleAccounts.some(item => item.id === requestedAccount)) {
       setAccount(requestedAccount);
     }
-  }, [searchParams, visibleAccounts]);
+  }, [account, requestedAccount, visibleAccounts]);
 
   useEffect(() => {
     if (visibleAccounts.length > 0 && !visibleAccounts.some(a => a.id === account)) {
       setAccount('all');
     }
   }, [visibleAccounts, account]);
-  const [quarter, setQuarter] = useState('q2');
+  const [quarter, setQuarter] = useState(() => {
+    const month = new Date().getMonth();
+    return month < 3 ? 'q1' : month < 6 ? 'q2' : month < 9 ? 'q3' : 'q4';
+  });
   const [selectedTeam, setSelectedTeam] = useState<string>('ALL');
   const [selectedTrainer, setSelectedTrainer] = useState<string>('ALL');
   const [data, setData] = useState<any[]>([]);
@@ -582,16 +586,19 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   // UX ENHANCEMENT CONTROLS: VIEW MODE, DATE PICKER & SORT ORDER
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
-  const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date>(() => new Date(2026, 5, 1)); // Default June 2026 for Q2
+  const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<{ date: Date; dateStr: string; entries: any[] } | null>(null);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   // Interactive Date Picker Popover State (matching Image 3)
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState<number>(2026);
-  const [pickerMonth, setPickerMonth] = useState<number>(5); // 0-indexed (5 is June)
-  const [pickerSelectedDay, setPickerSelectedDay] = useState<number>(1);
+  const [pickerYear, setPickerYear] = useState<number>(() => new Date().getFullYear());
+  const [pickerMonth, setPickerMonth] = useState<number>(() => new Date().getMonth());
+  const [pickerSelectedDay, setPickerSelectedDay] = useState<number>(() => new Date().getDate());
   const [openDropdown, setOpenDropdown] = useState<'account' | 'quarter' | 'team' | 'trainer' | 'status' | 'pickerMonth' | 'pickerYear' | null>(null);
 
   // Sync date picker temp state when opening
@@ -635,10 +642,10 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
   }, [toast]);
 
   const quarters = [
-    { id: 'q1', name: 'Q1 2026' },
-    { id: 'q2', name: 'Q2 2026' },
-    { id: 'q3', name: 'Q3 2026' },
-    { id: 'q4', name: 'Q4 2026' },
+    { id: 'q1', name: `Q1 ${calendarCurrentDate.getFullYear()}` },
+    { id: 'q2', name: `Q2 ${calendarCurrentDate.getFullYear()}` },
+    { id: 'q3', name: `Q3 ${calendarCurrentDate.getFullYear()}` },
+    { id: 'q4', name: `Q4 ${calendarCurrentDate.getFullYear()}` },
   ];
 
   const fetchTableData = async () => {
@@ -747,33 +754,17 @@ export default function TrafficLightsClient({ initialAccounts }: { initialAccoun
 
   useEffect(() => {
     fetchTableData();
-
-    // Supabase Realtime subscription to reflect status updates & remarks to Admin and Trainers instantly
-    const channel = supabase
-      .channel(`traffic_light_realtime_${account}_${quarter}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'traffic_light_metrics' },
-        () => {
-          const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
-          getTrafficLightRemarks(account, quarter, accountsScope).then(res => {
-            if (res?.data) setRemarksMap(res.data);
-          }).catch(err => {
-            console.error('Error in realtime remarks fetch:', err);
-          });
-          // Also refresh table data so statuses reflect on Admin's screen immediately
-          getTrafficLightData(account, quarter, accountsScope).then(res => {
-            if (res?.data) processData(res.data);
-          }).catch(err => {
-            console.error('Error in realtime data fetch:', err);
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+    const refreshTrafficLights = () => {
+      const accountsScope = visibleAccounts.filter(a => a.id !== 'all').map(a => a.id);
+      getTrafficLightRemarks(account, quarter, accountsScope).then(res => {
+        if (res?.data) setRemarksMap(res.data);
+      }).catch(err => console.error('Traffic-light remarks refresh error:', err));
+      getTrafficLightData(account, quarter, accountsScope).then(res => {
+        if (res?.data) processData(res.data);
+      }).catch(err => console.error('Traffic-light refresh error:', err));
     };
+    const interval = setInterval(refreshTrafficLights, 15000);
+    return () => clearInterval(interval);
   }, [account, quarter, visibleAccounts]);
 
   // Dynamic Years Generator: Start from 1990 up to max(2031, currentYear + 5)

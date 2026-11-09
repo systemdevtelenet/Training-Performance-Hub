@@ -4,6 +4,7 @@ import path from 'path';
 import * as dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import XLSX from 'xlsx';
+import { importTrainerEmployees } from './import-trainer-employees';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
@@ -130,12 +131,14 @@ async function importWorkbook(filePath: string) {
         const accountsValue = pickValue(normalizedRow, ['ACCOUNTS', 'Accounts', 'accounts', 'ACCOUNT', 'Account']);
         const status = pickValue(normalizedRow, ['STATUS', 'Status', 'status']);
         const profilePic = pickValue(normalizedRow, ['PROFILE PICTURE', 'Profile picture', 'profile picture', 'Profile Pic', 'profile pic']);
+        const email = pickValue(normalizedRow, ['EMAIL', 'Email', 'GMAIL', 'Thunderbird', 'Work Email']);
 
         trainers.push({
           name: trainerName,
           status: status || 'ACTIVE',
-          pos: position || '',
+          position: position || '',
           employeeNo: employeeNo || '',
+          email,
           startDate: startDate || '',
           accounts: accountsValue ? accountsValue.split(',').map((s) => s.trim()).filter(Boolean) : [],
           attRate: 0,
@@ -173,10 +176,8 @@ async function importWorkbook(filePath: string) {
   }
 
   if (trainers.length) {
-    await clearTable('trainers');
-    const { error } = await supabase.from('trainers').insert(trainers);
-    if (error) throw error;
-    console.log('✅ Trainers inserted to Supabase');
+    await importTrainerEmployees(supabase, trainers);
+    console.log('✅ Trainer employee records imported to Supabase');
   }
 }
 

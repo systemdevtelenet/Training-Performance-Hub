@@ -303,10 +303,7 @@ export default function NotificationDropdown() {
 
     const channel = supabase
       .channel('notifications_realtime_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        fetchNotifications();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'training_system', table: 'notifications' }, () => {
         fetchNotifications();
       })
       .subscribe();

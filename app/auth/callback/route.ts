@@ -26,33 +26,15 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${baseUrl}/login?error=unauthorized_domain`);
       }
 
-      // Check access against employees and the trainer roster.
-      const { createClient: createAdminClient } = await import('@supabase/supabase-js');
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-
-      const { data: roleRow } = await supabaseAdmin
-        .from('user_roles')
-        .select('role')
-        .ilike('email', email)
-        .maybeSingle();
-
-      const { data: empRow } = await supabaseAdmin
-        .from('employees')
-        .select('id, employee_code, status_id, role_id')
-        .ilike('employee_email', email)
-        .maybeSingle();
-
-      const { data: trainerRow } = empRow?.employee_code
-        ? await supabaseAdmin.from('trainers').select('trainer_id').eq('employee_num', String(empRow.employee_code)).maybeSingle()
-        : { data: null };
-
-      const isAuthorized = Boolean(
-        roleRow ||
-        (trainerRow && empRow?.status_id === 1)
-      );
+      // Use the same trusted role resolver as protected pages and actions.
+      let isAuthorized = false;
+      try {
+        const { getRequestActor } = await import('@/lib/auth/access');
+        const actor = await getRequestActor();
+        isAuthorized = Boolean(actor && actor.role !== 'UNAUTHORIZED');
+      } catch (error) {
+        console.error('Unable to verify callback user role:', error);
+      }
 
       if (!isAuthorized) {
         await supabase.auth.signOut();
