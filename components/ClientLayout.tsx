@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -14,6 +14,8 @@ import AccessRestrictedView from '@/components/AccessRestrictedView';
 import PageLoading from '@/components/PageLoading';
 import IdleSessionGuard from '@/components/IdleSessionGuard';
 import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
+import { canAccessTrainingHub } from '@/lib/auth/role-resolution';
+import { NavigationLoadingContext } from '@/components/NavigationLoadingContext';
 
 const AiHubDrawer = dynamic(() => import('@/components/AiHubDrawer'), { ssr: false });
 
@@ -21,6 +23,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { role, email, userName, userMeta, isLoading } = useRole();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   // Robust login detection: checks exact '/login', trailing slashes, subpaths, and query variants
   const isLoginPage = Boolean(
@@ -50,11 +57,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Access Restriction Guard: Training Hub is restricted to Training personnel only.
-  const isTrainingHubUser = role === 'TRAINER' || role === 'HOT_ADMIN';
+  // Keep this client guard aligned with the server-side role allowlist.
+  const isTrainingHubUser = canAccessTrainingHub(role);
   if (!isLoading && !isTrainingHubUser) {
     return (
       <AccessRestrictedView
+        role={role}
         email={email}
         userName={userName}
         userMeta={userMeta}
@@ -63,6 +71,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <NavigationLoadingContext.Provider value={{
+      pendingHref,
+      startNavigation: setPendingHref,
+      finishNavigation: () => setPendingHref(null),
+    }}>
     <>
       <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
         <Suspense fallback={<div className="hidden lg:block w-64 shrink-0 bg-primary h-full" />}>
@@ -71,7 +84,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         <div className="flex-1 flex flex-col min-w-0 w-full h-full overflow-hidden">
           <Topbar />
           <main className="flex-1 p-3 sm:p-4 pb-24 lg:pb-4 overflow-y-auto min-h-0">
-            {children}
+            {pendingHref && pendingHref.split('?')[0] !== pathname ? (
+              <PageLoading title="Loading page..." subtitle="Getting the latest information ready for you" />
+            ) : children}
           </main>
         </div>
         <MobileBottomNav />
@@ -80,6 +95,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <DataSyncOverlay />
       <IdleSessionGuard />
     </>
+    </NavigationLoadingContext.Provider>
   );
 }
 

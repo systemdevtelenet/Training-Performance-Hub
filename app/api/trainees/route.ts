@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 import { getTraineesData } from '@/lib/data-fetcher';
+import { authorizeAdminRequest, authorizeAuthenticatedRequest, authorizeTrainerOrAdminRequest } from '@/lib/auth/access';
+import { scopeTraineeRecords } from '@/lib/trainee-scope';
+import { isTrainerMatch } from '@/lib/analytics-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +15,21 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // GET: Retrieve fresh trainee records across Inhouse and PST with trainer assignments
 export async function GET() {
+  const access = await authorizeAuthenticatedRequest();
+  if (!access.ok) return access.response;
   try {
     const trainees = await getTraineesData();
+    const visibleTrainees = scopeTraineeRecords(
+      trainees,
+      access.actor.role === 'TRAINER',
+      access.actor.role === 'TRAINEE',
+      access.actor.name,
+      access.actor.email,
+    );
     return NextResponse.json({
       success: true,
-      count: trainees.length,
-      data: trainees
+      count: visibleTrainees.length,
+      data: visibleTrainees
     });
   } catch (err: any) {
     console.error('Error fetching trainees:', err);
@@ -27,11 +39,12 @@ export async function GET() {
 
 // POST: Add new trainee (supports both single & bulk entries)
 export async function POST(req: Request) {
+  const access = await authorizeTrainerOrAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
-    const reqRole = (body.role || body.userRole || '').toUpperCase();
-    const isTrainerRequest = reqRole === 'TRAINER' || body.isTrainer === true;
-    const rawAdmin = (body.actingAdmin || body.author || body.userName || body.trainerName || '').trim();
+    const isTrainerRequest = access.actor.role === 'TRAINER';
+    const rawAdmin = access.actor.name;
     
     // Check if bulk addition
     const rawList: any[] = Array.isArray(body)
@@ -84,7 +97,9 @@ export async function POST(req: Request) {
       const cleanStatus = status || 'ACTIVE';
       const cleanMonth = month || 'September';
       const cleanQuarter = quarter || 'Q3';
-      const cleanTrainer = (assignedTrainer || '').trim() || 'Unassigned';
+      const cleanTrainer = access.actor.role === 'TRAINER'
+        ? access.actor.name
+        : (assignedTrainer || '').trim() || 'Unassigned';
       const cleanAccount = (accountName || '').trim() || 'General';
       const cleanBatch = (batchName || '').trim() || (isPst ? 'Wave 1' : 'General -1');
 
@@ -130,7 +145,7 @@ export async function POST(req: Request) {
 
     // Insert Inhouse Trainees
     if (inhousePayloads.length > 0) {
-      const { data, error } = await supabase.from('inhouse').insert(inhousePayloads).select();
+      const { data, error } = await supabase.schema('training_system').from('inhouse').insert(inhousePayloads).select();
       if (error) {
         console.error('Error inserting inhouse trainees:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -140,7 +155,7 @@ export async function POST(req: Request) {
 
     // Insert PST Trainees
     if (pstPayloads.length > 0) {
-      const { data, error } = await supabase.from('product_spec_training').insert(pstPayloads).select();
+      const { data, error } = await supabase.schema('training_system').from('product_spec_training').insert(pstPayloads).select();
       if (error) {
         console.error('Error inserting PST trainees:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -156,17 +171,18 @@ export async function POST(req: Request) {
       const assignAuthor = isTrainerRequest
         ? (assign.cleanTrainer && assign.cleanTrainer !== 'Unassigned' ? assign.cleanTrainer : actingAdmin)
         : (actingAdmin || assign.cleanTrainer || 'Admin');
+      const effectiveAuthor = assignAuthor || access.actor.name;
 
       // Remove any existing assignment record for this trainee
       await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .delete()
         .eq('metric_group', 'trainee_trainer_assignment')
         .eq('source_table', sourceTable);
 
       // Insert fresh assignment record
       await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .insert({
           metric_group: 'trainee_trainer_assignment',
           source_table: sourceTable,
@@ -177,14 +193,14 @@ export async function POST(req: Request) {
             trainingType: assign.isPst ? 'PST' : 'INHOUSE',
             batchName: assign.cleanBatch,
             accountName: assign.cleanAccount,
-            assignedBy: assignAuthor,
+            assignedBy: effectiveAuthor,
             assignedAt: new Date().toISOString()
           }),
           metric_date: new Date().toISOString().split('T')[0]
         });
 
       // NOTIFY THE ASSIGNED TRAINER IN-APP
-      const notifyDesc = (isTrainerRequest || assignAuthor.toLowerCase() === assign.cleanTrainer.toLowerCase())
+      const notifyDesc = (isTrainerRequest || effectiveAuthor.toLowerCase() === assign.cleanTrainer.toLowerCase())
         ? `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) under Trainer ${assign.cleanTrainer}.`
         : `Trainee ${assign.cleanName} has been enrolled in ${assign.cleanBatch} (${assign.cleanAccount}) and assigned to Trainer ${assign.cleanTrainer}.`;
 
@@ -192,7 +208,7 @@ export async function POST(req: Request) {
         title: `New Trainee Assigned: ${assign.cleanName}`,
         description: notifyDesc,
         iconType: 'user',
-        author: assignAuthor,
+        author: effectiveAuthor,
         actionUrl: '/trainees'
       });
 
@@ -239,13 +255,14 @@ export async function POST(req: Request) {
 
 // PUT: Update existing trainee
 export async function PUT(req: Request) {
+  const access = await authorizeTrainerOrAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const { id, originalName, name, trainingType, batchName, accountName, assignedTrainer, status, isEndorsed, actingAdmin: reqAdmin } = body;
     const targetName = originalName || name;
-    const reqRole = (body.role || body.userRole || '').toUpperCase();
-    const isTrainerRequest = reqRole === 'TRAINER' || body.isTrainer === true;
-    const rawAdmin = (reqAdmin || body.author || body.userName || body.trainerName || '').trim();
+    const isTrainerRequest = access.actor.role === 'TRAINER';
+    const rawAdmin = access.actor.name;
     const cleanAssignedTrainer = (assignedTrainer || '').trim();
     const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
       ? rawAdmin
@@ -258,6 +275,16 @@ export async function PUT(req: Request) {
     const isPst = trainingType === 'PST';
     const targetTable = isPst ? 'product_spec_training' : 'inhouse';
 
+    if (isTrainerRequest) {
+      const currentTrainees = await getTraineesData();
+      const currentRecord = currentTrainees.find((trainee: any) =>
+        String(trainee.name || '').toLowerCase() === String(targetName || '').toLowerCase() &&
+        String(trainee.trainingType || '').toUpperCase().includes(isPst ? 'PST' : 'INHOUSE'));
+      if (!currentRecord || !isTrainerMatch(currentRecord.assignedTrainer, access.actor.name)) {
+        return NextResponse.json({ error: 'Trainers may only update their own assigned trainees.' }, { status: 403 });
+      }
+    }
+
     let payload: any = {};
     if (name) payload.name = name;
     if (status) payload.status = status;
@@ -267,7 +294,7 @@ export async function PUT(req: Request) {
     if (isPst) {
       if (batchName) payload.wave = batchName.replace(/Wave\s*/i, '').replace(/.*-\s*/, '').trim();
       if (accountName) payload.account = accountName;
-      if (assignedTrainer) payload.assigned_trainer = assignedTrainer;
+      if (assignedTrainer || isTrainerRequest) payload.assigned_trainer = isTrainerRequest ? access.actor.name : assignedTrainer;
       if (isNowEndorsed) payload.endorsed_date = new Date().toISOString().split('T')[0];
     } else {
       if (batchName) payload.batch = parseInt(batchName.replace(/General\s*-\s*/i, '')) || 1;
@@ -275,7 +302,7 @@ export async function PUT(req: Request) {
       if (isNowEndorsed) payload.endorsed_date = new Date().toISOString().split('T')[0];
     }
 
-    let query = supabase.from(targetTable).update(payload);
+    let query = supabase.schema('training_system').from(targetTable).update(payload);
     query = query.eq('name', targetName);
 
     const { data, error } = await query.select();
@@ -286,20 +313,20 @@ export async function PUT(req: Request) {
     }
 
     // Persist / update trainee trainer assignment in traffic_light_metrics
-    if (assignedTrainer) {
-      const cleanTrainer = assignedTrainer.trim();
+    if (assignedTrainer || isTrainerRequest) {
+      const cleanTrainer = isTrainerRequest ? access.actor.name : assignedTrainer.trim();
       const cleanTraineeName = (name || targetName).trim();
       const sourceTable = `trainee_assign::${cleanTraineeName.toLowerCase()}`;
 
       await supabase
-        .from('traffic_light_metrics')
+        .schema('training_system').from('traffic_light_metrics')
         .delete()
         .eq('metric_group', 'trainee_trainer_assignment')
         .eq('source_table', sourceTable);
 
       if (cleanTrainer && cleanTrainer !== 'Unassigned') {
         await supabase
-          .from('traffic_light_metrics')
+          .schema('training_system').from('traffic_light_metrics')
           .insert({
             metric_group: 'trainee_trainer_assignment',
             source_table: sourceTable,
@@ -358,6 +385,8 @@ export async function PUT(req: Request) {
 
 // DELETE: Remove trainee
 export async function DELETE(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -386,7 +415,7 @@ export async function DELETE(req: Request) {
     const batchNumber = batch ? parseInt(batch.replace(/[^0-9]/g, ''), 10) : NaN;
     const candidateFields = isPst ? 'name, wave, account' : 'name, batch, acount';
     let candidateQuery = deleteClient
-      .from(targetTable)
+      .schema('training_system').from(targetTable)
       .select(candidateFields)
       .ilike('name', `%${escapedName}%`);
 
@@ -427,7 +456,7 @@ export async function DELETE(req: Request) {
 
     const deletedRows: any[] = [];
     for (const row of uniqueCandidates) {
-      let deleteQuery = deleteClient.from(targetTable).delete().eq('name', row.name);
+      let deleteQuery = deleteClient.schema('training_system').from(targetTable).delete().eq('name', row.name);
       if (row[batchColumn] == null) {
         deleteQuery = deleteQuery.is(batchColumn, null);
       } else {
@@ -456,7 +485,7 @@ export async function DELETE(req: Request) {
 
     // Also remove from assignment records
     await supabase
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .delete()
       .eq('metric_group', 'trainee_trainer_assignment')
       .eq('source_table', `trainee_assign::${cleanName.toLowerCase()}`);

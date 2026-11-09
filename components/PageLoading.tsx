@@ -10,7 +10,7 @@ export default function PageLoading({
   subtitle = 'Getting the latest information ready for you',
 }: PageLoadingProps) {
   return (
-    <div className="fixed inset-0 z-[999] w-screen h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-900 animate-in fade-in duration-150">
+    <div className="min-h-[60vh] w-full flex flex-col items-center justify-center animate-in fade-in duration-150">
       <div className="flex flex-col items-center justify-center space-y-4 text-center">
         <div className="relative">
           <div className="w-14 h-14 rounded-full border-4 border-slate-100 dark:border-slate-800 border-t-[#2F6798] animate-spin shadow-sm" />

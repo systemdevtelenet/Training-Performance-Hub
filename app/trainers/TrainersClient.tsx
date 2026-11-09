@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -46,7 +46,6 @@ import { TrainerFormDrawer } from '@/components/TrainerFormDrawer';
 import { useRole } from '@/components/providers/RoleProvider';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 
-import PageLoading from '@/components/PageLoading';
 
 import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 
@@ -62,8 +61,7 @@ export default function TrainersClient({ initialTrainers = [], initialTrainees =
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = (searchParams?.get('tab') as TrainerTab) || 'directory';
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, startRefresh] = useTransition();
   const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
 
   const getTrainerAvatar = useCallback((t: any) => {
@@ -141,26 +139,9 @@ export default function TrainersClient({ initialTrainers = [], initialTrainees =
     });
   }, [scopedInitialTrainers, role, email, selectedAccount, searchQuery]);
 
-  // Simulate initial data fetching delay
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
-
   const handleRefresh = () => {
-    setIsRefreshing(true);
-    router.refresh();
-    setTimeout(() => setIsRefreshing(false), 800);
+    startRefresh(() => router.refresh());
   };
-
-  if (isLoading) {
-    return (
-      <PageLoading
-        title={activeTab === 'directory' ? "Loading Trainers Directory..." : activeTab === 'calendar' ? "Loading Trainee Calendar Attendance..." : "Loading Attendance & Reliability..."}
-        subtitle={activeTab === 'directory' ? "Retrieving trainer profiles, qualifications, and operational metrics" : activeTab === 'calendar' ? "Retrieving daily trainee rosters, attendance tags, and reason notes" : "Retrieving attendance tracking, leave breakdown, and reliability records"}
-      />
-    );
-  }
 
   if (role === 'EMPLOYEE' && activeTab !== 'directory') {
     return (
@@ -392,7 +373,7 @@ function DirectoryView({ trainers }: { trainers: any[] }) {
     });
   }, [trainersList, searchQuery, statusFilter]);
 
-  const active = trainersList.find(t => t.id === selectedTrainerId) || filteredTrainers[0] || trainersList[0];
+  const active = filteredTrainers.find(t => t.id === selectedTrainerId) || filteredTrainers[0];
 
   const toggleBatch = (batchKey: string) => {
     setExpandedBatches(prev => ({

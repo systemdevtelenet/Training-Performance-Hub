@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, UserRole } from '@/components/providers/RoleProvider';
+import { useNavigationLoading } from '@/components/NavigationLoadingContext';
 
 export interface NavSubItem {
   name: string;
@@ -146,6 +147,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { pendingHref, startNavigation, finishNavigation } = useNavigationLoading();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -184,6 +186,17 @@ export default function Sidebar() {
   };
 
   const isSubItemActive = (subHref: string) => {
+    if (pendingHref) {
+      const [targetPath, targetQuery] = subHref.split('?');
+      const [pendingPath, pendingQuery] = pendingHref.split('?');
+      if (pendingPath !== targetPath) return false;
+      if (!targetQuery) return !pendingQuery;
+      const expected = new URLSearchParams(targetQuery);
+      const actual = new URLSearchParams(pendingQuery || '');
+      let matches = true;
+      expected.forEach((value, key) => { if (actual.get(key) !== value) matches = false; });
+      return matches;
+    }
     if (subHref.includes('?')) {
       const [subPath, subQuery] = subHref.split('?');
       if (pathname !== subPath) return false;
@@ -207,7 +220,14 @@ export default function Sidebar() {
   // Close mobile menu on route changes
   useEffect(() => {
     setIsMobileOpen(false);
+    finishNavigation();
   }, [pathname, searchParams]);
+
+  const beginNavigation = (href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      startNavigation(href);
+    }
+  };
 
   const profile = useMemo(() => {
     const displayName = (userName && userName !== 'N/A') ? userName : (email ? email.split('@')[0].split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : 'User');
@@ -290,9 +310,10 @@ export default function Sidebar() {
               const subList = item.subItems || [];
               const hasSubItems = subList.length > 0;
               const isExpanded = !!expandedMenus[item.href];
+              const activePathname = pendingHref?.split('?')[0] || pathname;
               const isParentActive = item.href.includes('?')
                 ? isSubItemActive(item.href)
-                : pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                : activePathname === item.href || (item.href !== '/' && activePathname.startsWith(item.href));
               
               return (
                 <div key={item.href} className="relative group">
@@ -311,6 +332,7 @@ export default function Sidebar() {
                       >
                         <Link
                           href={item.href}
+                          onClick={(event) => beginNavigation(item.href, event)}
                           prefetch={true}
                           className={cn(
                             "flex-1 flex items-center gap-3 px-3 py-2.5 text-xs font-semibold min-w-0 transition-colors duration-150",
@@ -347,6 +369,7 @@ export default function Sidebar() {
                               <Link
                                 key={idx}
                                 href={sub.href}
+                                onClick={(event) => beginNavigation(sub.href, event)}
                                 prefetch={true}
                                 className={cn(
                                   "group/sub relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs transition-all duration-150",
@@ -367,6 +390,7 @@ export default function Sidebar() {
                     /* Collapsed Icon-Only Link */
                     <Link
                       href={item.href}
+                      onClick={(event) => beginNavigation(item.href, event)}
                       prefetch={true}
                       className={cn(
                         "flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150",
@@ -386,6 +410,7 @@ export default function Sidebar() {
                         {/* Top Header Title Chip - Clickable with Direct Navigation */}
                         <Link
                           href={item.href}
+                          onClick={(event) => beginNavigation(item.href, event)}
                           prefetch={true}
                           className="flex items-center justify-between pb-2 mb-2 border-b border-white/15 hover:bg-white/10 -mx-1 px-2 py-1.5 rounded-xl transition-all cursor-pointer group/hdr"
                           title={`Open ${item.name}`}
@@ -414,6 +439,7 @@ export default function Sidebar() {
                               <Link
                                 key={idx}
                                 href={sub.href}
+                                onClick={(event) => beginNavigation(sub.href, event)}
                                 prefetch={true}
                                 className={cn(
                                   "group/sub relative flex items-start gap-2.5 p-2 rounded-xl transition-all duration-150 cursor-pointer",
@@ -671,7 +697,8 @@ export default function Sidebar() {
                 const subList = item.subItems || [];
                 const hasSubItems = subList.length > 0;
                 const isExpanded = !!expandedMenus[item.href];
-                const isParentActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                const activePathname = pendingHref?.split('?')[0] || pathname;
+                const isParentActive = activePathname === item.href || (item.href !== '/' && activePathname.startsWith(item.href));
 
                 return (
                   <div key={item.href} className="space-y-1">
@@ -687,7 +714,7 @@ export default function Sidebar() {
                     >
                       <Link
                         href={item.href}
-                        onClick={() => setIsMobileOpen(false)}
+                        onClick={(event) => { setIsMobileOpen(false); beginNavigation(item.href, event); }}
                         className={cn(
                           "flex-1 flex items-center gap-3 px-3 py-2.5 text-xs font-semibold",
                           !hasSubItems ? "rounded-xl" : "rounded-l-xl"
@@ -723,7 +750,7 @@ export default function Sidebar() {
                             <Link
                               key={idx}
                               href={sub.href}
-                              onClick={() => setIsMobileOpen(false)}
+                              onClick={(event) => { setIsMobileOpen(false); beginNavigation(sub.href, event); }}
                               className={cn(
                                 "flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs transition-all",
                                 isSubActive

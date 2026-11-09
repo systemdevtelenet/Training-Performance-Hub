@@ -1,5 +1,6 @@
 import TrafficLightsClient from './TrafficLightsClient';
 import { getAvailableTrafficLightAccounts } from '@/lib/actions/traffic-lights';
+import { APP_PAGE_ROLES, requirePageRole } from '@/lib/auth/access';
 
 export const metadata = {
   title: 'Traffic Lights - Training Performance Hub',
@@ -9,6 +10,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function TrafficLightsPage() {
+  await requirePageRole(APP_PAGE_ROLES);
   const dynamicAccounts = await getAvailableTrafficLightAccounts();
 
   return (

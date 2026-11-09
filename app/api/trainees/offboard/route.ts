@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { authorizeAdminRequest, authorizeManagementReadRequest, authorizeTrainerOrAdminRequest } from '@/lib/auth/access';
+import { getTraineesData } from '@/lib/data-fetcher';
+import { isTrainerMatch } from '@/lib/analytics-utils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -9,9 +12,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // GET: List all pending offboarding requests for Admins
 export async function GET() {
+  const access = await authorizeManagementReadRequest();
+  if (!access.ok) return access.response;
   try {
     const { data, error } = await supabase
-      .from('traffic_light_metrics')
+      .schema('training_system').from('traffic_light_metrics')
       .select('*')
       .ilike('source_table', 'offboard_pending::%')
       .order('metric_date', { ascending: false });
@@ -54,6 +59,8 @@ export async function GET() {
 
 // POST: Submit offboarding request (Trainer) or execute immediate offboarding (Admin)
 export async function POST(req: Request) {
+  const access = await authorizeTrainerOrAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const {
@@ -66,9 +73,8 @@ export async function POST(req: Request) {
       departureDate,
       reasonCategory,
       remarks,
-      isTrainerRequest,
-      author
     } = body;
+    const isTrainerRequest = access.actor.role === 'TRAINER';
 
     if (!traineeName || !traineeName.trim()) {
       return NextResponse.json({ error: 'Trainee name is required' }, { status: 400 });
@@ -80,7 +86,19 @@ export async function POST(req: Request) {
     const targetTable = isPst ? 'product_spec_training' : 'inhouse';
     const todayStr = new Date().toISOString().split('T')[0];
     const cleanDeparture = departureDate || todayStr;
-    const trainerName = assignedTrainer && assignedTrainer !== 'Unassigned' ? assignedTrainer : (author || 'Trainer');
+    const trainerName = isTrainerRequest
+      ? access.actor.name
+      : assignedTrainer && assignedTrainer !== 'Unassigned' ? assignedTrainer : access.actor.name;
+
+    if (isTrainerRequest) {
+      const trainees = await getTraineesData();
+      const trainee = trainees.find((item: any) =>
+        String(item.name || '').toLowerCase() === cleanName.toLowerCase() &&
+        String(item.trainingType || '').toUpperCase().includes(isPst ? 'PST' : 'INHOUSE'));
+      if (!trainee || !isTrainerMatch(trainee.assignedTrainer, access.actor.name)) {
+        return NextResponse.json({ error: 'Trainers may only request offboarding for their own assigned trainees.' }, { status: 403 });
+      }
+    }
 
     // 1. IF REQUESTED BY TRAINER: Route for Admin Approval
     if (isTrainerRequest) {
@@ -100,10 +118,10 @@ export async function POST(req: Request) {
       };
 
       // 1. Delete any existing pending request for this trainee
-      await supabase.from('traffic_light_metrics').delete().eq('source_table', sourceKey);
+      await supabase.schema('training_system').from('traffic_light_metrics').delete().eq('source_table', sourceKey);
 
       // 2. Insert new pending request record
-      const { error: reqError } = await supabase.from('traffic_light_metrics').insert({
+      const { error: reqError } = await supabase.schema('training_system').from('traffic_light_metrics').insert({
         source_table: sourceKey,
         metric_group: 'offboard_pending',
         metric_date: cleanDeparture,
@@ -143,7 +161,7 @@ export async function POST(req: Request) {
       status: cleanStatus
     };
 
-    let updateQuery = supabase.from(targetTable).update(updatePayload).eq('name', cleanName);
+    let updateQuery = supabase.schema('training_system').from(targetTable).update(updatePayload).eq('name', cleanName);
 
     if (isPst && batchName) {
       const cleanWave = parseInt(`${batchName}`.replace(/[^0-9]/g, ''), 10);
@@ -160,7 +178,7 @@ export async function POST(req: Request) {
 
     // Clean up any pending request from traffic_light_metrics
     const pendingKey = `offboard_pending::${cleanName.toLowerCase().replace(/\s+/g, '_')}`;
-    await supabase.from('traffic_light_metrics').delete().eq('source_table', pendingKey);
+    await supabase.schema('training_system').from('traffic_light_metrics').delete().eq('source_table', pendingKey);
 
     // Update traffic_light_metrics offboard status
     try {
@@ -174,8 +192,8 @@ export async function POST(req: Request) {
       const currentQuarter = `Q${Math.floor(new Date().getMonth() / 3) + 1} ${currentYear}`;
       const sourceKey = `${accountGroup}::${currentQuarter.toLowerCase().replace(' ', '')}::${cleanName}::offboard_status`;
 
-      await supabase.from('traffic_light_metrics').delete().eq('source_table', sourceKey);
-      await supabase.from('traffic_light_metrics').insert({
+      await supabase.schema('training_system').from('traffic_light_metrics').delete().eq('source_table', sourceKey);
+      await supabase.schema('training_system').from('traffic_light_metrics').insert({
         source_table: sourceKey,
         metric_group: accountGroup,
         metric_date: cleanDeparture,
@@ -187,7 +205,7 @@ export async function POST(req: Request) {
     }
 
     // Log Activity by Admin
-    const adminAuthor = (author && author !== 'Training Team') ? author : 'Nissi';
+    const adminAuthor = access.actor.name;
     await logActivity({
       title: `Trainee Offboarded: ${cleanName}`,
       description: `Offboarded as ${cleanStatus} (${reasonCategory || 'Standard separation'}). Effective: ${cleanDeparture}.`,
@@ -224,13 +242,12 @@ export async function POST(req: Request) {
 
 // PUT: Admin Approves or Declines a pending offboarding request
 export async function PUT(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
-    const { action, traineeName, adminName, requestData } = body;
-    const rawAdmin = (adminName || body.author || body.userName || '').trim();
-    const actingAdmin = rawAdmin && rawAdmin !== 'Admin' && rawAdmin !== 'System'
-      ? rawAdmin
-      : 'Admin';
+    const { action, traineeName, requestData } = body;
+    const actingAdmin = access.actor.name;
 
     if (!traineeName) {
       return NextResponse.json({ error: 'Trainee name is required' }, { status: 400 });
@@ -242,7 +259,7 @@ export async function PUT(req: Request) {
     const requestedTrainer = dataToApply.requestedBy || dataToApply.assignedTrainer || 'Trainer';
 
     if (action === 'decline') {
-      await supabase.from('traffic_light_metrics').delete().eq('source_table', pendingKey);
+      await supabase.schema('training_system').from('traffic_light_metrics').delete().eq('source_table', pendingKey);
 
       await logActivity({
         title: `Offboarding Declined: ${cleanName}`,
@@ -267,7 +284,7 @@ export async function PUT(req: Request) {
 
     // 1. Update Trainee Table
     const updatePayload: any = { status: cleanStatus };
-    let updateQuery = supabase.from(targetTable).update(updatePayload).eq('name', cleanName);
+    let updateQuery = supabase.schema('training_system').from(targetTable).update(updatePayload).eq('name', cleanName);
     if (isPst && dataToApply.batchName) {
       const cleanWave = parseInt(`${dataToApply.batchName}`.replace(/[^0-9]/g, ''), 10);
       if (!isNaN(cleanWave)) updateQuery = updateQuery.eq('wave', cleanWave);
@@ -275,7 +292,7 @@ export async function PUT(req: Request) {
     await updateQuery;
 
     // 2. Remove pending request
-    await supabase.from('traffic_light_metrics').delete().eq('source_table', pendingKey);
+    await supabase.schema('training_system').from('traffic_light_metrics').delete().eq('source_table', pendingKey);
 
     // 3. Log Activity notifying trainer and team
     await logActivity({

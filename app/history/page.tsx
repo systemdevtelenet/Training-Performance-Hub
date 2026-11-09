@@ -258,7 +258,7 @@ export default function HistoryPage() {
     // Supabase Realtime subscription for live activity updates
     const channel = supabase
       .channel('history_realtime_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'training_system', table: 'notifications' }, () => {
         fetchLogs();
       })
       .subscribe();

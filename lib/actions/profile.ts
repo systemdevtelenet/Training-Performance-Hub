@@ -1,6 +1,8 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { getRequestActor } from '@/lib/auth/access';
+import { getTraineeTrainerAssignmentMap } from '@/lib/data-fetcher';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -31,63 +33,20 @@ export interface UserProfileResponse {
 
 export async function fetchUserProfile(userEmail: string): Promise<UserProfileResponse> {
   try {
-    if (!userEmail) throw new Error('No user email provided');
-    const cleanEmail = userEmail.trim().toLowerCase();
-
-    // 1. Fetch role from user_roles
-    const { data: roleData } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .ilike('email', cleanEmail)
-      .maybeSingle();
+    const actor = await getRequestActor();
+    if (!actor) throw new Error('Authentication required.');
+    const requestedEmail = (userEmail || '').trim().toLowerCase();
+    if (requestedEmail && requestedEmail !== actor.email) throw new Error('You can only access your own profile.');
+    const cleanEmail = actor.email;
 
     // Employees is the authoritative identity and status source.
     const { data: empData } = await supabaseAdmin
       .from('employees')
-      .select('*')
+      .select('id, employee_code, employee_name, employee_email, role_id, position_id, status_id, hire_date, avatar_url, first_name, middle_name, last_name, suffix, phone, mobile, contact_number, address, home_address')
       .ilike('employee_email', cleanEmail)
       .maybeSingle();
 
-    const { data: positionData } = empData?.position_id
-      ? await supabaseAdmin
-        .from('positions')
-        .select('position_name')
-        .eq('position_id', empData.position_id)
-        .maybeSingle()
-      : { data: null };
-
-    const { data: trainerRow } = empData?.employee_code
-      ? await supabaseAdmin
-        .from('trainers')
-        .select('*')
-        .eq('employee_num', String(empData.employee_code))
-        .maybeSingle()
-      : { data: null };
-
-    // The normalized primary_tasks row is authoritative when it exists.
-    // Falling back keeps profiles usable until the migration is applied.
-    let normalizedPrimaryTask: string | null = null;
-    if (empData?.id) {
-      const { data: primaryTaskData, error: primaryTaskError } = await supabaseAdmin
-        .from('primary_tasks')
-        .select('task_name')
-        .eq('employee_id', empData.id)
-        .maybeSingle();
-
-      if (!primaryTaskError) normalizedPrimaryTask = primaryTaskData?.task_name || null;
-    }
-
-    // 5. Fetch auth user metadata from Supabase Auth
-    let authUserMeta: any = null;
-    try {
-      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-      const matchedAuth = authList?.users?.find(u => u.email?.toLowerCase().trim() === cleanEmail);
-      if (matchedAuth?.user_metadata) {
-        authUserMeta = matchedAuth.user_metadata;
-      }
-    } catch (e) {
-      console.warn('Could not inspect auth metadata:', e);
-    }
+    const authUserMeta: Record<string, any> = { name: actor.name };
 
     // Determine actual full name dynamically from database or auth metadata
     let rawName: string | null = null;
@@ -103,107 +62,49 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       rawName = handle.split(/[\._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     }
 
-    // 5. Fetch trainees tables if user is in trainee records
-    let traineeRow: any = null;
-    try {
-      const { data: ih } = await supabaseAdmin
-        .from('inhouse')
-        .select('*')
-        .or(`email.ilike.${cleanEmail},name.ilike.%${cleanEmail.split('@')[0]}%`)
-        .maybeSingle();
-      if (ih) traineeRow = ih;
-      else {
-        const { data: pst } = await supabaseAdmin
-          .from('product_spec_training')
-          .select('*')
-          .or(`email.ilike.${cleanEmail},name.ilike.%${cleanEmail.split('@')[0]}%`)
-          .maybeSingle();
-        if (pst) traineeRow = pst;
-      }
-    } catch (e) {
-      // ignore
-    }
+    // Display the exact same trusted role used by pages and server actions.
+    // Keeping a second role resolver here caused EMPLOYEE/trainer accounts to
+    // disagree with the server authorization policy.
+    const effRole = actor.role;
 
-    const cleanName = (empData?.employee_name || rawName || '').toLowerCase();
-    const pos = (
-      trainerRow?.position ||
-      empData?.position || 
-      empData?.role_name || 
-      ''
-    ).toUpperCase();
-    const roleId = Number(empData?.role_id || 0);
-
-    // Determine effective role dynamically:
-    let effRole = 'UNAUTHORIZED';
-
-    // 1. Explicit role assigned by admin in user_roles
-    if (roleData?.role) {
-      effRole = ['HOT_ADMIN', 'TRAINER'].includes(roleData.role)
-        ? roleData.role
-        : 'UNAUTHORIZED';
-    }
-    // 2. Head of Training (Ray and Nissi or HOT designation)
-    else if (
-      cleanEmail.includes('nreguero') || 
-      cleanEmail.includes('nissi') || 
-      cleanEmail.includes('ray') || 
-      cleanName.includes('nissi') || 
-      cleanName.includes('ray') || 
-      pos.includes('HOT') || 
-      pos.includes('HEAD OF TRAINING')
-    ) {
-      effRole = 'HOT_ADMIN';
-    }
-    // 3. QA Team belongs to the QA Tool, not the Training Performance Hub.
-    else if (
-      roleId === 9 || 
-      pos.includes('QA') || 
-      pos.includes('QAS') || 
-      pos.includes('QAC') || 
-      pos.includes('QUALITY') || 
-      cleanEmail.includes('qac') || 
-      cleanEmail.includes('qas') ||
-      cleanEmail.includes('qa.') ||
-      cleanEmail.includes('.qa') ||
-      cleanEmail.includes('qa_') ||
-      cleanEmail.startsWith('qa') ||
-      cleanName.includes('qac') ||
-      cleanName.includes('qas') ||
-      cleanName.includes('qa ') ||
-      cleanName.startsWith('qa') ||
-      cleanName.includes('quality assurance')
-    ) {
-      effRole = 'UNAUTHORIZED';
-    }
-    // 4. Admins
-    else if (roleId === 5 || pos.includes('ADMIN') || pos.includes('SUPER ADMIN') || authUserMeta?.role === 'SUPER_ADMIN') {
-      effRole = 'SUPER_ADMIN';
-    }
-    // 5. Trainers in the trainer roster
-    else if (
-      trainerRow || 
-      pos.includes('TRAINER') || 
-      pos.includes('TRAINING SPECIALIST') || 
-      pos.includes('INSTRUCTOR') ||
-      empData?.category === 'TRAINERS' ||
-      empData?.is_primary_trainer
-    ) {
-      effRole = 'TRAINER';
-    }
-    // 6. Trainees
-    else if (traineeRow || pos.includes('TRAINEE')) {
-      effRole = 'TRAINEE';
-    }
-    // 7. Regular employees without authorized roles
-    else {
-      effRole = 'UNAUTHORIZED';
-    }
+    // These reads depend only on the employee row/name. Run them together so
+    // optional profile data doesn't add one network round trip after another.
+    const [positionResult, primaryTaskResult, traineeAssignmentResult, employeeAssignmentsResult, accountsResult] = await Promise.all([
+      empData?.position_id
+        ? supabaseAdmin.from('positions').select('position_name').eq('position_id', empData.position_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      empData?.id
+        ? supabaseAdmin.schema('training_system').from('primary_tasks').select('task_name').eq('employee_id', empData.id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      rawName
+        ? getTraineeTrainerAssignmentMap().then((assignments) => ({
+            data: { assignedTrainer: assignments.get(rawName.toLowerCase()) || null },
+            error: null,
+          }))
+        : Promise.resolve({ data: null, error: null }),
+      empData?.id
+        ? supabaseAdmin.from('employee_assignments').select('account_id').eq('employee_id', empData.id)
+        : Promise.resolve({ data: null, error: null }),
+      supabaseAdmin.from('accounts').select('account_id, account_name, account_code'),
+    ]);
+    const positionData = positionResult.data;
+    const normalizedPrimaryTask = primaryTaskResult.error ? null : primaryTaskResult.data?.task_name || null;
+    const assignedTrainer = traineeAssignmentResult.data?.assignedTrainer || null;
+    const accountNamesById = new Map<number, string>(
+      (accountsResult.data || []).map((account: any) => [
+        Number(account.account_id),
+        String(account.account_name || account.account_code || ''),
+      ]),
+    );
+    const employeeAccounts = Array.from(new Set(
+      (employeeAssignmentsResult.data || [])
+        .map((assignment: any) => accountNamesById.get(Number(assignment.account_id)))
+        .filter((name): name is string => Boolean(name)),
+    ));
 
     // Dynamic position title from database or role title
     const resolvedPosition = (
       (positionData?.position_name && positionData.position_name !== 'N/A') ? positionData.position_name :
-      (trainerRow?.position && trainerRow.position !== 'N/A') ? trainerRow.position :
-      (empData?.position && empData.position !== 'N/A') ? empData.position :
       (authUserMeta?.position && authUserMeta.position !== 'N/A') ? authUserMeta.position :
       (effRole === 'HOT_ADMIN' ? 'Head of Training' :
        effRole === 'SUPER_ADMIN' ? 'Super Admin' :
@@ -216,7 +117,6 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
 
     const resolvedPrimaryTask = (
       normalizedPrimaryTask ||
-      ((trainerRow?.assigned_task && trainerRow.assigned_task !== 'N/A') ? trainerRow.assigned_task : null) ||
       'N/A'
     );
 
@@ -246,20 +146,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       effRole === 'UNAUTHORIZED' ? 'Unauthorized' : 'Employee'
     );
 
-    // 5. If trainee, find assigned trainer
-    let assignedTrainer: string | null = null;
-    if (rawName) {
-      const { data: ih } = await supabaseAdmin
-        .from('inhouse')
-        .select('assignedTrainer, trainer')
-        .ilike('name', `%${rawName}%`)
-        .limit(1)
-        .maybeSingle();
-
-      assignedTrainer = ih?.assignedTrainer || ih?.trainer || null;
-    }
-
-    const avatarUrl = empData?.avatar_url || trainerRow?.profile_pic || null;
+    const avatarUrl = empData?.avatar_url || null;
 
     return {
       success: true,
@@ -269,9 +156,9 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
       avatarUrl,
       assignedTrainer,
       userMeta: {
-        employeeId: String(empData?.employee_code || trainerRow?.employee_num || (cleanEmail.includes('ralasagas') ? '1008' : 'N/A')),
-        startDate: String(empData?.hire_date || trainerRow?.start_date || 'N/A'),
-        accounts: String((Array.isArray(trainerRow?.accounts) ? trainerRow.accounts.join(', ') : trainerRow?.accounts) || 'N/A'),
+        employeeId: String(empData?.employee_code || 'N/A'),
+        startDate: String(empData?.hire_date || 'N/A'),
+        accounts: employeeAccounts.join(', ') || 'N/A',
         position: resolvedPosition,
         primaryTask: resolvedPrimaryTask,
         firstName: fName || 'User',

@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { requireActionRole } from '@/lib/auth/access';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -16,6 +17,7 @@ interface EmailPayload {
 
 export async function sendEmailNotification({ toEmail, subject, title, description, author }: EmailPayload) {
   try {
+    await requireActionRole(['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN']);
     const recipient = toEmail || process.env.NOTIFICATION_EMAIL || 'nreguero.telenet@gmail.com';
     
     // In Next.js server actions, if SMTP / Resend API key is configured in process.env, send live HTTP request to email provider
@@ -37,10 +39,10 @@ export async function sendEmailNotification({ toEmail, subject, title, descripti
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; background: #ffffff;">
               <h2 style="color: #2F6798; margin-top: 0;">Training Performance Hub Alert</h2>
               <div style="background: #f8fafc; border-left: 4px solid #2F6798; padding: 16px; margin: 16px 0; border-radius: 8px;">
-                <h3 style="margin: 0 0 8px 0; color: #0f172a;">${title}</h3>
-                <p style="margin: 0; color: #334155; font-size: 14px; line-height: 1.5;">${description}</p>
+                <h3 style="margin: 0 0 8px 0; color: #0f172a;">${escapeHtml(title)}</h3>
+                <p style="margin: 0; color: #334155; font-size: 14px; line-height: 1.5;">${escapeHtml(description)}</p>
               </div>
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Action logged by: <strong>${author || 'System Admin'}</strong></p>
+              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Action logged by: <strong>${escapeHtml(author || 'System Admin')}</strong></p>
             </div>
           `
         })
@@ -60,4 +62,10 @@ export async function sendEmailNotification({ toEmail, subject, title, descripti
     console.error('Error sending email notification:', error);
     return { success: false, error: error.message };
   }
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[character] || character));
 }

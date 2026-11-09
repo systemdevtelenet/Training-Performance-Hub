@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { APP_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   try {
@@ -21,19 +22,24 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 
 export async function uploadAvatar(formData: FormData): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    const actor = await requireActionRole(APP_PAGE_ROLES);
     const file = formData.get('file') as File | null;
-    const employeeId = (formData.get('employeeId') as string) || '1597';
-    const email = (formData.get('email') as string) || '';
-    const name = (formData.get('name') as string) || '';
+    const employeeId = actor.employeeCode;
+    const email = actor.email;
+
+    if (!employeeId) return { success: false, error: 'Your profile is not linked to an employee record.' };
 
     if (!file) {
       return { success: false, error: 'No image file provided' };
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      return { success: false, error: 'Choose a PNG, JPEG, or WebP image smaller than 5 MB.' };
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const sanitizedId = employeeId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const ext = file.name ? file.name.split('.').pop() || 'png' : 'png';
+    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
     const fileName = `avatar-${sanitizedId}-${Date.now()}.${ext}`;
 
     const { data, error } = await supabase.storage
@@ -59,12 +65,6 @@ export async function uploadAvatar(formData: FormData): Promise<{ success: boole
       if (email) {
         await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_email', email);
       }
-      if (employeeId) {
-        await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_code', employeeId);
-      }
-      if (name) {
-        await supabase.from('employees').update({ avatar_url: publicUrl }).eq('employee_name', name);
-      }
     } catch (syncErr) {
       console.warn('Could not sync avatar to database records:', syncErr);
     }
@@ -76,24 +76,27 @@ export async function uploadAvatar(formData: FormData): Promise<{ success: boole
   }
 }
 
-export async function deleteAvatar(avatarUrl: string, employeeId?: string, email?: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteAvatar(avatarUrl: string, _employeeId?: string, email?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requireActionRole(APP_PAGE_ROLES);
+    const ownEmployeeId = actor.employeeCode;
+    if (!ownEmployeeId || (email && email.trim().toLowerCase() !== actor.email)) {
+      return { success: false, error: 'You can only remove your own profile photo.' };
+    }
     if (avatarUrl) {
-      const parts = avatarUrl.split('/avatar/');
-      if (parts.length > 1) {
-        const fileName = parts[1].split('?')[0];
+      const parsedUrl = new URL(avatarUrl);
+      const bucketPrefix = '/storage/v1/object/public/avatar/';
+      const fileName = parsedUrl.pathname.includes(bucketPrefix)
+        ? decodeURIComponent(parsedUrl.pathname.split(bucketPrefix)[1] || '')
+        : '';
+      if (fileName && fileName.startsWith(`avatar-${ownEmployeeId}-`)) {
         await supabase.storage.from('avatar').remove([fileName]);
       }
     }
 
     // Clear avatar from database records
     try {
-      if (email) {
-        await supabase.from('employees').update({ avatar_url: null }).eq('employee_email', email);
-      }
-      if (employeeId) {
-        await supabase.from('employees').update({ avatar_url: null }).eq('employee_code', employeeId);
-      }
+      await supabase.from('employees').update({ avatar_url: null }).eq('employee_email', actor.email);
     } catch (clearErr) {
       console.warn('Could not clear avatar from database records:', clearErr);
     }

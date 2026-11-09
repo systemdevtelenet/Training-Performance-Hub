@@ -2,15 +2,19 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
+import { authorizeAdminRequest } from '@/lib/auth/access';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
-    const { batchName, accountName, trainingType, newTrainer, authorName } = body;
+    const { batchName, accountName, trainingType, newTrainer } = body;
+    const authorName = access.actor.name;
 
     if (!newTrainer) {
       return NextResponse.json({ error: 'New trainer name is required' }, { status: 400 });
@@ -25,7 +29,7 @@ export async function POST(req: Request) {
 
     // 1. Update in product_spec_training if applicable
     if (!trainingType || trainingType.toUpperCase().includes('PST') || trainingType.toUpperCase().includes('PRODUCT')) {
-      let query = supabase.from('product_spec_training').update({ assigned_trainer: cleanTrainer });
+      let query = supabase.schema('training_system').from('product_spec_training').update({ assigned_trainer: cleanTrainer });
       
       if (accountName && accountName !== 'All') {
         query = query.ilike('account', `%${accountName.trim()}%`);
@@ -48,7 +52,7 @@ export async function POST(req: Request) {
 
     // 2. Update in inhouse if applicable
     if (!trainingType || trainingType.toUpperCase().includes('INHOUSE') || trainingType.toUpperCase().includes('DEPT 1')) {
-      let query = supabase.from('inhouse').update({ assigned_trainer: cleanTrainer });
+      let query = supabase.schema('training_system').from('inhouse').update({ assigned_trainer: cleanTrainer });
       
       if (accountName && accountName !== 'All' && accountName !== 'General') {
         query = query.or(`account.ilike.%${accountName.trim()}%,acount.ilike.%${accountName.trim()}%`);

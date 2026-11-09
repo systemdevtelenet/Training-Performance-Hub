@@ -13,12 +13,7 @@ async function inspect() {
   if (errTp) console.error(errTp);
   else console.log(JSON.stringify(tp, null, 2));
 
-  console.log('=== TRAINERS ===');
-  const { data: tr, error: errTr } = await supabase.from('trainers').select('*');
-  if (errTr) console.error(errTr);
-  else console.log(JSON.stringify(tr, null, 2));
-
-  console.log('=== EMPLOYEES ===');
+  console.log('=== EMPLOYEES (trainer records are identified by employee roles/positions) ===');
   const { data: emp, error: errEmp } = await supabase.from('employees').select('*').limit(3);
   if (errEmp) console.error(errEmp);
   else console.log(JSON.stringify(emp, null, 2));

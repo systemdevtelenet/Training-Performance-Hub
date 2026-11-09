@@ -14,6 +14,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
 });
 
 import { sendEmailNotification } from './email-notifier';
+import { APP_PAGE_ROLES, ADMIN_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
 
 type IconType = 'alert' | 'export' | 'user' | 'success' | 'system' | 'trainer' | 'remark' | 'attendance' | 'traffic' | 'login' | 'activity';
 
@@ -99,7 +100,7 @@ function isTrainingLog(row: any): boolean {
 async function pruneOldLogs() {
   try {
     const { data: allNotifs } = await supabaseAdmin
-      .from('notifications')
+      .schema('training_system').from('notifications')
       .select('notification_id, title, action_url, description, created_at')
       .order('created_at', { ascending: false });
 
@@ -109,7 +110,7 @@ async function pruneOldLogs() {
       const excessIds = trainingNotifs.slice(50).map(r => r.notification_id);
       if (excessIds.length > 0) {
         await supabaseAdmin
-          .from('notifications')
+          .schema('training_system').from('notifications')
           .delete()
           .in('notification_id', excessIds);
       }
@@ -121,9 +122,8 @@ async function pruneOldLogs() {
 
 export async function logActivity({ title, description, iconType, author, actionUrl, sendEmail, toEmail }: LogPayload) {
   try {
-    const authorStr = author && author !== 'Admin' && author !== 'System' && author !== 'Authorized Manager' && author !== 'Authorized User'
-      ? author
-      : 'Admin';
+    const actor = await requireActionRole(APP_PAGE_ROLES);
+    const authorStr = actor.name;
     const computedActionUrl = actionUrl || (title.toLowerCase().includes('traffic') ? '/traffic-lights' : '/trainers?tab=calendar');
 
     // Dynamically resolve all Admin recipient employee IDs without hardcoding
@@ -175,7 +175,7 @@ export async function logActivity({ title, description, iconType, author, action
     if (recipientIds.length === 0) {
       try {
         const { data: fallbackNotif } = await supabaseAdmin
-          .from('notifications')
+          .schema('training_system').from('notifications')
           .select('recipient_employee_id')
           .not('recipient_employee_id', 'is', null)
           .order('created_at', { ascending: false })
@@ -209,7 +209,7 @@ export async function logActivity({ title, description, iconType, author, action
       }));
 
       try {
-        const { error: notifError } = await supabaseAdmin.from('notifications').insert(notifRows);
+        const { error: notifError } = await supabaseAdmin.schema('training_system').from('notifications').insert(notifRows);
         if (notifError) console.warn('Notification log insert warning:', notifError.message);
       } catch (e: any) {
         console.warn('Notification log error:', e.message);
@@ -218,7 +218,7 @@ export async function logActivity({ title, description, iconType, author, action
 
     // 2. Also insert into activity_logs table for realtime event subscribers and history log
     try {
-      await supabaseAdmin.from('activity_logs').insert([
+      await supabaseAdmin.schema('training_system').from('activity_logs').insert([
         {
           title,
           description: finalDescription,
@@ -234,7 +234,7 @@ export async function logActivity({ title, description, iconType, author, action
     await pruneOldLogs();
 
     // 4. Automatically send email notification if alert or explicitly requested
-    if (sendEmail || iconType === 'alert') {
+    if ((sendEmail || iconType === 'alert') && ADMIN_PAGE_ROLES.includes(actor.role)) {
       try {
         await sendEmailNotification({
           toEmail,
@@ -257,12 +257,13 @@ export async function logActivity({ title, description, iconType, author, action
 
 export async function getActivityLogs(limit = 10) {
   try {
+    const actor = await requireActionRole(APP_PAGE_ROLES);
     // 1. Auto-prune database logs beyond 10 items
     await pruneOldLogs();
 
     // 2. Fetch latest notifications
     const { data, error } = await supabaseAdmin
-      .from('notifications')
+      .schema('training_system').from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
@@ -273,7 +274,20 @@ export async function getActivityLogs(limit = 10) {
     }
 
     // 3. Strictly filter to Training Performance Hub activities only (never QA evaluations/logs)
-    const trainingLogs = (data || []).filter(isTrainingLog).slice(0, Math.min(limit, 50));
+    const availableLogs = (data || []).filter(isTrainingLog);
+    const isAdmin = ADMIN_PAGE_ROLES.includes(actor.role);
+    const visibleLogs = isAdmin ? availableLogs : availableLogs.filter((item: any) => {
+      const title = String(item.title || '').toLowerCase();
+      const description = String(item.description || '').toLowerCase();
+      const author = String(item.author || '').toLowerCase();
+      if (title.includes('login') || description.includes('logged into')) {
+        return description.includes(actor.email) || author.includes(actor.email);
+      }
+      return author.includes(actor.name.toLowerCase()) ||
+        description.includes(actor.name.toLowerCase()) ||
+        description.includes(actor.email);
+    });
+    const trainingLogs = visibleLogs.slice(0, Math.min(limit, 50));
 
     return { data: trainingLogs, error: null };
   } catch (e: any) {

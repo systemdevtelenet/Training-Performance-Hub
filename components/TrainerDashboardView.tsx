@@ -28,14 +28,12 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
-import { createClient } from '@/utils/supabase/client';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { isTrainerMatch, MONTH_ORDER } from '@/lib/analytics-utils';
-import { getTrainerTraineeNames } from '@/lib/actions/traffic-lights';
+import { getTrainerDashboardReliability, getTrainerDashboardTrafficLights } from '@/lib/actions/traffic-lights';
 
 export function TrainerDashboardView({ initialData }: { initialData: any }) {
   const { userName, email, userMeta } = useRole();
-  const supabase = createClient();
 
   const [selectedQuarter, setSelectedQuarter] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
@@ -43,7 +41,7 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
   const [rosterPage, setRosterPage] = useState<number>(1);
   const [rosterPageSize, setRosterPageSize] = useState<number>(10);
   
-  // Real-time live trainee list synced from Supabase
+  // Refresh the server-scoped trainee list every 15 seconds.
   const [liveTraineesList, setLiveTraineesList] = useState<any[] | null>(null);
 
   const fetchLiveTrainees = useCallback(async () => {
@@ -60,24 +58,9 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
 
   useEffect(() => {
     fetchLiveTrainees();
-
-    const channel = supabase
-      .channel('trainer_dashboard_realtime_trainees')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inhouse' }, () => {
-        fetchLiveTrainees();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_spec_training' }, () => {
-        fetchLiveTrainees();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, () => {
-        fetchLiveTrainees();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchLiveTrainees, supabase]);
+    const interval = setInterval(fetchLiveTrainees, 15000);
+    return () => clearInterval(interval);
+  }, [fetchLiveTrainees]);
 
   // Trainer's own reliability data
   const [trainerReliability, setTrainerReliability] = useState<{
@@ -226,30 +209,13 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
   useEffect(() => {
     async function fetchTrainerAttendance() {
       try {
-        const cleanName = (userName || email?.split('@')[0] || '').trim();
-        const { data } = await supabase
-          .from('trainer_attendance_strat')
-          .select('*')
-          .ilike('name', `%${cleanName}%`);
-
-        if (data && data.length > 0) {
-          let p = 0;
-          let a = 0;
-          data.forEach((row: any) => {
-            const val = (row.status || row.attendance_status || '').toUpperCase().trim();
-            if (val === 'P' || val === 'PRESENT' || val === 'ON TIME') p++;
-            else if (val === 'A' || val === 'ABSENT' || val === 'SL' || val === 'VL') a++;
-            else p++; // Default standard attendance log
-          });
-          const total = p + a;
-          const rateNum = total > 0 ? (p / total) * 100 : 100;
-          const status = rateNum >= 95 ? 'Excellent' : rateNum >= 90 ? 'Good' : rateNum >= 80 ? 'Needs Attention' : 'Critical';
-
+        const result = await getTrainerDashboardReliability();
+        if (result) {
           setTrainerReliability({
-            rate: `${rateNum.toFixed(1)}%`,
-            present: p,
-            absent: a,
-            status
+            rate: `${result.rate.toFixed(1)}%`,
+            present: result.present,
+            absent: result.absent,
+            status: result.status,
           });
         }
       } catch (err) {
@@ -257,39 +223,15 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
       }
     }
     fetchTrainerAttendance();
-  }, [userName, email]);
+  }, []);
 
   // 3. Fetch Traffic Light statuses for trainees in trainer's classes
   useEffect(() => {
     async function fetchTrafficLights() {
       setIsTrafficLoading(true);
       try {
-        const { data } = await supabase
-          .from('traffic_light_metrics')
-          .select('source_table, traffic_status, metric_date, remarks')
-          .neq('metric_group', 'offboard_pending')
-          .order('metric_date', { ascending: true });
-
-        if (data) {
-          const map: Record<string, { status: string; remarks: string; date: string }> = {};
-          data.forEach((row: any) => {
-            let staffName = '';
-            if (row.source_table && row.source_table.includes('::')) {
-              const parts = row.source_table.split('::');
-              if (parts.length >= 3) {
-                staffName = parts[2].trim().toLowerCase();
-              }
-            }
-            if (staffName && row.traffic_status) {
-              map[staffName] = {
-                status: row.traffic_status,
-                remarks: row.remarks || '',
-                date: row.metric_date || ''
-              };
-            }
-          });
-          setTrafficLightsMap(map);
-        }
+        const map = await getTrainerDashboardTrafficLights();
+        if (map) setTrafficLightsMap(map);
       } catch (err) {
         console.error('Error fetching traffic lights:', err);
       } finally {
@@ -298,18 +240,8 @@ export function TrainerDashboardView({ initialData }: { initialData: any }) {
     }
 
     fetchTrafficLights();
-
-    // Subscribe to realtime updates on traffic_light_metrics
-    const channel = supabase
-      .channel('trainer_dashboard_traffic_lights')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'traffic_light_metrics' }, () => {
-        fetchTrafficLights();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(fetchTrafficLights, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Filter trainees by period/month/search

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { AI_FEATURES_ENABLED } from './lib/feature-flags'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -27,30 +28,41 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Verify the cookie JWT locally when possible. Route handlers still resolve
+  // a fresh user record before authorization, so middleware stays a fast
+  // redirect/session-refresh boundary rather than a second Auth round trip.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims
+  const isAuthenticated = !claimsError && Boolean(claims?.sub)
 
   const pathname = request.nextUrl.pathname
 
   const isPublicRoute =
     pathname === '/login' ||
     pathname.startsWith('/login') ||
-    pathname.startsWith('/auth') ||
-    pathname.startsWith('/api') ||
-    pathname.includes('.')
+    pathname.startsWith('/auth')
 
   // If user is not authenticated and trying to access a protected route
-  if (!user && !isPublicRoute) {
+  if (!isAuthenticated && !isPublicRoute) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+    }
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // If user is authenticated and visits the login page
-  if (user && (pathname === '/login' || pathname.startsWith('/login'))) {
+  if (isAuthenticated && (pathname === '/login' || pathname.startsWith('/login'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
+    return NextResponse.redirect(url)
+  }
+
+  // Disabled feature routes redirect before Next renders their server page.
+  if (isAuthenticated && !AI_FEATURES_ENABLED && (pathname === '/ai-insights' || pathname.startsWith('/ai-insights/'))) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/analytics'
     return NextResponse.redirect(url)
   }
 

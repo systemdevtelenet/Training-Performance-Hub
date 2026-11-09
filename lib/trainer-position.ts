@@ -23,6 +23,7 @@ export function isTrainerPosition(position?: EmployeePosition | null): boolean {
 export function isTrainerEmployee(position?: EmployeePosition | null, systemRole?: string | null): boolean {
   const role = String(systemRole || '').trim().toUpperCase();
   if (role.includes('QA') || role.includes('QUALITY')) return false;
+  if (role.includes('TRAINER')) return true;
   return isTrainerPosition(position);
 }
 

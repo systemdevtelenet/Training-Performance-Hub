@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/actions/logger';
 import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition, normalizePositionCode } from '@/lib/trainer-position';
+import { authorizeAdminRequest, authorizeManagementReadRequest } from '@/lib/auth/access';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -10,29 +11,32 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // GET: Fetch trainers and available accounts for form options
 export async function GET() {
+  const access = await authorizeManagementReadRequest();
+  if (!access.ok) return access.response;
   try {
-    const { data: trainerRows, error: trainerError } = await supabase
-      .from('trainers')
-      .select('*');
-    const { data: employees, error: employeeError } = await supabase
-      .from('employees')
-      .select('id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, avatar_url');
-    const { data: statuses } = await supabase.from('statuses').select('status_id, status_name');
-    const { data: positions } = await supabase.from('positions').select('position_id, position_name, position_code');
-    const { data: roles } = await supabase.from('roles').select('role_id, role_name');
-    const { data: assignments } = await supabase.from('employee_assignments').select('employee_id, account_id');
+    const [employeeResult, statusResult, positionResult, roleResult, assignmentResult, accountResult, inhouseResult, pstResult] = await Promise.all([
+      supabase.from('employees').select('id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, avatar_url'),
+      supabase.from('statuses').select('status_id, status_name'),
+      supabase.from('positions').select('position_id, position_name, position_code'),
+      supabase.from('roles').select('role_id, role_name'),
+      supabase.from('employee_assignments').select('employee_id, account_id'),
+      supabase.from('accounts').select('account_id, account_name, account_code'),
+      supabase.schema('training_system').from('inhouse').select('account, acount'),
+      supabase.schema('training_system').from('product_spec_training').select('account'),
+    ]);
+    const { data: employees, error: employeeError } = employeeResult;
+    const { data: statuses } = statusResult;
+    const { data: positions } = positionResult;
+    const { data: roles } = roleResult;
+    const { data: assignments } = assignmentResult;
 
-    if (trainerError || employeeError) {
-      const message = trainerError?.message || employeeError?.message || 'Unable to fetch trainers.';
-      return NextResponse.json({ success: false, error: message }, { status: 500 });
+    if (employeeError) {
+      return NextResponse.json({ success: false, error: employeeError.message || 'Unable to fetch trainers.' }, { status: 500 });
     }
 
-    const { data: accountsData } = await supabase
-      .from('accounts')
-      .select('account_id, account_name, account_code');
-
-    const { data: inhouseData } = await supabase.from('inhouse').select('account, acount');
-    const { data: pstData } = await supabase.from('product_spec_training').select('account');
+    const { data: accountsData } = accountResult;
+    const { data: inhouseData } = inhouseResult;
+    const { data: pstData } = pstResult;
 
     // Aggregate unique accounts from all sources
     const accountsSet = new Set<string>();
@@ -49,9 +53,6 @@ export async function GET() {
       if (name) accountsSet.add(name);
     });
 
-    const trainerByCode = new Map(
-      (trainerRows || []).map((trainer: any) => [String(trainer.employee_num || '').trim().toLowerCase(), trainer]),
-    );
     const statusById = new Map(
       (statuses || []).map((item: any) => [Number(item.status_id), String(item.status_name || '')]),
     );
@@ -77,7 +78,6 @@ export async function GET() {
     const trainerDirectory = (employees || []).flatMap((employee: any) => {
       const position = positionById.get(Number(employee.position_id));
       if (!isTrainerEmployee(position, roleById.get(Number(employee.role_id)))) return [];
-      const trainer = trainerByCode.get(String(employee.employee_code || '').trim().toLowerCase()) || {};
       return [{
         id: employee.id,
         name: employee.employee_name,
@@ -105,6 +105,8 @@ export async function GET() {
 
 // POST: Add new trainer profile
 export async function POST(req: Request) {
+  const access = await authorizeAdminRequest();
+  if (!access.ok) return access.response;
   try {
     const body = await req.json();
     const {
@@ -132,8 +134,7 @@ export async function POST(req: Request) {
     const cleanStartDate = startDate || today;
     const accountsString = Array.isArray(accounts) ? accounts.join(', ') : (accounts || '');
 
-    // Employees owns trainer identity and status. The trainers table only marks
-    // trainer membership and stores training-specific metadata.
+    // Employee, role, and position records are the trainer source of truth.
     const { data: statusRows } = await supabase.from('statuses').select('status_id, status_name');
     const { data: positionRows } = await supabase.from('positions').select('position_id, position_name, position_code');
     const requestedStatus = String(status || 'ACTIVE').trim().toUpperCase();
@@ -188,32 +189,10 @@ export async function POST(req: Request) {
       employee = data;
     }
 
-    const { data: existingTrainer } = await supabase
-      .from('trainers')
-      .select('trainer_id')
-      .eq('employee_num', cleanCode)
-      .maybeSingle();
-
-    const trainerPayload = {
-      employee_num: cleanCode,
-      position: cleanPosition,
-      status: requestedStatus,
-      start_date: cleanStartDate,
-      profile_pic: profilePic || null,
-      assigned_task: String(assignedTask || '').trim() || null,
-    };
-    const trainerWrite = existingTrainer
-      ? await supabase.from('trainers').update(trainerPayload).eq('trainer_id', existingTrainer.trainer_id).select().single()
-      : await supabase.from('trainers').insert([trainerPayload]).select().single();
-
-    if (trainerWrite.error) {
-      return NextResponse.json({ success: false, error: trainerWrite.error.message }, { status: 500 });
-    }
-
       const cleanAssignedTask = String(assignedTask || '').trim();
       if (employee?.id && cleanAssignedTask && cleanAssignedTask.toLowerCase() !== 'task') {
         const { error: primaryTaskError } = await supabase
-          .from('primary_tasks')
+          .schema('training_system').from('primary_tasks')
           .upsert([{
             employee_id: employee.id,
             task_name: cleanAssignedTask,
@@ -259,7 +238,11 @@ export async function POST(req: Request) {
       success: true,
       message: `Trainer ${cleanName} has been successfully added.`,
       trainer: {
-        ...trainerWrite.data,
+        employee_num: employee.employee_code || cleanCode,
+        position: cleanPosition,
+        start_date: cleanStartDate,
+        profile_pic: profilePic || null,
+        assigned_task: cleanAssignedTask || null,
         id: employee.id,
         name: cleanName,
         email: cleanEmail,

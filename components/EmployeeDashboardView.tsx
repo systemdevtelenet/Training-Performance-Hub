@@ -25,14 +25,13 @@ import {
   Award
 } from 'lucide-react';
 import { useRole } from '@/components/providers/RoleProvider';
-import { createClient } from '@/utils/supabase/client';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { getEmployeeTrafficLightHistory } from '@/lib/actions/traffic-lights';
 
 export function EmployeeDashboardView({ rawData }: { rawData: any }) {
   const { role, actualRole, userName, email, assignedTrainer, userMeta } = useRole();
   const currentRole = role || actualRole;
   const isTrainer = currentRole === 'TRAINER';
-  const supabase = createClient();
   const [trafficStatus, setTrafficStatus] = useState<string>('Okay');
   const [latestDate, setLatestDate] = useState<string>('Current Period');
   const [historyRows, setHistoryRows] = useState<any[]>([]);
@@ -81,35 +80,11 @@ export function EmployeeDashboardView({ rawData }: { rawData: any }) {
   useEffect(() => {
     async function fetchMyStatus() {
       try {
-        const cleanName = (userName || email?.split('@')[0] || '').trim();
-        const { data } = await supabase
-          .from('traffic_lights_rm')
-          .select('*')
-          .ilike('name', `%${cleanName}%`)
-          .limit(1)
-          .maybeSingle();
-
-        if (data) {
-          const nonDateKeys = ['id', 'created_at', 'teams', 'name', 'account', 'position', 'trainer', 'remarks', 'remark', 'notes'];
-          const dateKeys = Object.keys(data).filter(k => !nonDateKeys.includes(k.toLowerCase()));
-          
-          if (dateKeys.length > 0) {
-            const lastKey = dateKeys[dateKeys.length - 1];
-            setLatestDate(lastKey);
-            setTrafficStatus(data[lastKey] || 'Okay');
-
-            const history = dateKeys.map(k => ({
-              period: k,
-              status: data[k] || 'Okay',
-              trainer: data.trainer || data.teams || myRecord?.assignedTrainer || assignedTrainer || 'Training Team',
-              remarks: data.remarks || data.remark || data.notes || 'Weekly evaluation recorded and monitored.'
-            })).reverse();
-            setHistoryRows(history);
-            if (data.remarks || data.remark) {
-              setRemarksText(data.remarks || data.remark);
-            }
-          }
-        }
+        const data = await getEmployeeTrafficLightHistory();
+        setLatestDate(data.latestDate);
+        setTrafficStatus(data.currentStatus);
+        setHistoryRows(data.history);
+        setRemarksText(data.remarks);
       } catch (err) {
         console.error('Error fetching traffic light status:', err);
       } finally {
