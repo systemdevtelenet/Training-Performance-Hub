@@ -4,7 +4,7 @@ Internal dashboard for training batches, attendance, trainee performance, and tr
 
 ## Local development
 
-1. Install Node.js 20 or later.
+1. Install Node.js 22 or later.
 2. Install dependencies and start Next.js:
 
    ```sh
