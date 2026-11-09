@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - refactor-trainingHub
     tags:
       - 'v*'
   workflow_dispatch:
