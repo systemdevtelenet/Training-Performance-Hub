@@ -88,6 +88,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
   const [trainees, setTrainees] = useState<Trainee[]>(scopedInitialTrainees);
   const [headcountRecords, setHeadcountRecords] = useState<Trainee[]>(initialTrainees);
+  const [publicAccounts, setPublicAccounts] = useState<{ account_id: number; account_name: string }[]>([]);
+  const [publicTrainers, setPublicTrainers] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/accounts')
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Unable to load accounts')))
+      .then(data => { if (active) setPublicAccounts((data.accounts || []).filter((account: any) => account.account_id != null && account.account_name)); })
+      .catch(error => console.error('Account dropdown load failed:', error));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/trainers')
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Unable to load trainers')))
+      .then(data => { if (active) setPublicTrainers(data.trainers || []); })
+      .catch(error => console.error('Trainer dropdown load failed:', error));
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     setTrainees(scopedInitialTrainees);
@@ -300,25 +320,16 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
 
   // Dynamic filter lists
   const availableAccounts = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(publicAccounts.map(account => account.account_name));
     trainees.forEach(t => {
       if (t.accountName) set.add(t.accountName);
     });
     return ['All', ...Array.from(set).sort()];
-  }, [trainees]);
+  }, [trainees, publicAccounts]);
 
   const availableTrainers = useMemo(() => {
-    const set = new Set<string>([
-      'Mitch', 'TR Niña', 'TR JL', 'HOT NISSI', 'TR Carlo', 'TR Ian', 
-      'TR Joshua', 'TR Kevin', 'TR Princess', 'TR Sarah', 'TR Mark', 'TR Bryan'
-    ]);
-    trainees.forEach(t => {
-      if (t.assignedTrainer && t.assignedTrainer !== 'Unassigned') {
-        set.add(t.assignedTrainer.trim());
-      }
-    });
-    return Array.from(set).sort();
-  }, [trainees]);
+    return Array.from(new Set(publicTrainers)).sort((a, b) => a.localeCompare(b));
+  }, [publicTrainers]);
 
   const ongoingTraineesCount = useMemo(() => {
     return trainees.filter(t => !t.isLoss && !isLossStatus(t.status)).length;
@@ -512,11 +523,26 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
       };
     });
 
-    const clients = Object.values(accountMap).map(c => ({
-      ...c,
-      attr: formatAttr(c.lossCount, c.hc),
-      attRate: formatAtt(c.p || 0, c.a || 0)
-    }));
+    const clients = Object.values(accountMap).map((c: any) => {
+      const batchesMap: Record<string, any> = {};
+      c.members.forEach((trainee: any) => {
+        const batchName = trainee.batchName || 'Unassigned Batch';
+        if (!batchesMap[batchName]) batchesMap[batchName] = {
+          name: batchName, accountName: c.name, trainer: trainee.assignedTrainer || 'Unassigned',
+          hc: 0, lossCount: 0, p: 0, a: 0, members: [],
+        };
+        const batch = batchesMap[batchName];
+        batch.hc++;
+        if (trainee.isLoss || isLossStatus(trainee.status)) batch.lossCount++;
+        batch.p += trainee.p || 0;
+        batch.a += trainee.a || 0;
+        batch.members.push(trainee);
+      });
+      const batches = Object.values(batchesMap).map((batch: any) => ({
+        ...batch, attr: formatAttr(batch.lossCount, batch.hc), attRate: formatAtt(batch.p, batch.a),
+      })).sort((a: any, b: any) => a.name.localeCompare(b.name));
+      return { ...c, batches, attr: formatAttr(c.lossCount, c.hc), attRate: formatAtt(c.p || 0, c.a || 0) };
+    });
 
     const sortByName = (a: any, b: any) => a.name.localeCompare(b.name);
     return {
@@ -1216,17 +1242,17 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
                           <div className="text-center py-8 text-xs font-medium text-slate-400 dark:text-slate-500">No matching client accounts</div>
                         ) : (
                           clientAccounts.map((item, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined, item.attRate)}
-                              className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-3.5 py-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-purple-300 dark:hover:border-purple-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
-                            >
-                              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
-                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                                HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
-                              </span>
-                            </button>
+                            <div key={idx} className="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 p-2.5 space-y-2">
+                              <button type="button" onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined, item.attRate)} className="flex w-full items-center justify-between gap-2 text-left">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate">{item.name}</span>
+                                <span className="text-[11px] font-semibold text-slate-500 shrink-0">HC: <strong>{item.hc}</strong></span>
+                              </button>
+                              <div className="pl-2 border-l-2 border-purple-100 dark:border-purple-900 space-y-1">
+                                {item.batches.map((batch: any) => <button key={batch.name} type="button" onClick={() => openCard(batch, item.name, 'CLIENT ACCOUNTS', item.name, batch.trainer, batch.attRate)} className="block w-full rounded px-2 py-1.5 text-left hover:bg-purple-50 dark:hover:bg-purple-950/30">
+                                  <span className="block text-[11px] font-semibold">{batch.name} · {batch.hc}</span><span className="block text-[10px] text-slate-400 truncate">{batch.members.map((member: any) => member.name).join(', ')}</span>
+                                </button>)}
+                              </div>
+                            </div>
                           ))
                         )}
                       </div>
@@ -1318,17 +1344,14 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {clientAccounts.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 dark:hover:border-amber-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2F6798]/30"
-                    >
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate" title={item.name}>{item.name}</span>
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
-                        HC: <strong className="text-slate-800 dark:text-slate-100">{item.hc}</strong> | Attr: <strong className={item.attr !== '0.0%' ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{item.attr}</strong>
-                      </span>
-                    </button>
+                    <section key={idx} className="rounded-xl border border-slate-200/70 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 p-3.5 space-y-2">
+                      <button type="button" onClick={() => openCard(item, 'SUMMARY', 'CLIENT ACCOUNTS', item.name, undefined)} className="flex w-full items-center justify-between gap-2 text-left">
+                        <span className="text-xs font-bold uppercase truncate">{item.name}</span><span className="text-[11px] text-slate-500">HC: <strong>{item.hc}</strong></span>
+                      </button>
+                      {item.batches.map((batch: any) => <button key={batch.name} type="button" onClick={() => openCard(batch, item.name, 'CLIENT ACCOUNTS', item.name, batch.trainer, batch.attRate)} className="w-full rounded-lg border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-left hover:border-amber-300">
+                        <span className="block text-[11px] font-semibold">{batch.name} · {batch.hc} trainees</span><span className="block text-[10px] text-slate-400 truncate">{batch.members.map((member: any) => member.name).join(', ')}</span>
+                      </button>)}
+                    </section>
                   ))}
                 </div>
               )}
@@ -1620,7 +1643,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
           isOpen={isAddModalOpen}
           mode="add"
           initialData={formData}
-          accounts={availableAccounts}
+          accounts={publicAccounts}
           trainers={isTrainer ? [userName || 'Trainer'] : availableTrainers}
           existingTrainees={trainees}
           onClose={() => setIsAddModalOpen(false)}
@@ -1717,7 +1740,7 @@ export default function TraineesPage({ initialTrainees = [] }: { initialTrainees
             quarter: formData.quarter,
             month: formData.month
           }}
-          accounts={availableAccounts}
+          accounts={publicAccounts}
           trainers={isTrainer ? [userName || 'Trainer'] : availableTrainers}
           existingTrainees={trainees}
           onClose={() => setEditingTrainee(null)}

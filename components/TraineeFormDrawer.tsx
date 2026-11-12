@@ -27,6 +27,9 @@ import { useRole } from '@/components/providers/RoleProvider';
 export interface BulkRowTrainee {
   id: string;
   name: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
   trainingType: 'INHOUSE' | 'PST';
   batchName: string;
   accountName: string;
@@ -48,7 +51,7 @@ interface TraineeFormDrawerProps {
     quarter?: string;
     month?: string;
   };
-  accounts?: string[];
+  accounts?: { account_id: number; account_name: string }[];
   trainers?: string[];
   existingTrainees?: any[];
   onClose: () => void;
@@ -56,17 +59,7 @@ interface TraineeFormDrawerProps {
   isSubmitting: boolean;
 }
 
-const DEFAULT_ACCOUNTS = [
-  'General',
-  'RM',
-  'BF',
-  'DFT',
-  'JS',
-  'FLEXAR',
-  'SPA',
-  'COVA',
-  'FLEET'
-];
+const DEFAULT_ACCOUNTS: string[] = ['GENERAL'];
 
 export function TraineeFormDrawer({
   isOpen,
@@ -92,16 +85,19 @@ export function TraineeFormDrawer({
   // Single Form State
   const [formData, setFormData] = useState(initialData);
   const [singleErrors, setSingleErrors] = useState<Record<string, string>>({});
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   const defaultTrainerAccount = (userMeta?.accounts && userMeta.accounts !== 'N/A' && userMeta.accounts !== 'CORP')
     ? userMeta.accounts.split(/[\/,]/)[0].trim()
-    : (accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'RM');
+    : (accounts.length > 0 ? accounts[0].account_name : 'RM');
 
   // Bulk Form States
   const [bulkDefaults, setBulkDefaults] = useState({
     trainingType: (isTrainer ? 'PST' : 'INHOUSE') as 'INHOUSE' | 'PST',
     batchName: isTrainer ? `${defaultTrainerAccount} -1` : 'General -1',
-    accountName: isTrainer ? defaultTrainerAccount : (accounts.length > 0 && accounts[0] !== 'All' ? accounts[0] : 'General'),
+    accountName: isTrainer ? defaultTrainerAccount : (accounts.length > 0 ? accounts[0].account_name : 'General'),
     assignedTrainer: isTrainer && userName ? userName : 'Unassigned',
     status: 'ACTIVE'
   });
@@ -109,7 +105,7 @@ export function TraineeFormDrawer({
   const [bulkRows, setBulkRows] = useState<BulkRowTrainee[]>([
     {
       id: 'row-1',
-      name: '',
+      name: '', firstName: '', middleName: '', lastName: '',
       trainingType: isTrainer ? 'PST' : 'INHOUSE',
       batchName: isTrainer ? `${defaultTrainerAccount} -1` : 'General -1',
       accountName: isTrainer ? defaultTrainerAccount : 'General',
@@ -124,8 +120,8 @@ export function TraineeFormDrawer({
 
   const accountOptions = useMemo(() => {
     const set = new Set<string>(DEFAULT_ACCOUNTS);
-    accounts.forEach(a => {
-      if (a && a !== 'All') set.add(a);
+    accounts.forEach(account => {
+      if (account.account_name) set.add(account.account_name);
     });
     return Array.from(set).map(a => ({ value: a, label: a }));
   }, [accounts]);
@@ -145,6 +141,10 @@ export function TraineeFormDrawer({
       const accDefault = mode === 'add' && isTrainer ? defaultTrainerAccount : (initialData.accountName || 'General');
       const batchDefault = mode === 'add' && isTrainer ? `${defaultTrainerAccount} -1` : (initialData.batchName || 'General -1');
 
+      const nameParts = (initialData.name || '').trim().split(/\s+/).filter(Boolean);
+      setFirstName(nameParts[0] || '');
+      setLastName(mode === 'edit' && nameParts.length > 1 ? nameParts.pop()! : '');
+      setMiddleName(mode === 'edit' ? nameParts.slice(1).join(' ') : '');
       setFormData({
         ...initialData,
         trainingType: trackDefault,
@@ -165,7 +165,7 @@ export function TraineeFormDrawer({
       setBulkRows([
         {
           id: `row-${Date.now()}-1`,
-          name: '',
+          name: '', firstName: '', middleName: '', lastName: '',
           trainingType: trackDefault,
           batchName: batchDefault,
           accountName: accDefault,
@@ -186,6 +186,24 @@ export function TraineeFormDrawer({
     }, 250);
     return () => window.clearTimeout(timer);
   }, [isOpen, initialData, mode]);
+
+  useEffect(() => {
+    if (accounts.length && formData.accountName.toUpperCase() !== 'GENERAL' && !accounts.some(account => account.account_name === formData.accountName)) {
+      setFormData(current => ({ ...current, accountName: accounts[0].account_name }));
+    }
+  }, [accounts, formData.accountName]);
+
+  const accountIdForName = (name: string) => name.trim().toUpperCase() === 'GENERAL' ? null : accounts.find(account => account.account_name === name)?.account_id;
+
+  useEffect(() => {
+    if (!accounts.length) return;
+    const isValid = (name: string) => name.toUpperCase() === 'GENERAL' || accounts.some(account => account.account_name === name);
+    if (!isValid(bulkDefaults.accountName)) {
+      const fallback = accounts[0].account_name;
+      setBulkDefaults(current => ({ ...current, accountName: fallback }));
+      setBulkRows(rows => rows.map(row => isValid(row.accountName) ? row : { ...row, accountName: fallback }));
+    }
+  }, [accounts, bulkDefaults.accountName]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -221,7 +239,7 @@ export function TraineeFormDrawer({
       ...prev,
       {
         id: `row-${Date.now()}-${prev.length + 1}`,
-        name: '',
+        name: '', firstName: '', middleName: '', lastName: '',
         trainingType: bulkDefaults.trainingType,
         batchName: bulkDefaults.batchName,
         accountName: bulkDefaults.accountName,
@@ -235,7 +253,7 @@ export function TraineeFormDrawer({
     if (bulkRows.length <= 1) {
       setBulkRows([{
         id: `row-${Date.now()}`,
-        name: '',
+        name: '', firstName: '', middleName: '', lastName: '',
         trainingType: bulkDefaults.trainingType,
         batchName: bulkDefaults.batchName,
         accountName: bulkDefaults.accountName,
@@ -281,7 +299,7 @@ export function TraineeFormDrawer({
 
     const newRows: BulkRowTrainee[] = lines.map((name, idx) => ({
       id: `row-paste-${Date.now()}-${idx}`,
-      name,
+      name, firstName: name.split(/\s+/)[0] || '', middleName: '', lastName: name.split(/\s+/).slice(1).join(' '),
       trainingType: bulkDefaults.trainingType,
       batchName: bulkDefaults.batchName,
       accountName: bulkDefaults.accountName,
@@ -290,7 +308,7 @@ export function TraineeFormDrawer({
     }));
 
     setBulkRows(prev => {
-      const existingNonEmpty = prev.filter(r => r.name.trim().length > 0);
+      const existingNonEmpty = prev.filter(r => r.firstName.trim() || r.middleName.trim() || r.lastName.trim());
       return existingNonEmpty.length > 0 ? [...existingNonEmpty, ...newRows] : newRows;
     });
     setBulkPasteText('');
@@ -300,7 +318,8 @@ export function TraineeFormDrawer({
   // Validations
   const validateSingle = () => {
     const newErrors: Record<string, string> = {};
-    const trimmedName = (formData.name || '').trim();
+    const trimmedName = mode === 'add' ? [firstName, middleName, lastName].map(part => part.trim()).filter(Boolean).join(' ') : (formData.name || '').trim();
+    if (mode === 'add' && (!firstName.trim() || !lastName.trim())) newErrors.name = 'First and last name are required.';
     if (!trimmedName) {
       newErrors.name = 'Full name is required.';
     } else {
@@ -328,8 +347,11 @@ export function TraineeFormDrawer({
     }
 
     const trimmedAccount = (formData.accountName || '').trim();
-    if (!trimmedAccount) {
-      newErrors.accountName = 'Client account is required.';
+    if (!trimmedAccount || (trimmedAccount.toUpperCase() !== 'GENERAL' && !accountIdForName(trimmedAccount))) {
+      newErrors.accountName = 'Select a valid client account.';
+    }
+    if (!formData.assignedTrainer || formData.assignedTrainer.toLowerCase() === 'unassigned') {
+      newErrors.assignedTrainer = 'Please select a trainer.';
     }
 
     setSingleErrors(newErrors);
@@ -337,7 +359,7 @@ export function TraineeFormDrawer({
   };
 
   const validateBulk = () => {
-    const validRows = bulkRows.filter(r => r.name && r.name.trim().length > 0);
+    const validRows = bulkRows.filter(r => r.firstName.trim() || r.middleName.trim() || r.lastName.trim());
     if (validRows.length === 0) {
       setBulkErrors('Please enter at least one trainee name.');
       return false;
@@ -345,7 +367,8 @@ export function TraineeFormDrawer({
 
     for (let i = 0; i < validRows.length; i++) {
       const r = validRows[i];
-      const trimmed = r.name.trim();
+      const trimmed = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ').trim();
+      if (!r.firstName.trim() || !r.lastName.trim()) { setBulkErrors(`Row #${i + 1} needs a first and last name.`); return false; }
       const lettersOnly = trimmed.replace(/[^a-zA-Z]/g, '');
       if (lettersOnly.length < 2) {
         setBulkErrors(`Row #${i + 1} ("${trimmed}") must have a valid full name with at least 2 letters.`);
@@ -355,8 +378,12 @@ export function TraineeFormDrawer({
         setBulkErrors(`Row #${i + 1} (${trimmed}) is missing a Batch / Wave name.`);
         return false;
       }
-      if (!r.accountName || !r.accountName.trim()) {
+      if (!r.accountName || (r.accountName.trim().toUpperCase() !== 'GENERAL' && !accountIdForName(r.accountName.trim()))) {
         setBulkErrors(`Row #${i + 1} (${trimmed}) is missing a Client Account.`);
+        return false;
+      }
+      if (!r.assignedTrainer || r.assignedTrainer.toLowerCase() === 'unassigned') {
+        setBulkErrors(`Row #${i + 1} (${trimmed}) needs an assigned trainer.`);
         return false;
       }
     }
@@ -370,17 +397,18 @@ export function TraineeFormDrawer({
 
     if (entryMode === 'single' || isEdit) {
       if (!validateSingle()) return;
-      await onSubmit(formData);
+      await onSubmit(mode === 'add' ? { ...formData, accountId: accountIdForName(formData.accountName), name: [firstName, middleName, lastName].map(part => part.trim()).filter(Boolean).join(' ') } : formData);
     } else {
       if (!validateBulk()) return;
-      const validRows = bulkRows.filter(r => r.name && r.name.trim().length > 0);
+      const validRows = bulkRows.filter(r => r.firstName.trim() || r.middleName.trim() || r.lastName.trim());
       await onSubmit({
         isBulk: true,
         trainees: validRows.map(r => ({
-          name: r.name.trim(),
+          name: [r.firstName, r.middleName, r.lastName].map(part => part.trim()).filter(Boolean).join(' '),
           trainingType: r.trainingType,
           batchName: r.batchName.trim(),
           accountName: r.accountName.trim(),
+          accountId: accountIdForName(r.accountName),
           assignedTrainer: r.assignedTrainer || 'Unassigned',
           status: r.status || 'ACTIVE',
           quarter: 'Q3',
@@ -405,7 +433,7 @@ export function TraineeFormDrawer({
 
   const isSaveDisabled = isSubmitting || (isEdit && !isSingleDirty);
   const isBulkMode = entryMode === 'bulk' && !isEdit;
-  const validBulkCount = bulkRows.filter(r => r.name && r.name.trim().length > 0).length;
+  const validBulkCount = bulkRows.filter(r => r.firstName.trim() || r.middleName.trim() || r.lastName.trim()).length;
 
   return createPortal(
     <div className={`fixed inset-0 z-[9999] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}>
@@ -543,27 +571,20 @@ export function TraineeFormDrawer({
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
-                  {/* Full Name */}
-                  <div className="p-4 bg-white dark:bg-slate-800">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={e => handleSingleFieldChange('name', e.target.value)}
-                      placeholder="e.g. John Doe"
-                      className={`w-full rounded-xl px-4 py-2.5 text-xs font-semibold placeholder:text-slate-400 focus:outline-none transition-all ${
-                        singleErrors.name
-                          ? 'border-2 border-red-500 bg-red-50/20 text-slate-800 focus:ring-2 focus:ring-red-200'
-                          : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798]'
-                      }`}
-                    />
-                    {singleErrors.name && (
-                      <p className="mt-1 text-[11px] font-semibold text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {singleErrors.name}
-                      </p>
-                    )}
+                  {/* Name */}
+                  <div className="p-4 bg-white dark:bg-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {isEdit ? <div className="sm:col-span-3">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Full Name *</label>
+                      <input type="text" value={formData.name} onChange={e => handleSingleFieldChange('name', e.target.value)} placeholder="Full name"
+                        className="w-full rounded-xl px-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798]" />
+                    </div> : ([['firstName', 'First Name *', firstName, setFirstName], ['middleName', 'Middle Name', middleName, setMiddleName], ['lastName', 'Last Name *', lastName, setLastName]] as const).map(([field, label, value, setter]) => (
+                      <div key={field}>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">{label}</label>
+                        <input type="text" value={value} onChange={e => setter(e.target.value)} placeholder={label.replace(' *', '')}
+                          className="w-full rounded-xl px-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798]" />
+                      </div>
+                    ))}
+                    {singleErrors.name && <p className="sm:col-span-3 mt-1 text-[11px] font-semibold text-red-500">{singleErrors.name}</p>}
                   </div>
 
                   {/* Account */}
@@ -789,16 +810,13 @@ export function TraineeFormDrawer({
                       >
                         <div className="flex items-center gap-3 w-full md:w-auto">
                           <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-xs text-[#2F6798] dark:text-[#5a9fd4] shrink-0">
-                            {row.name ? row.name.substring(0, 2).toUpperCase() : `${index + 1}`}
+                            {row.firstName ? row.firstName.substring(0, 1).toUpperCase() : `${index + 1}`}
                           </div>
-                          <div className="flex-1 md:w-48">
-                            <input
-                              type="text"
-                              value={row.name}
-                              onChange={e => handleUpdateBulkRow(index, 'name', e.target.value)}
-                              placeholder="Full Name *"
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798]"
-                            />
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                            {([['firstName', 'First name *'], ['middleName', 'Middle name'], ['lastName', 'Last name *']] as const).map(([field, placeholder]) => (
+                              <input key={field} type="text" value={row[field]} onChange={e => handleUpdateBulkRow(index, field, e.target.value)} placeholder={placeholder}
+                                className="w-full min-w-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#2F6798]" />
+                            ))}
                           </div>
                         </div>
 

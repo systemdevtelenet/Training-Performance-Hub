@@ -755,97 +755,51 @@ export const getTrainersData = async () => {
 
 export const getTraineesData = async () => {
   try {
-    const [inhouseResult, pstResult, employeeProfilesResult, assignmentMap] = await Promise.all([
-      supabaseAdmin.schema('training_system').from('inhouse').select('*').order('name', { ascending: true }),
-      supabaseAdmin.schema('training_system').from('product_spec_training').select('*').order('name', { ascending: true }),
-      supabaseAdmin.from('employees').select('employee_name, avatar_url'),
-      getTraineeTrainerAssignmentMap(),
+    const trainingHub = supabaseAdmin.schema('trainingHub_system');
+    const [traineesResult, assignmentsResult, employeesResult, accountsResult] = await Promise.all([
+      trainingHub.from('trainees').select('*').order('id', { ascending: true }),
+      trainingHub.from('trainer_assignment').select('trainees_id, employee_id, assigned_at, ended_at').is('ended_at', null),
+      supabaseAdmin.from('employees').select('id, employee_name, avatar_url'),
+      supabaseAdmin.from('accounts').select('account_id, account_name'),
     ]);
-    const { data: inhouseData, error: err1 } = inhouseResult;
-    const { data: rawPstData, error: err2 } = pstResult;
-    const { data: employeeProfiles } = employeeProfilesResult;
-    const avatarByName = new Map<string, string>();
-    (employeeProfiles || []).forEach((employee: any) => {
-      const name = String(employee.employee_name || '').trim().toLowerCase();
-      const avatar = String(employee.avatar_url || '').trim();
-      if (name && avatar) avatarByName.set(name, avatar);
-    });
 
-    if (err1) console.error('Error fetching INHOUSE:', err1);
-    if (err2) console.error('Error fetching PST:', err2);
+    const sourceError = traineesResult.error || assignmentsResult.error || employeesResult.error || accountsResult.error;
+    if (sourceError) throw sourceError;
 
-    const pstData = await attachProductSpecAttendance(rawPstData || []);
+    const employeeById = new Map((employeesResult.data || []).map((employee: any) => [Number(employee.id), employee]));
+    const accountById = new Map((accountsResult.data || []).map((account: any) => [Number(account.account_id), account]));
+    const assignmentByTraineeId = new Map<number, any>();
+    (assignmentsResult.data || [])
+      .sort((a: any, b: any) => new Date(b.assigned_at || 0).getTime() - new Date(a.assigned_at || 0).getTime())
+      .forEach((assignment: any) => {
+        const traineeId = Number(assignment.trainees_id);
+        if (traineeId && !assignmentByTraineeId.has(traineeId)) assignmentByTraineeId.set(traineeId, assignment);
+      });
 
-    const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
-
-    // Map INHOUSE rows to Trainee type
-    const mappedInhouse = (inhouseData || []).map((row: any) => {
-      let pCount = 0;
-      let aCount = 0;
-      for (const col of inhouseAttCols) {
-        const val = (row[col] || '').trim().toUpperCase();
-        if (val === 'P') pCount++;
-        if (val === 'A') aCount++;
-      }
-
-      const isLoss = isTraineeLossStatus(row.status);
-      const cleanName = (row.name || '').trim().toLowerCase();
-      const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
-
+    return (traineesResult.data || []).map((row: any) => {
+      const assignment = assignmentByTraineeId.get(Number(row.id));
+      const employee = assignment ? employeeById.get(Number(assignment.employee_id)) : null;
+      const account = accountById.get(Number(row.account_id));
+      const status = String(row.status || 'ONGOING');
+      const trainingTrack = String(row.training_track || '').toUpperCase();
+      const name = [row.firstname, row.middlename, row.lastname].filter(Boolean).join(' ').trim();
       return {
-        id: row.name || Math.random().toString(),
-        name: row.name || 'Unknown',
-        status: row.status || 'ACTIVE',
-        month: row.month || '',
-        quarter: row.quarter || '',
-        p: pCount,
-        a: aCount,
-        isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
-        isLoss,
-        assignedTrainer: resolvedTrainer,
-        profilePic: row.avatar_url || row.profile_pic || row.photo_url || avatarByName.get(cleanName) || '',
-        batchName: row.batch ? `General -${row.batch}` : 'General -Unassigned',
-        accountName: row.account || row.acount || 'General',
-        trainingType: 'INHOUSE' as const
+        id: String(row.id),
+        name: name || 'Unknown',
+        status,
+        month: row.start_date ? new Date(row.start_date).toLocaleString('en', { month: 'long' }) : '',
+        quarter: row.start_date ? `Q${Math.ceil((new Date(row.start_date).getMonth() + 1) / 3)}` : '',
+        p: 0,
+        a: 0,
+        isEndorsed: status.toUpperCase() === 'ENDORSED' || Boolean(row.endorsed_date),
+        isLoss: isTraineeLossStatus(status),
+        assignedTrainer: employee?.employee_name || 'Unassigned',
+        profilePic: employee?.avatar_url || '',
+        batchName: row.batch_wave || 'Unassigned Batch',
+        accountName: account?.account_name || 'GENERAL',
+        trainingType: trainingTrack.includes('PST') ? 'PST' as const : 'INHOUSE' as const,
       };
     });
-
-    // Map PST rows to Trainee type
-    const mappedPst = (pstData || []).map((row: any) => {
-      let pCount = 0;
-      let aCount = 0;
-      for (let i = 1; i <= 62; i++) {
-        const val = row[`att_status_day_${i}`];
-        if (val === 'P') pCount++;
-        if (val === 'A') aCount++;
-      }
-
-      const acct = (row.account || row.acount || 'PST Account').trim();
-      const rawWave = row.wave ? `${row.wave}`.replace(/^(wave\s*)/i, '').trim() : '1';
-      const batchName = `${acct} -${rawWave || '1'}`;
-      const isLoss = isTraineeLossStatus(row.status);
-      const cleanName = (row.name || '').trim().toLowerCase();
-      const resolvedTrainer = assignmentMap.get(cleanName) || row.assigned_trainer || row.assignedTrainer || row.trainer || 'Unassigned';
-
-      return {
-        id: row.name || Math.random().toString(),
-        name: row.name || 'Unknown',
-        status: row.status || 'ACTIVE',
-        month: row.month || '',
-        quarter: row.quarter || '',
-        p: pCount,
-        a: aCount,
-        isEndorsed: !isLoss && (row.status || '').toUpperCase() === 'ENDORSED',
-        isLoss,
-        assignedTrainer: resolvedTrainer,
-        profilePic: row.avatar_url || row.profile_pic || row.photo_url || avatarByName.get(cleanName) || '',
-        batchName: batchName,
-        accountName: acct,
-        trainingType: 'PST' as const
-      };
-    });
-
-    return [...mappedInhouse, ...mappedPst];
   } catch (e) {
     console.error('getTraineesData error:', e);
     return [];
