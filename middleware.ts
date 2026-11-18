@@ -1,3 +1,4 @@
+import { getSupabaseUrl, getSupabasePublishableKey } from '@/lib/supabase/public-env';
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { AI_FEATURES_ENABLED } from './lib/feature-flags'
@@ -8,8 +9,8 @@ export async function middleware(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabasePublishableKey(),
     {
       cookies: {
         getAll() {

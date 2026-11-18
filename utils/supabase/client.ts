@@ -1,9 +1,10 @@
+import { getSupabaseUrl, getSupabasePublishableKey } from '@/lib/supabase/public-env';
 import { createBrowserClient } from '@supabase/ssr'
 
 export function createClient() {
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    getSupabaseUrl(),
+    getSupabasePublishableKey()
   )
 }
 
@@ -18,8 +19,8 @@ export function createAuthClient(rememberMe: boolean) {
   // If rememberMe is false, maxAge is not set, resulting in a session cookie.
 
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabasePublishableKey(),
     {
       isSingleton: false,
       cookieOptions

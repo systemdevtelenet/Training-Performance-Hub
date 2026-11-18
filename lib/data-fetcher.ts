@@ -1,6 +1,9 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
+import { getSupabasePublishableKey } from '@/lib/supabase/public-env';
+import { getSupabaseServerConfig } from '@/lib/supabase/server-env';
+import { getTrainingTraineeRecords, readAllRows, type TrainingTraineeRecord } from '@/lib/training-data';
 import dummyPayload from '@/data/dashboard-mock.json'; // Fallback
 import {
   calculateAttrition,
@@ -17,67 +20,24 @@ import { fetchWorkforceAttendance } from '@/lib/workforce-attendance';
 import { getTrainingPositionLabel, isTrainerEmployee, isTrainerPosition } from '@/lib/trainer-position';
 
 // Create a standard client that doesn't access Next.js cookies
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = getSupabaseServerConfig().url;
+const supabaseKey = getSupabasePublishableKey();
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Create an admin client to bypass RLS if needed for server-side fetching
-const supabaseAdminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
+const supabaseAdminKey = getSupabaseServerConfig().key;
 const supabaseAdmin = createClient(supabaseUrl, supabaseAdminKey);
-const trainingSystem = supabaseAdmin.schema('training_system');
-
-/** Restore the legacy day-index shape in memory for existing UI aggregations. */
-async function attachProductSpecAttendance<T extends { id: number | string }>(rows: T[]): Promise<(T & Record<string, any>)[]> {
-  if (!rows.length) return [];
-
-  const ids = rows.map((row) => row.id);
-  const attendanceRows: any[] = [];
-  const pageSize = 1000;
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await trainingSystem
-      .from('product_spec_training_attendance')
-      .select('product_spec_training_id, training_day, status')
-      .in('product_spec_training_id', ids)
-      .order('training_day', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw error;
-    attendanceRows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
-  const attendanceByTraining = new Map<string, Record<string, string>>();
-  attendanceRows.forEach((attendance) => {
-    const key = String(attendance.product_spec_training_id);
-    const days = attendanceByTraining.get(key) || {};
-    days[`att_status_day_${attendance.training_day}`] = attendance.status;
-    attendanceByTraining.set(key, days);
-  });
-
-  return rows.map((row) => ({
-    ...row,
-    ...(attendanceByTraining.get(String(row.id)) || {}),
-  }));
-}
-
-export async function getTraineeTrainerAssignmentMap(): Promise<Map<string, string>> {
+export async function getTraineeTrainerAssignmentMap(records?: TrainingTraineeRecord[]): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   try {
-    const { data } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('source_table, traffic_status')
-      .eq('metric_group', 'trainee_trainer_assignment');
-
-    (data || []).forEach((row: any) => {
-      let traineeName = '';
-      if (row.source_table && row.source_table.includes('::')) {
-        traineeName = row.source_table.split('::')[1]?.trim().toLowerCase();
-      }
-      if (traineeName && row.traffic_status) {
-        map.set(traineeName, row.traffic_status.trim());
+    const trainees = records || await getTrainingTraineeRecords(supabaseAdmin);
+    trainees.forEach((row) => {
+      if (row.name && row.assignedTrainer && row.assignedTrainer !== 'Unassigned') {
+        map.set(row.name.trim().toLowerCase(), row.assignedTrainer);
       }
     });
   } catch (err) {
-    console.error('Error fetching trainee trainer assignment map:', err);
+    console.error('Error fetching trainee trainer assignments:', err);
   }
   return map;
 }
@@ -89,27 +49,26 @@ export const getDashboardData = async () => {
     // them immediately so database latency overlaps with the other reads and
     // their CPU-side aggregation instead of waiting until the end.
     const trainerPerformancePromise = getTrainersData();
-    const [assignmentMap, inhouseResult, pstResult, trainerEmployeesResult, employeeStatusesResult, employeePositionsResult, employeeRolesResult] = await Promise.all([
-      getTraineeTrainerAssignmentMap(),
-      supabaseAdmin.schema('training_system').from('inhouse').select('*'),
-      supabaseAdmin.schema('training_system').from('product_spec_training').select('*'),
+    const [roster, trainerEmployeesResult, employeeStatusesResult, employeePositionsResult, employeeRolesResult] = await Promise.all([
+      getTrainingTraineeRecords(supabaseAdmin),
       supabaseAdmin.from('employees').select('id, employee_code, employee_name, status_id, role_id, position_id'),
       supabaseAdmin.from('statuses').select('status_id, status_name'),
       supabaseAdmin.from('positions').select('position_id, position_name, position_code'),
       supabaseAdmin.from('roles').select('role_id, role_name')
     ]);
-    const { data: inhouseData, error: inhouseError } = inhouseResult;
-    const { data: pstData, error: pstError } = pstResult;
+    const assignmentMap = await getTraineeTrainerAssignmentMap(roster);
+    const inhouseData = roster.filter((row) => row.trainingType === 'INHOUSE');
+    const pstData = roster.filter((row) => row.trainingType === 'PST');
     const { data: trainerEmployees, error: employeesError } = trainerEmployeesResult;
     const { data: employeeStatuses, error: statusesError } = employeeStatusesResult;
     const { data: employeePositions, error: positionsError } = employeePositionsResult;
     const { data: employeeRoles, error: rolesError } = employeeRolesResult;
 
-    const sourceError = inhouseError || pstError || employeesError || statusesError || positionsError || rolesError;
+    const sourceError = employeesError || statusesError || positionsError || rolesError;
     if (sourceError) throw sourceError;
 
-    const inhouseList = inhouseData || [];
-    const pstList = await attachProductSpecAttendance(pstData || []);
+    const inhouseList = inhouseData;
+    const pstList = pstData;
     const employeeList = trainerEmployees || [];
     const statusNameById = new Map<number, string>(
       (employeeStatuses || []).map((status: any) => [Number(status.status_id), String(status.status_name || '')]),
@@ -169,13 +128,11 @@ export const getDashboardData = async () => {
       return monthIndex >= 0 ? `Q${Math.floor(monthIndex / 3) + 1}` : 'Unspecified';
     };
 
-    const inhouseAttCols = ['NHO', 'MESH', 'comms_day_1', 'comms_day_2', 'comms_day_3'];
-
     // Grouping for Inhouse
     const inhouseGroups: any = {};
     inhouseList.forEach(item => {
-      const accountName = (item.account || item.acount || '').trim() || 'General';
-      const batchName = item.batch ? `Batch ${item.batch}` : 'Unassigned Batch';
+      const accountName = (item.account || item.accountName || '').trim() || 'General';
+      const batchName = item.batchName || (item.batch ? `Batch ${item.batch}` : 'Unassigned Batch');
       accountsSet.add(accountName);
 
       if (!inhouseGroups[accountName]) inhouseGroups[accountName] = {};
@@ -185,12 +142,8 @@ export const getDashboardData = async () => {
       const isLoss = isTraineeLossStatus(statusUpper);
       if (isAttritionLossStatus(statusUpper)) totalLosses++;
 
-      let pCount = 0, aCount = 0;
-      for (const col of inhouseAttCols) {
-        const val = (item[col] || '').toString().trim().toUpperCase();
-        if (val === 'P') pCount++;
-        if (val === 'A') aCount++;
-      }
+      const pCount = Number(item.p || 0);
+      const aCount = Number(item.a || 0);
 
       const cleanName = (item.name || '').trim().toLowerCase();
       const resolvedTrainer = assignmentMap.get(cleanName) || item.assigned_trainer || item.assignedTrainer || item.trainer || undefined;
@@ -215,7 +168,7 @@ export const getDashboardData = async () => {
     pstList.forEach(item => {
       const accountName = (item.account || item.accountName || '').trim() || 'General';
       const rawWave = item.wave ? `${item.wave}`.replace(/^(wave\s*)/i, '').trim() : '';
-      const batchName = rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : item.batchName || 'Unassigned Batch');
+      const batchName = item.batchName || (rawWave ? `Batch ${rawWave}` : (item.batch ? `Batch ${item.batch}` : 'Unassigned Batch'));
       accountsSet.add(accountName);
 
       if (!pstGroups[accountName]) pstGroups[accountName] = {};
@@ -225,12 +178,8 @@ export const getDashboardData = async () => {
       const isLoss = isTraineeLossStatus(statusUpper);
       if (isAttritionLossStatus(statusUpper)) totalLosses++;
 
-      let pCount = 0, aCount = 0;
-      for (let i = 1; i <= 62; i++) {
-        const val = (item[`att_status_day_${i}`] || '').toString().trim().toUpperCase();
-        if (val === 'P') pCount++;
-        if (val === 'A') aCount++;
-      }
+      const pCount = Number(item.p || 0);
+      const aCount = Number(item.a || 0);
 
       const cleanName = (item.name || '').trim().toLowerCase();
       const resolvedTrainer = assignmentMap.get(cleanName) || item.assigned_trainer || item.assignedTrainer || item.trainer || undefined;
@@ -361,8 +310,8 @@ export const getTrainersData = async () => {
       accountsResult,
       assignmentsResult,
       primaryTasksResult,
-      inhouseResult,
-      pstResult,
+      rosterResult,
+      attendanceRowsResult,
     ] = await Promise.all([
       supabaseAdmin.from('employees').select('id, employee_code, employee_name, employee_email, status_id, role_id, position_id, hire_date, avatar_url'),
       supabaseAdmin.from('statuses').select('status_id, status_name'),
@@ -370,9 +319,12 @@ export const getTrainersData = async () => {
       supabaseAdmin.from('roles').select('role_id, role_name'),
       supabaseAdmin.from('accounts').select('account_id, account_name, account_code'),
       supabaseAdmin.from('employee_assignments').select('employee_id, account_id'),
-      supabaseAdmin.schema('training_system').from('primary_tasks').select('employee_id, task_name'),
-      supabaseAdmin.schema('training_system').from('inhouse').select('*'),
-      supabaseAdmin.schema('training_system').from('product_spec_training').select('*'),
+      supabaseAdmin.schema('trainingHub_system').from('primary_tasks_api').select('employee_id, task_name'),
+      getTrainingTraineeRecords(supabaseAdmin),
+      readAllRows<any>((from, to) => supabaseAdmin.schema('trainingHub_system').from('trainer_attendance_api')
+        .select('trainer_employee_id, trainer_attendance_id, attendance_date, status, attendance_code')
+        .order('attendance_date', { ascending: true })
+        .range(from, to)),
     ]);
 
     const { data: trainerEmployees, error: employeesError } = employeesResult;
@@ -381,9 +333,9 @@ export const getTrainersData = async () => {
     const { data: roles } = rolesResult;
     const { data: accounts } = accountsResult;
     const { data: employeeAssignments } = assignmentsResult;
-    const { data: inhouseData } = inhouseResult;
-    const { data: rawPstData } = pstResult;
-    const pstData = await attachProductSpecAttendance(rawPstData || []);
+    const roster = rosterResult;
+    const inhouseData = roster.filter((row) => row.trainingType === 'INHOUSE');
+    const pstData = roster.filter((row) => row.trainingType === 'PST');
 
     const primaryTaskByEmployeeId = new Map<string, string>();
     if (employeesError) {
@@ -422,34 +374,11 @@ export const getTrainersData = async () => {
       accountsByEmployeeId.set(employeeId, current);
     });
 
-    // Fetch all attendance records using pagination (Supabase 1000 row limit)
-    let allAttendanceData: any[] = [];
-    let hasMore = true;
-    let page = 0;
-    const PAGE_SIZE = 1000;
-
-    while (hasMore) {
-      const { data, error: attError } = await supabaseAdmin
-        .schema('training_system').from('trainer_attendance_strat')
-        .select('*')
-        .order('attendance_date', { ascending: true })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-      if (attError) {
-        console.error('Error fetching trainer_attendance_strat:', attError);
-        break;
-      }
-
-      if (data && data.length > 0) {
-        allAttendanceData = allAttendanceData.concat(data);
-        page++;
-        if (data.length < PAGE_SIZE) {
-          hasMore = false;
-        }
-      } else {
-        hasMore = false;
-      }
-    }
+    const allAttendanceData = attendanceRowsResult.map((row: any) => ({
+      ...row,
+      trainer_id: row.trainer_employee_id,
+      status: row.attendance_code || row.status,
+    }));
     
     // Build map using trainer_id as key
     const attendanceMap = new Map();
@@ -477,7 +406,7 @@ export const getTrainersData = async () => {
 
         // Push record to timeline
         current.timeline.push({
-          attendance_id: row.attendance_id,
+          attendance_id: row.trainer_attendance_id,
           trainer_id: tId,
           date: row.attendance_date,
           month: monthName,
@@ -504,7 +433,7 @@ export const getTrainersData = async () => {
       }
     }
     
-    const assignmentMap = await getTraineeTrainerAssignmentMap();
+    const assignmentMap = await getTraineeTrainerAssignmentMap(roster);
 
     const consolidatedTrainers = (trainerEmployees || [])
       .filter((employee: any) => isTrainerEmployee(positionById.get(Number(employee.position_id)), roleById.get(Number(employee.role_id))))
@@ -533,7 +462,7 @@ export const getTrainersData = async () => {
     const mapped = consolidatedTrainers.map(t => {
       const employee = t.employee;
       const trainerName = employee.employee_name || 'Unknown';
-      const legacyAttRow = attendanceMap.get(t.trainer_id) || attendanceMap.get(String(t.trainer_id));
+      const legacyAttRow = attendanceMap.get(Number(employee.id)) || attendanceMap.get(String(employee.id));
       const workforceTimeline = workforceAttendanceMap.get(String(t.employee_num || t.trainer_id || '').trim()) || [];
       const timelineByDate = new Map<string, any>();
 
@@ -755,51 +684,12 @@ export const getTrainersData = async () => {
 
 export const getTraineesData = async () => {
   try {
-    const trainingHub = supabaseAdmin.schema('trainingHub_system');
-    const [traineesResult, assignmentsResult, employeesResult, accountsResult] = await Promise.all([
-      trainingHub.from('trainees').select('*').order('id', { ascending: true }),
-      trainingHub.from('trainer_assignment').select('trainees_id, employee_id, assigned_at, ended_at').is('ended_at', null),
-      supabaseAdmin.from('employees').select('id, employee_name, avatar_url'),
-      supabaseAdmin.from('accounts').select('account_id, account_name'),
-    ]);
-
-    const sourceError = traineesResult.error || assignmentsResult.error || employeesResult.error || accountsResult.error;
-    if (sourceError) throw sourceError;
-
-    const employeeById = new Map((employeesResult.data || []).map((employee: any) => [Number(employee.id), employee]));
-    const accountById = new Map((accountsResult.data || []).map((account: any) => [Number(account.account_id), account]));
-    const assignmentByTraineeId = new Map<number, any>();
-    (assignmentsResult.data || [])
-      .sort((a: any, b: any) => new Date(b.assigned_at || 0).getTime() - new Date(a.assigned_at || 0).getTime())
-      .forEach((assignment: any) => {
-        const traineeId = Number(assignment.trainees_id);
-        if (traineeId && !assignmentByTraineeId.has(traineeId)) assignmentByTraineeId.set(traineeId, assignment);
-      });
-
-    return (traineesResult.data || []).map((row: any) => {
-      const assignment = assignmentByTraineeId.get(Number(row.id));
-      const employee = assignment ? employeeById.get(Number(assignment.employee_id)) : null;
-      const account = accountById.get(Number(row.account_id));
-      const status = String(row.status || 'ONGOING');
-      const trainingTrack = String(row.training_track || '').toUpperCase();
-      const name = [row.firstname, row.middlename, row.lastname].filter(Boolean).join(' ').trim();
-      return {
-        id: String(row.id),
-        name: name || 'Unknown',
-        status,
-        month: row.start_date ? new Date(row.start_date).toLocaleString('en', { month: 'long' }) : '',
-        quarter: row.start_date ? `Q${Math.ceil((new Date(row.start_date).getMonth() + 1) / 3)}` : '',
-        p: 0,
-        a: 0,
-        isEndorsed: status.toUpperCase() === 'ENDORSED' || Boolean(row.endorsed_date),
-        isLoss: isTraineeLossStatus(status),
-        assignedTrainer: employee?.employee_name || 'Unassigned',
-        profilePic: employee?.avatar_url || '',
-        batchName: row.batch_wave || 'Unassigned Batch',
-        accountName: account?.account_name || 'GENERAL',
-        trainingType: trainingTrack.includes('PST') ? 'PST' as const : 'INHOUSE' as const,
-      };
-    });
+    const roster = await getTrainingTraineeRecords(supabaseAdmin);
+    return roster.map((row) => ({
+      ...row,
+      id: String(row.id),
+      profilePic: row.assignedTrainerAvatar,
+    }));
   } catch (e) {
     console.error('getTraineesData error:', e);
     return [];

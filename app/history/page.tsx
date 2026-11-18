@@ -20,7 +20,6 @@ import {
   Search,
   RefreshCw
 } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { logActivity, getActivityLogs } from '@/lib/actions/logger';
 
@@ -184,7 +183,6 @@ export default function HistoryPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
   
-  const supabase = createClient();
 
   const fetchLogs = async () => {
     try {
@@ -255,17 +253,8 @@ export default function HistoryPage() {
   useEffect(() => {
     fetchLogs();
 
-    // Supabase Realtime subscription for live activity updates
-    const channel = supabase
-      .channel('history_realtime_channel')
-      .on('postgres_changes', { event: '*', schema: 'training_system', table: 'notifications' }, () => {
-        fetchLogs();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = window.setInterval(fetchLogs, 15000);
+    return () => window.clearInterval(interval);
   }, []);
 
   const handleExport = async () => {

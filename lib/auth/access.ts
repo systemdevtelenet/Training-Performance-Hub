@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
+import { getSupabasePrivilegedKey } from '@/lib/supabase/server-env';
 import { resolveSystemRole } from '@/lib/auth/role-resolution';
 
 export type SystemRole =
@@ -29,7 +30,7 @@ type AccessResult =
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = getSupabasePrivilegedKey();
   if (!url || !key) return null;
   return createSupabaseClient(url, key, { auth: { persistSession: false } });
 }

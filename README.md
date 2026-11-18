@@ -20,7 +20,7 @@ The development app is available at <http://localhost:3000>.
 
 The production app runs in one container and connects to the hosted Supabase project. Compose does not start a local database.
 
-1. Copy `.env.docker.example` to `.env.local` and fill in the required Supabase values. Keep `SUPABASE_SERVICE_ROLE_KEY` private and only in the runtime environment file.
+1. Copy `.env.docker.example` to `.env.local` and fill in the required Supabase values. Use the project's publishable key for `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and its secret key for `SUPABASE_SECRET_KEY`. Keep the secret key private and only in the runtime environment file.
 2. Log in to GitHub Container Registry if the image package is private:
 
    ```sh
@@ -48,6 +48,6 @@ More deployment notes are in [DOCKER.md](DOCKER.md).
 - `.github/workflows/ci.yml` runs TypeScript validation and the repository's existing checks for pull requests and pushes to `main` and `refactor-trainingHub`.
 - `.github/workflows/docker-publish.yml` validates the source, builds the production image, and publishes it to `ghcr.io/systemdevtelenet/training-performance-hub` on pushes to `main`, version tags (`v*`), or manual workflow dispatch.
 - Every published build receives the `latest` tag, alongside its branch, version, or commit tag.
-- Configure GitHub Actions repository secrets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for the Next.js image build. These are public client settings embedded in the browser bundle. Keep service-role and other private provider credentials in `.env.local` on the Compose host; they are runtime-only.
+- Configure GitHub Actions repository secrets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the Next.js image build. The publishable key is embedded in the browser bundle. `NEXT_PUBLIC_SUPABASE_ANON_KEY` remains supported as a legacy fallback. Keep `SUPABASE_SECRET_KEY` and other private provider credentials in `.env.local` on the Compose host; they are runtime-only.
 
 The workflow publishes the image but does not remotely deploy it. After a successful publish, update the running Compose service on its host with `docker compose pull` and `docker compose up -d`.

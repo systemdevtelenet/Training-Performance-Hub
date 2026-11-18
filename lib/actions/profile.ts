@@ -1,11 +1,12 @@
 'use server';
 
+import { getSupabaseServerConfig } from '@/lib/supabase/server-env';
+
 import { createClient } from '@supabase/supabase-js';
 import { getRequestActor } from '@/lib/auth/access';
 import { getTraineeTrainerAssignmentMap } from '@/lib/data-fetcher';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseServerConfig();
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
 export interface UserProfileResponse {
@@ -74,7 +75,7 @@ export async function fetchUserProfile(userEmail: string): Promise<UserProfileRe
         ? supabaseAdmin.from('positions').select('position_name').eq('position_id', empData.position_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       empData?.id
-        ? supabaseAdmin.schema('training_system').from('primary_tasks').select('task_name').eq('employee_id', empData.id).maybeSingle()
+        ? supabaseAdmin.schema('trainingHub_system').from('primary_tasks_api').select('task_name').eq('employee_id', empData.id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       rawName
         ? getTraineeTrainerAssignmentMap().then((assignments) => ({
