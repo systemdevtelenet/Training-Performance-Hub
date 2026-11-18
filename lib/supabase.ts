@@ -1,8 +1,8 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServerConfig } from '@/lib/supabase/server-env';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseServerConfig();
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 

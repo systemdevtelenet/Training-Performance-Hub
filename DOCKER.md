@@ -5,7 +5,7 @@ The app uses Supabase as its hosted database, so Compose runs only the Next.js a
 ## Prepare the environment
 
 1. Copy `.env.docker.example` to `.env.local`.
-2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Add optional provider and email settings if the app uses them.
+2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`. Add optional provider and email settings if the app uses them. Legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` names remain supported.
 3. Authenticate to GitHub Container Registry if the image package is private:
 
    ```sh
@@ -25,6 +25,6 @@ The service listens on port 3000 by default. Set `APP_PORT` in `.env.local` to c
 
 - `.github/workflows/ci.yml` runs TypeScript validation and the existing checks for pull requests and pushes to `main` or `refactor-trainingHub`.
 - `.github/workflows/docker-publish.yml` validates the source, then builds and publishes a multi-stage image to `ghcr.io/systemdevtelenet/training-performance-hub` on pushes to `main`, version tags (`v*`), or manual dispatch.
-- Configure repository Actions secrets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for image builds. These public client values are embedded into the Next.js client bundle at build time. Keep the service role key and other private provider credentials in `.env.local` on the Compose host; they are runtime-only and are not Docker build arguments.
+- Configure repository Actions secrets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for image builds. The publishable key is embedded into the Next.js client bundle at build time; the legacy anon key secret is still accepted as a fallback. Keep `SUPABASE_SECRET_KEY` and other private provider credentials in `.env.local` on the Compose host; they are runtime-only and are not Docker build arguments.
 
 This setup does not deploy to a server automatically. On the Compose host, pull the published tag and restart the service to release it.

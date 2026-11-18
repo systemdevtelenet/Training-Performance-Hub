@@ -1,3 +1,5 @@
+import { getSupabaseUrl, getSupabasePublishableKey } from '@/lib/supabase/public-env';
+import { getTrainingTraineeRecords } from '@/lib/training-data';
 /**
  * Data Loader - Fetches dashboard data from Supabase
  * Falls back to mock data if Supabase is not configured
@@ -10,7 +12,7 @@ import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-posit
 export interface TraineeRecord {
   id: string;
   name: string;
-  status: 'ACTIVE' | 'DROPPED' | 'COMPLETED';
+  status: string;
   month: string;
   quarter: string;
   p: number;
@@ -19,6 +21,7 @@ export interface TraineeRecord {
   isLoss?: boolean;
   assignedTrainer?: string;
   batchName?: string;
+  trainingType?: 'INHOUSE' | 'PST';
   accountName: string;
   created_at?: string;
 }
@@ -106,17 +109,15 @@ async function loadTrainerRecords(): Promise<TrainerRecord[]> {
 export async function fetchDashboardData(): Promise<DashboardData> {
   try {
     // Check if Supabase is configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!getSupabaseUrl() || !(getSupabasePublishableKey())) {
       console.warn('⚠️  Supabase not configured. Using mock data.');
       return mockData as unknown as DashboardData;
     }
 
-    const [traineesResult, trainers] = await Promise.all([
-      supabase.schema('training_system').from('trainees').select('*'),
+    const [trainees, trainers] = await Promise.all([
+      getTrainingTraineeRecords(supabase),
       loadTrainerRecords(),
     ]);
-    const { data: trainees, error: traineesError } = traineesResult;
-    if (traineesError) throw traineesError;
 
     // Transform data into dashboard structure
     const dashboardData: DashboardData = {
@@ -132,9 +133,10 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
     // Populate inhouse and pst groups
     if (trainees) {
-      trainees.forEach((trainee: TraineeRecord) => {
+      trainees.forEach((row) => {
+        const trainee: TraineeRecord = { ...row, id: String(row.id) };
         const accountName = trainee.accountName;
-        const isInhouse = accountName && ['ALPHA', 'BRAVO'].includes(accountName.toUpperCase());
+        const isInhouse = trainee.trainingType === 'INHOUSE' || (accountName && ['ALPHA', 'BRAVO'].includes(accountName.toUpperCase()));
         const category = isInhouse ? 'inhouse' : 'pst';
         const batchKey = trainee.batchName || 'UNASSIGNED';
 
@@ -175,10 +177,7 @@ export async function fetchTrainees(): Promise<TraineeRecord[]> {
       throw new Error('Supabase not configured');
     }
 
-    const { data, error } = await supabase.schema('training_system').from('trainees').select('*');
-
-    if (error) throw error;
-    return data || [];
+    return (await getTrainingTraineeRecords(supabase)).map((row) => ({ ...row, id: String(row.id) }));
   } catch (error) {
     console.error('Error fetching trainees:', error);
     return [];

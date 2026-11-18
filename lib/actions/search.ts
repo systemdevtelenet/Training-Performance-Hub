@@ -1,7 +1,10 @@
 'use server';
 
+import { getSupabaseServerConfig } from '@/lib/supabase/server-env';
+
 import { createClient } from '@supabase/supabase-js';
 import { getTrainingPositionLabel, isTrainerEmployee } from '@/lib/trainer-position';
+import { getTrainingTraineeRecords } from '@/lib/training-data';
 import { APP_PAGE_ROLES, ADMIN_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
 import { getTraineesData } from '@/lib/data-fetcher';
 import { isTrainerMatch } from '@/lib/analytics-utils';
@@ -14,8 +17,7 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   } catch (e) {}
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseServerConfig();
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -133,42 +135,18 @@ export async function searchGlobal(query: string, _userRole: string = 'EMPLOYEE'
       });
     });
 
-    // 3. Search Trainees (inhouse & product_spec_training)
-    const { data: inhouseData } = await supabaseAdmin
-      .schema('training_system').from('inhouse')
-      .select('name, batch, status, acount, account')
-      .or(`name.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,acount.ilike.%${cleanQ}%`)
-      .limit(8);
-
-    const { data: pstData } = await supabaseAdmin
-      .schema('training_system').from('product_spec_training')
-      .select('name, wave, batch, status, account, accountName')
-      .or(`name.ilike.%${cleanQ}%,wave.ilike.%${cleanQ}%,batch.ilike.%${cleanQ}%,status.ilike.%${cleanQ}%,account.ilike.%${cleanQ}%`)
-      .limit(8);
-
-    (inhouseData || []).forEach(ih => {
-      const acc = ih.account || ih.acount || 'General';
-      const b = ih.batch ? `Batch ${ih.batch}` : 'Inhouse';
+    // 3. Search the normalized training roster.
+    const traineeData = await getTrainingTraineeRecords(supabaseAdmin);
+    traineeData.filter((row) => `${row.name} ${row.batchName} ${row.status} ${row.accountName}`.toLowerCase().includes(cleanQ)).slice(0, 12).forEach((trainee) => {
+      const acc = trainee.accountName || 'General';
+      const b = trainee.batchName || 'Training';
       results.push({
-        id: `trainee-ih-${ih.name}-${ih.batch}`,
-        title: ih.name || 'Trainee',
-        subtitle: `Inhouse • ${b} (${acc})`,
+        id: `trainee-${trainee.id}`,
+        title: trainee.name || 'Trainee',
+        subtitle: `${trainee.trainingType} • ${b} (${acc})`,
         category: 'trainee',
-        badge: ih.status || 'Active',
-        href: `/trainees?search=${encodeURIComponent(ih.name)}`
-      });
-    });
-
-    (pstData || []).forEach(pst => {
-      const acc = pst.account || pst.accountName || 'General';
-      const w = pst.wave ? `Wave ${pst.wave}` : (pst.batch ? `Batch ${pst.batch}` : 'PST');
-      results.push({
-        id: `trainee-pst-${pst.name}-${pst.wave || pst.batch}`,
-        title: pst.name || 'Trainee',
-        subtitle: `PST • ${w} (${acc})`,
-        category: 'trainee',
-        badge: pst.status || 'Active',
-        href: `/trainees?search=${encodeURIComponent(pst.name)}`
+        badge: trainee.status || 'ONGOING',
+        href: `/trainees?search=${encodeURIComponent(trainee.name)}`
       });
     });
 

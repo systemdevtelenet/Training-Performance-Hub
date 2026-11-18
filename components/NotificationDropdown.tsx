@@ -17,7 +17,6 @@ import {
   MessageSquare, 
   Users 
 } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { getActivityLogs } from '@/lib/actions/logger';
@@ -180,7 +179,6 @@ export default function NotificationDropdown() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const supabase = createClient();
 
   const [notifPrefs, setNotifPrefs] = useState({
     performanceAlerts: true,
@@ -301,20 +299,12 @@ export default function NotificationDropdown() {
   useEffect(() => {
     fetchNotifications();
 
-    const channel = supabase
-      .channel('notifications_realtime_channel')
-      .on('postgres_changes', { event: '*', schema: 'training_system', table: 'notifications' }, () => {
-        fetchNotifications();
-      })
-      .subscribe();
-
     const interval = setInterval(() => {
       fetchNotifications();
     }, 15000);
 
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
     };
   }, [notifPrefs]);
 

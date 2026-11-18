@@ -1,9 +1,12 @@
 'use server';
 
+import { getSupabaseServerConfig } from '@/lib/supabase/server-env';
+
 import { createClient } from '@supabase/supabase-js';
 import { logActivity } from './logger';
 import { isTrainerMatch } from '@/lib/analytics-utils';
 import { APP_PAGE_ROLES, requireActionRole } from '@/lib/auth/access';
+import { getTrainingTraineeRecords } from '@/lib/training-data';
 
 const TRAFFIC_LIGHT_ROLES = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'VIEW_ADMIN', 'TRAINER'] as const;
 const TRAFFIC_LIGHT_EDIT_ROLES = ['SUPER_ADMIN', 'HOT_ADMIN', 'QAS_ADMIN', 'TRAINER'] as const;
@@ -16,8 +19,7 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   } catch (e) {}
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseServerConfig();
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -39,21 +41,20 @@ export async function getTrainerTraineeNames(trainerEmail?: string, trainerName?
     const cleanName = (trainerName || '').toLowerCase().trim();
     const normName = normalizeStr(trainerName);
 
-    const { data: ih } = await supabaseAdmin.schema('training_system').from('inhouse').select('*');
-    const { data: pst } = await supabaseAdmin.schema('training_system').from('product_spec_training').select('*');
+    const roster = await getTrainingTraineeRecords(supabaseAdmin);
     const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
     const assignmentMap = await getTraineeTrainerAssignmentMap();
 
     const matchedNames = new Set<string>();
     const matchedAccounts = new Set<string>();
 
-    const allTrainees = [...(ih || []), ...(pst || [])];
+    const allTrainees = roster;
     allTrainees.forEach(t => {
-      const cleanTName = (t.name || '').trim().toLowerCase();
+      const cleanTName = t.name.trim().toLowerCase();
       const normTName = normalizeStr(t.name);
-      const assigned = (assignmentMap.get(cleanTName) || t.assigned_trainer || t.trainer || '').trim();
+      const assigned = (assignmentMap.get(cleanTName) || t.assignedTrainer || '').trim();
       const normAssigned = normalizeStr(assigned);
-      const rawAcc = (t.account || t.acount || t.accountName || 'General').toString().trim().toLowerCase();
+      const rawAcc = (t.accountName || 'General').toString().trim().toLowerCase();
 
       const isMatch = (cleanName && isTrainerMatch(assigned, cleanName)) || 
                       (cleanName && isTrainerMatch(cleanName, assigned)) ||
@@ -118,16 +119,16 @@ export async function getTrainerDashboardReliability() {
   if (!employee?.id) return null;
 
   const { data, error } = await supabaseAdmin
-    .schema('training_system').from('trainer_attendance_strat')
-    .select('status')
-    .eq('trainer_id', employee.id);
+    .schema('trainingHub_system').from('trainer_attendance_api')
+    .select('status, attendance_code')
+    .eq('trainer_employee_id', employee.id);
   if (error) throw error;
 
   let present = 0;
   let absent = 0;
   (data || []).forEach((row: any) => {
-    const status = String(row.status || '').toUpperCase().trim();
-    if (['A', 'ABSENT', 'SL', 'VL'].includes(status)) absent++;
+    const status = String(row.attendance_code || row.status || '').toUpperCase().trim();
+    if (['A', 'ABSENT', 'SL', 'VL', 'SUSPENDED'].includes(status)) absent++;
     else present++;
   });
   const total = present + absent;
@@ -147,64 +148,43 @@ export async function getTrainerDashboardTrafficLights() {
   const scope = await getTrainerTraineeNames(actor.email, actor.name);
   const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   const allowedNames = new Set(scope.names.map(normalize));
-  if (!allowedNames.size) return {};
+  allowedNames.add(normalize(actor.name));
 
-  const rows: any[] = [];
-  const pageSize = 1000;
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('source_table, traffic_status, metric_date, remarks')
-      .neq('metric_group', 'offboard_pending')
-      .order('metric_date', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
+  const { data: employee } = await supabaseAdmin.from('employees').select('id').ilike('employee_email', actor.email).maybeSingle();
+  if (!employee) return {};
+  const { data: rows, error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+    .select('id, status, week_date').eq('trainer_employee_id', employee.id).order('week_date', { ascending: false });
+  if (error) throw error;
   const result: Record<string, { status: string; remarks: string; date: string }> = {};
-  rows.forEach((row) => {
-    const parts = String(row.source_table || '').split('::');
-    const staffName = parts.length >= 3 ? parts[2].trim() : '';
-    if (!staffName || !row.traffic_status || !allowedNames.has(normalize(staffName))) return;
-    result[staffName.toLowerCase()] = {
-      status: row.traffic_status,
-      remarks: row.remarks || '',
-      date: row.metric_date || '',
-    };
-  });
+  const { data: remarks } = (rows || []).length
+    ? await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').select('monitoring_id, remark').in('monitoring_id', (rows || []).map((row: any) => row.id))
+    : { data: [] };
+  for (const row of rows || []) {
+    const staffName = actor.name;
+    if (!allowedNames.has(normalize(staffName)) || result[staffName.toLowerCase()]) continue;
+    result[staffName.toLowerCase()] = { status: row.status, remarks: (remarks || []).filter((item: any) => item.monitoring_id === row.id).map((item: any) => item.remark).join('\n'), date: row.week_date };
+  }
   return result;
 }
 
 export async function getEmployeeTrafficLightHistory() {
   const actor = await requireActionRole(APP_PAGE_ROLES);
-  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const actorName = normalize(actor.name);
-  const rows: any[] = [];
-  const pageSize = 1000;
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('metric_group, metric_date, traffic_status, remarks, source_table')
-      .range(from, from + pageSize - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
-  const history = rows
-    .filter((row) => {
-      const parts = String(row.source_table || '').split('::');
-      return parts.length >= 4 && normalize(parts[2]) === actorName && row.traffic_status;
-    })
-    .sort((a, b) => String(b.metric_date || '').localeCompare(String(a.metric_date || '')))
-    .map((row) => ({
-      period: row.metric_date || String(row.source_table).split('::').slice(3).join('::'),
-      status: row.traffic_status,
-      trainer: actor.name,
-      remarks: row.remarks || 'Traffic light status recorded.',
-    }));
+  const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('id').ilike('employee_email', actor.email).maybeSingle();
+  if (employeeError) throw employeeError;
+  if (!employee) return { currentStatus: 'Okay', latestDate: 'Current Period', remarks: '', history: [] };
+  const { data: rows, error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+    .select('id, week_date, status').eq('trainer_employee_id', employee.id).order('week_date', { ascending: false });
+  if (error) throw error;
+  const { data: remarks, error: remarksError } = (rows || []).length
+    ? await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').select('monitoring_id, remark').in('monitoring_id', (rows || []).map((row: any) => row.id))
+    : { data: [], error: null };
+  if (remarksError) throw remarksError;
+  const history = (rows || []).map((row: any) => ({
+    period: row.week_date,
+    status: row.status,
+    trainer: actor.name,
+    remarks: (remarks || []).filter((remark: any) => Number(remark.monitoring_id) === Number(row.id)).map((remark: any) => remark.remark).join('\n') || 'Traffic light status recorded.',
+  }));
 
   return {
     currentStatus: history[0]?.status || 'Okay',
@@ -217,55 +197,22 @@ export async function getEmployeeTrafficLightHistory() {
 export async function getAvailableTrafficLightAccounts() {
   const actor = await requireActionRole(TRAFFIC_LIGHT_ROLES);
   try {
-    const url = `${supabaseUrl}/rest/v1/?apikey=${supabaseKey}`;
-    const res = await fetch(url, {
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Accept-Profile': 'training_system' }
-    });
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    const tables = Object.keys(data.definitions || {});
-    
+    const { data: accounts, error } = await supabaseAdmin.from('accounts').select('account_code, account_name').eq('is_active', true).order('account_name');
+    if (error) throw error;
     const accountMap = new Map<string, string>();
-    const labelFormatting: Record<string, string> = {
-      'trainers': 'Trainers',
-      'general': 'General',
-      'rm': 'RM',
-      'xpn': 'XPN',
-      'fleet': 'Fleet',
-      'leaders': 'Leaders',
-      'dft': 'DFT',
-      'js': 'JS',
-      'ono': 'ONO',
-      'awd': 'AWD',
-      'flexar': 'FLEXAR',
-      'hh': 'HH',
-      'mm_transpo': 'MM Transpo',
-      'other_acc': 'Other Acc'
-    };
-
-    tables.forEach(t => {
-      if (t.startsWith('traffic_light_mon_')) {
-        const clean = t.replace('traffic_light_mon_', '').trim();
-        const parts = clean.split('_');
-        if (parts.length >= 2) {
-          const accId = parts.slice(0, -1).join('_');
-          const name = labelFormatting[accId] || accId.toUpperCase().replace(/_/g, ' ');
-          accountMap.set(accId, name);
-        }
-      }
+    (accounts || []).forEach((account: any) => {
+      const name = String(account.account_name || account.account_code || '').trim();
+      const id = String(account.account_code || name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      if (id && name) accountMap.set(id, name);
     });
-
+    const labelFormatting: Record<string, string> = { trainers: 'Trainers', general: 'General' };
     const preferredOrder = ['trainers', 'general', 'rm', 'xpn', 'fleet', 'leaders', 'dft', 'js', 'ono', 'awd', 'flexar', 'hh', 'mm_transpo', 'other_acc'];
-    const resultList: { id: string; name: string }[] = [];
-    preferredOrder.forEach(id => {
-      resultList.push({ id, name: labelFormatting[id] || id.toUpperCase() });
-    });
+    const resultList: { id: string; name: string }[] = [{ id: 'trainers', name: 'Trainers' }];
+    if (!accountMap.has('general')) resultList.push({ id: 'general', name: 'General' });
     accountMap.forEach((name, id) => {
-      if (!preferredOrder.includes(id)) {
-        resultList.push({ id, name });
-      }
+      if (id !== 'trainers') resultList.push({ id, name: labelFormatting[id] || name });
     });
+    resultList.sort((a, b) => (preferredOrder.indexOf(a.id) < 0 ? 99 : preferredOrder.indexOf(a.id)) - (preferredOrder.indexOf(b.id) < 0 ? 99 : preferredOrder.indexOf(b.id)) || a.name.localeCompare(b.name));
     if (actor.role !== 'TRAINER') return resultList;
     const scope = await getTrainerTraineeNames(actor.email, actor.name);
     return resultList.filter(item => trainerCanAccessAccount(item.id, scope.accounts));
@@ -453,6 +400,13 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
     if (account === 'trainers') {
       const { getTrainersData } = await import('@/lib/data-fetcher');
       const trainers = await getTrainersData();
+      const employeeIds = trainers.map((trainer: any) => Number(trainer.employeeId)).filter((id: number) => Number.isInteger(id) && id > 0);
+      const { data: monitors, error: monitoringError } = employeeIds.length
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+          .select('id, trainer_employee_id, week_date, status').in('trainer_employee_id', employeeIds)
+        : { data: [], error: null };
+      if (monitoringError) throw monitoringError;
+      const monitorByEmployeeAndDate = new Map((monitors || []).map((row: any) => [`${row.trainer_employee_id}::${row.week_date}`, row]));
       trainers.forEach((tr: any) => {
         const row: any = {
           id: tr.name,
@@ -463,28 +417,29 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
           startDate: tr.startDate || '-',
           accounts: tr.accounts || ''
         };
-        dates.forEach(d => { row[d] = null; });
+        dates.forEach(d => {
+          const monitor: any = monitorByEmployeeAndDate.get(`${tr.employeeId}::${parseDateToISO(d)}`);
+          const statusMap: Record<string, string> = { OKAY: 'Okay', SHAKY: 'Shaky', TERMINATED: 'Red', RESIGNED: 'Red', ACCOUNT_REMOVED: 'Red', NONE: null as any };
+          row[d] = monitor ? statusMap[String(monitor.status || '').toUpperCase()] ?? monitor.status : null;
+        });
         ['30 days', '60 days', '90 days'].forEach(d => { row[d] = null; });
         result.push(row);
       });
     } else {
-      // 2. For client accounts: Retrieve live trainees from inhouse and product_spec_training (matching Trainees page)
-      const { data: ih } = await supabaseAdmin.schema('training_system').from('inhouse').select('*');
-      const { data: pst } = await supabaseAdmin.schema('training_system').from('product_spec_training').select('*');
-      const { getTraineeTrainerAssignmentMap } = await import('@/lib/data-fetcher');
-      const assignmentMap = await getTraineeTrainerAssignmentMap();
-      const allTrainees = [...(ih || []), ...(pst || [])];
-
-      const matched = allTrainees.filter(t => {
-        const rawAccount = (t.account || t.acount || t.accountName || 'General').toString().trim();
-        return matchesTrafficLightAccount(account, rawAccount);
-      });
+      const allTrainees = await getTrainingTraineeRecords(supabaseAdmin);
+      const matched = allTrainees.filter((trainee) => matchesTrafficLightAccount(account, trainee.accountName));
+      const enrollmentIds = matched.map((trainee) => trainee.enrollmentId);
+      const { data: assessments, error: assessmentsError } = enrollmentIds.length
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+          .select('assessment_id, enrollment_id, assessment_type, assessed_on, rating, remarks').in('enrollment_id', enrollmentIds)
+        : { data: [], error: null };
+      if (assessmentsError) throw assessmentsError;
 
       if (matched.length > 0) {
         // Group by wave / batch
         const groups: Record<string, any[]> = {};
         matched.forEach(t => {
-          const rawBatch = t.batch ? `Batch ${t.batch}` : (t.wave ? `Wave ${t.wave}` : 'Batch 1');
+          const rawBatch = t.batchName || 'Batch 1';
           const gKey = `TEAM ${rawBatch.toUpperCase()}`;
           if (!groups[gKey]) groups[gKey] = [];
           groups[gKey].push(t);
@@ -498,79 +453,28 @@ async function getSingleTrafficLightData(account: string, quarter: string) {
             _account: account
           });
           list.forEach(t => {
-            const cleanTName = (t.name || '').trim().toLowerCase();
-            const rawAccount = (t.account || t.acount || t.accountName || 'General').toString().trim();
-            const assignedTrainer = assignmentMap.get(cleanTName) || t.assigned_trainer || t.trainer || '';
+            const rawAccount = t.accountName || 'General';
+            const assignedTrainer = t.assignedTrainer || '';
 
             const row: any = {
-              id: t.name,
+              id: t.enrollmentId,
               teams: t.name,
               _account: account,
               assigned_trainer: assignedTrainer,
               accountName: rawAccount,
               position: t.position || 'Trainee',
-              startDate: t.start_date || t.startDate || t.date_hired || t.start || '-'
+              startDate: t.start_date || '-'
             };
             dates.forEach(d => { row[d] = null; });
             ['30 days', '60 days', '90 days'].forEach(d => { row[d] = null; });
+            (assessments || []).filter((assessment: any) => Number(assessment.enrollment_id) === t.enrollmentId).forEach((assessment: any) => {
+              const assessmentType = String(assessment.assessment_type || '').toUpperCase();
+              const key = assessmentType === 'MILESTONE_30' ? '30 days' : assessmentType === 'MILESTONE_60' ? '60 days' : assessmentType === 'MILESTONE_90' ? '90 days' : new Date(`${assessment.assessed_on}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC' });
+              if (row[key] !== undefined) row[key] = assessment.rating;
+            });
             result.push(row);
           });
         });
-      }
-    }
-
-    // 3. Overlay any saved status values from traffic_light_metrics and legacy tables
-    const { data: metrics } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('person_id, metric_date, traffic_status, source_table')
-      .eq('metric_group', account);
-
-    if (metrics && metrics.length > 0) {
-      metrics.forEach(m => {
-        let pName = '';
-        let colKey = '';
-        if (m.source_table && m.source_table.includes('::')) {
-          const parts = m.source_table.split('::');
-          if (parts.length >= 4) {
-            pName = parts[2];
-            colKey = parts.slice(3).join('::');
-          }
-        }
-        if (!pName && m.person_id) {
-          pName = String(m.person_id);
-        }
-
-        if (pName && m.traffic_status) {
-          const targetRow = result.find(r => !r.isAccountHeader && !r.isTeamHeader && r.teams && r.teams.toLowerCase().trim() === pName.toLowerCase().trim());
-          if (targetRow) {
-            if (colKey && targetRow[colKey] !== undefined) {
-              targetRow[colKey] = m.traffic_status;
-            } else if (m.metric_date) {
-              const dObj = new Date(m.metric_date);
-              const fallbackColKey = `${dObj.getMonth() + 1}/${dObj.getDate()}/${dObj.getFullYear()}`;
-              if (targetRow[fallbackColKey] !== undefined) {
-                targetRow[fallbackColKey] = m.traffic_status;
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // Fallback: If no trainees in live tables, try legacy traffic_light_mon_<account>_<quarter>
-    if (result.length === 0) {
-      const candidateTableNames = [
-        `traffic_light_mon_${account}_${quarter}`,
-        `traffic_light_mon_ ${account}_${quarter}`,
-        `traffic_light_mon_${account}`,
-        `traffic_light_mon_ ${account}`
-      ];
-
-      for (const tbl of candidateTableNames) {
-        const { data: res, error: err } = await supabaseAdmin.schema('training_system').from(tbl).select('*');
-        if (!err && res && res.length > 0) {
-          return { data: res, error: null };
-        }
       }
     }
 
@@ -619,55 +523,42 @@ export async function updateTrafficLightCell(
     const cleanStaffName = String(matchValue || '').trim();
     await assertTrafficLightTarget(actor, cleanAccount, cleanStaffName);
     const isoDate = parseDateToISO(colKey);
-    const sourceTable = `${cleanAccount}::${cleanQuarter}::${cleanStaffName}::${colKey}`;
+    const { data: actorEmployee, error: actorError } = await supabaseAdmin.from('employees').select('id').ilike('employee_email', actor.email).maybeSingle();
+    if (actorError) throw actorError;
+    if (!actorEmployee) throw new Error('The signed-in user is not linked to an employee record.');
 
-    // 1. Save / Update in traffic_light_metrics
-    const { data: existingRecords } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('metric_id')
-      .eq('source_table', sourceTable);
-
-    if (existingRecords && existingRecords.length > 0) {
-      await supabaseAdmin
-        .schema('training_system').from('traffic_light_metrics')
-        .update({
-          traffic_status: newValue || null,
-          metric_date: isoDate,
-          metric_group: cleanAccount
-        })
-        .eq('source_table', sourceTable);
+    if (normalizeScopeValue(cleanAccount) === 'trainers') {
+      const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('id').ilike('employee_name', cleanStaffName).maybeSingle();
+      if (employeeError) throw employeeError;
+      if (!employee) throw new Error(`Trainer ${cleanStaffName} was not found.`);
+      const { data: existing, error: lookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+        .select('id').eq('trainer_employee_id', employee.id).eq('week_date', isoDate).limit(1).maybeSingle();
+      if (lookupError) throw lookupError;
+      const statusMap: Record<string, string> = { '': 'NONE', OKAY: 'OKAY', GREEN: 'OKAY', PASS: 'OKAY', SHAKY: 'SHAKY', YELLOW: 'SHAKY', RED: 'TERMINATED', TERMINATED: 'TERMINATED', RESIGNED: 'RESIGNED', 'ACCOUNT REMOVED': 'ACCOUNT_REMOVED' };
+      const status = statusMap[String(newValue || '').toUpperCase()];
+      if (!status) throw new Error('Unsupported trainer monitoring status.');
+      const payload = { trainer_employee_id: employee.id, week_date: isoDate, status, updated_by: actorEmployee.id, created_by: actorEmployee.id };
+      const write = existing
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring').update({ status, updated_by: actorEmployee.id }).eq('id', existing.id)
+        : await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring').insert(payload);
+      if (write.error) throw write.error;
     } else {
-      await supabaseAdmin
-        .schema('training_system').from('traffic_light_metrics')
-        .insert({
-          metric_group: cleanAccount,
-          metric_date: isoDate,
-          traffic_status: newValue || null,
-          source_table: sourceTable
-        });
-    }
-
-    // 2. Also try updating legacy table if exists
-    const candidateTables = [
-      `traffic_light_mon_${cleanAccount}_${cleanQuarter}`,
-      `traffic_light_mon_ ${cleanAccount}_${cleanQuarter}`,
-      `traffic_light_mon_${cleanAccount}`,
-      `traffic_light_mon_ ${cleanAccount}`,
-      `traffic_light_mon_other_acc_${cleanQuarter}`,
-      `traffic_light_mon_ other_acc_${cleanQuarter}`
-    ];
-
-    const candidateMatchKeys = [matchKey, 'teams', 'TRAINERS', 'trainers', 'name', 'js', 'RM-TEAMLEADS'];
-
-    for (const tbl of candidateTables) {
-      for (const mKey of candidateMatchKeys) {
-        try {
-          await supabaseAdmin
-            .schema('training_system').from(tbl)
-            .update({ [colKey]: newValue })
-            .eq(mKey, cleanStaffName);
-        } catch (ignored) {}
-      }
+      const roster = await getTrainingTraineeRecords(supabaseAdmin);
+      const target = roster.find((row) => row.name.toLowerCase() === cleanStaffName.toLowerCase() && matchesTrafficLightAccount(cleanAccount, row.accountName));
+      if (!target) throw new Error(`Trainee ${cleanStaffName} was not found in ${cleanAccount}.`);
+      const column = colKey.toLowerCase();
+      const assessmentType = column === '30 days' ? 'MILESTONE_30' : column === '60 days' ? 'MILESTONE_60' : column === '90 days' ? 'MILESTONE_90' : 'TRAFFIC_LIGHT';
+      const ratingMap: Record<string, string> = { '': 'NOT_ASSESSED', GREEN: 'GREEN', G: 'GREEN', YELLOW: 'YELLOW', Y: 'YELLOW', RED: 'RED', R: 'RED', OKAY: 'OKAY', PASS: 'PASS', FAIL: 'FAIL', 'IN PROGRESS': 'IN_PROGRESS', 'NOT ASSESSED': 'NOT_ASSESSED' };
+      const rating = ratingMap[String(newValue || '').trim().toUpperCase()];
+      if (!rating) throw new Error('Unsupported assessment rating.');
+      const { data: existing, error: lookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+        .select('assessment_id').eq('enrollment_id', target.enrollmentId).eq('assessment_type', assessmentType).eq('assessed_on', isoDate).order('assessment_id', { ascending: false }).limit(1).maybeSingle();
+      if (lookupError) throw lookupError;
+      const payload = { enrollment_id: target.enrollmentId, assessment_type: assessmentType, assessed_on: isoDate, rating, assessed_by_employee_id: actorEmployee.id };
+      const write = existing
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api').update({ rating, assessed_by_employee_id: actorEmployee.id }).eq('assessment_id', existing.assessment_id)
+        : await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api').insert(payload);
+      if (write.error) throw write.error;
     }
 
     await logActivity({
@@ -742,40 +633,46 @@ export async function getTrafficLightRemarks(account: string, quarter: string, a
 
 async function getSingleTrafficLightRemarks(account: string, quarter: string) {
   try {
-    const prefix = `${account.toLowerCase()}::${quarter.toLowerCase()}::`;
-    const { data, error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .select('*')
-      .like('source_table', `${prefix}%`)
-      .order('metric_id', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching remarks:', error);
-      return { data: {}, error: error.message };
-    }
-
     const remarksMap: Record<string, TrafficLightRemarkItem[]> = {};
-
-    (data || []).forEach(row => {
-      const parts = (row.source_table || '').split('::');
-      if (parts.length >= 4) {
-        const staffName = parts[2];
-        const columnKey = parts.slice(3).join('::');
+    if (normalizeScopeValue(account) === 'trainers') {
+      const { data: rows, error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks')
+        .select('id, monitoring_id, remark');
+      if (error) throw error;
+      const monitors = (rows || []).map((row: any) => Number(row.monitoring_id));
+      const { data: monitoring } = monitors.length
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring').select('id, week_date, trainer_employee_id').in('id', monitors)
+        : { data: [] };
+      const employeeIds = Array.from(new Set((monitoring || []).map((row: any) => Number(row.trainer_employee_id))));
+      const { data: employees } = employeeIds.length ? await supabaseAdmin.from('employees').select('id, employee_name').in('id', employeeIds) : { data: [] };
+      const employeeById = new Map((employees || []).map((row: any) => [Number(row.id), row.employee_name]));
+      const monitorById = new Map((monitoring || []).map((row: any) => [Number(row.id), row]));
+      for (const row of rows || []) {
+        const monitor: any = monitorById.get(Number(row.monitoring_id));
+        const staffName = String(employeeById.get(Number(monitor?.trainer_employee_id)) || '');
+        if (!staffName || !monitor) continue;
+        const columnKey = new Date(`${monitor.week_date}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC' });
         const key = `${staffName}::${columnKey}`;
-        if (!remarksMap[key]) {
-          remarksMap[key] = [];
-        }
-        remarksMap[key].push({
-          metric_id: row.metric_id,
-          remarks: row.remarks || '',
-          traffic_status: row.traffic_status || '',
-          staffName,
-          columnKey,
-          source_table: row.source_table
-        });
+        (remarksMap[key] ||= []).push({ metric_id: Number(row.id), remarks: row.remark, staffName, columnKey, source_table: key });
       }
-    });
-
+    } else {
+      const roster = await getTrainingTraineeRecords(supabaseAdmin);
+      const targetRows = roster.filter((row) => matchesTrafficLightAccount(account, row.accountName));
+      const ids = targetRows.map((row) => row.enrollmentId);
+      const { data, error } = ids.length
+        ? await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+          .select('assessment_id, enrollment_id, assessment_type, assessed_on, rating, remarks').in('enrollment_id', ids).not('remarks', 'is', null)
+        : { data: [], error: null };
+      if (error) throw error;
+      const traineeById = new Map(targetRows.map((row) => [row.enrollmentId, row]));
+      for (const row of data || []) {
+        const trainee = traineeById.get(Number(row.enrollment_id));
+        if (!trainee || !row.remarks) continue;
+        const type = String(row.assessment_type || '');
+        const columnKey = type.startsWith('MILESTONE_') ? `${type.slice(10)} days` : new Date(`${row.assessed_on}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC' });
+        const key = `${trainee.name}::${columnKey}`;
+        (remarksMap[key] ||= []).push({ metric_id: Number(row.assessment_id), remarks: row.remarks, traffic_status: row.rating, staffName: trainee.name, columnKey, source_table: key });
+      }
+    }
     return { data: remarksMap, error: null };
   } catch (e: any) {
     console.error('Error in getSingleTrafficLightRemarks:', e);
@@ -804,7 +701,6 @@ export async function addTrafficLightRemark({
   try {
     const cleanAccount = account.toLowerCase();
     const cleanQuarter = quarter.toLowerCase();
-    const sourceKey = `${cleanAccount}::${cleanQuarter}::${staffName}::${columnKey}`;
     await assertTrafficLightTarget(actor, cleanAccount, staffName);
     const trimmedRemarks = (remarks || '').trim();
     const actionAuthor = author || 'Authorized Manager';
@@ -813,19 +709,43 @@ export async function addTrafficLightRemark({
       return { success: false, error: 'Remarks content cannot be empty.' };
     }
 
-    const { data: inserted, error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .insert({
-        metric_group: cleanAccount,
-        metric_date: parseDateToISO(columnKey),
-        traffic_status: status || null,
-        remarks: trimmedRemarks,
-        source_table: sourceKey
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const { data: authorEmployee, error: authorError } = await supabaseAdmin.from('employees').select('id').ilike('employee_email', actor.email).maybeSingle();
+    if (authorError) throw authorError;
+    if (!authorEmployee) throw new Error('The signed-in user is not linked to an employee record.');
+    const assessedOn = parseDateToISO(columnKey);
+    let inserted: any;
+    if (normalizeScopeValue(cleanAccount) === 'trainers') {
+      const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('id').ilike('employee_name', staffName).maybeSingle();
+      if (employeeError) throw employeeError;
+      if (!employee) throw new Error(`Trainer ${staffName} was not found.`);
+      const { data: monitor, error: monitorError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+        .select('id').eq('trainer_employee_id', employee.id).eq('week_date', assessedOn).limit(1).maybeSingle();
+      if (monitorError) throw monitorError;
+      let monitoringId = monitor?.id;
+      if (!monitoringId) {
+        const { data: created, error: createError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+          .insert({ trainer_employee_id: employee.id, week_date: assessedOn, status: 'NONE', created_by: authorEmployee.id, updated_by: authorEmployee.id }).select('id').single();
+        if (createError) throw createError;
+        monitoringId = created.id;
+      }
+      const { data, error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks')
+        .insert({ monitoring_id: monitoringId, category: 'GENERAL', remark: trimmedRemarks, created_by: authorEmployee.id, updated_by: authorEmployee.id }).select().single();
+      if (error) throw error;
+      inserted = data;
+    } else {
+      const roster = await getTrainingTraineeRecords(supabaseAdmin);
+      const target = roster.find((row) => row.name.toLowerCase() === staffName.toLowerCase() && matchesTrafficLightAccount(cleanAccount, row.accountName));
+      if (!target) throw new Error(`Trainee ${staffName} was not found in ${cleanAccount}.`);
+      const normalizedColumn = columnKey.toLowerCase();
+      const assessmentType = normalizedColumn === '30 days' ? 'MILESTONE_30' : normalizedColumn === '60 days' ? 'MILESTONE_60' : normalizedColumn === '90 days' ? 'MILESTONE_90' : 'TRAFFIC_LIGHT';
+      const ratingMap: Record<string, string> = { '': 'NOT_ASSESSED', GREEN: 'GREEN', G: 'GREEN', YELLOW: 'YELLOW', Y: 'YELLOW', RED: 'RED', R: 'RED', OKAY: 'OKAY', PASS: 'PASS', FAIL: 'FAIL', 'IN PROGRESS': 'IN_PROGRESS', 'NOT ASSESSED': 'NOT_ASSESSED' };
+      const rating = ratingMap[String(status || '').trim().toUpperCase()];
+      if (!rating) throw new Error('Unsupported assessment rating.');
+      const { data, error } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+        .insert({ enrollment_id: target.enrollmentId, assessment_type: assessmentType, assessed_on: assessedOn, rating, remarks: trimmedRemarks, assessed_by_employee_id: authorEmployee.id }).select().single();
+      if (error) throw error;
+      inserted = data;
+    }
 
     await logActivity({
       title: 'Traffic Light Remark Added',
@@ -868,13 +788,27 @@ export async function updateTrafficLightRemark({
       return { success: false, error: 'Remark cannot be empty.' };
     }
 
-    const { error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .update({ remarks: trimmedRemarks })
-      .eq('metric_id', metric_id)
-      .eq('source_table', `${account.toLowerCase()}::${quarter.toLowerCase()}::${staffName}::${columnKey}`);
-
-    if (error) throw error;
+    const { data: assessment, error: assessmentLookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+      .select('assessment_id, enrollment_id, assessed_on').eq('assessment_id', metric_id).maybeSingle();
+    if (assessmentLookupError) throw assessmentLookupError;
+    if (assessment) {
+      const roster = await getTrainingTraineeRecords(supabaseAdmin);
+      const target = roster.find((row) => row.enrollmentId === Number(assessment.enrollment_id) && row.name.toLowerCase() === staffName.toLowerCase() && matchesTrafficLightAccount(account, row.accountName));
+      if (!target || assessment.assessed_on !== parseDateToISO(columnKey)) throw new Error('Remark does not match the requested trainee and date.');
+      const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api').update({ remarks: trimmedRemarks }).eq('assessment_id', metric_id);
+      if (error) throw error;
+    } else {
+      const { data: remark, error: remarkLookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').select('id, monitoring_id').eq('id', metric_id).maybeSingle();
+      if (remarkLookupError) throw remarkLookupError;
+      if (!remark) throw new Error('Remark not found.');
+      const { data: monitor, error: monitorError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring').select('id, trainer_employee_id, week_date').eq('id', remark.monitoring_id).maybeSingle();
+      if (monitorError) throw monitorError;
+      const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('employee_name').eq('id', monitor?.trainer_employee_id).maybeSingle();
+      if (employeeError) throw employeeError;
+      if (!monitor || !isTrainerMatch(employee?.employee_name || '', staffName) || monitor.week_date !== parseDateToISO(columnKey)) throw new Error('Remark does not match the requested trainer and date.');
+      const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').update({ remark: trimmedRemarks }).eq('id', metric_id);
+      if (error) throw error;
+    }
 
     await logActivity({
       title: 'Traffic Light Remark Updated',
@@ -910,13 +844,27 @@ export async function deleteTrafficLightRemarkItem({
     const actionAuthor = author || 'Authorized Manager';
     await assertTrafficLightTarget(actor, account.toLowerCase(), staffName);
 
-    const { error } = await supabaseAdmin
-      .schema('training_system').from('traffic_light_metrics')
-      .delete()
-      .eq('metric_id', metric_id)
-      .eq('source_table', `${account.toLowerCase()}::${quarter.toLowerCase()}::${staffName}::${columnKey}`);
-
-    if (error) throw error;
+    const { data: assessment, error: assessmentLookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api')
+      .select('assessment_id, enrollment_id, assessed_on').eq('assessment_id', metric_id).maybeSingle();
+    if (assessmentLookupError) throw assessmentLookupError;
+    if (assessment) {
+      const roster = await getTrainingTraineeRecords(supabaseAdmin);
+      const target = roster.find((row) => row.enrollmentId === Number(assessment.enrollment_id) && row.name.toLowerCase() === staffName.toLowerCase() && matchesTrafficLightAccount(account, row.accountName));
+      if (!target || assessment.assessed_on !== parseDateToISO(columnKey)) throw new Error('Remark does not match the requested trainee and date.');
+      const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api').update({ remarks: null }).eq('assessment_id', metric_id);
+      if (error) throw error;
+    } else {
+      const { data: remark, error: remarkLookupError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').select('id, monitoring_id').eq('id', metric_id).maybeSingle();
+      if (remarkLookupError) throw remarkLookupError;
+      if (!remark) throw new Error('Remark not found.');
+      const { data: monitor, error: monitorError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring').select('id, trainer_employee_id, week_date').eq('id', remark.monitoring_id).maybeSingle();
+      if (monitorError) throw monitorError;
+      const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('employee_name').eq('id', monitor?.trainer_employee_id).maybeSingle();
+      if (employeeError) throw employeeError;
+      if (!monitor || !isTrainerMatch(employee?.employee_name || '', staffName) || monitor.week_date !== parseDateToISO(columnKey)) throw new Error('Remark does not match the requested trainer and date.');
+      const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').delete().eq('id', metric_id);
+      if (error) throw error;
+    }
 
     await logActivity({
       title: 'Traffic Light Remark Deleted',
@@ -954,11 +902,22 @@ export async function deleteTrafficLightRemark(params: {
 }) {
   const actor = await requireActionRole(TRAFFIC_LIGHT_EDIT_ROLES);
   await assertTrafficLightTarget(actor, params.account.toLowerCase(), params.staffName);
-  const sourceKey = `${params.account.toLowerCase()}::${params.quarter.toLowerCase()}::${params.staffName}::${params.columnKey}`;
-  const { error } = await supabaseAdmin
-    .schema('training_system').from('traffic_light_metrics')
-    .delete()
-    .eq('source_table', sourceKey);
+  if (normalizeScopeValue(params.account) === 'trainers') {
+    const { data: employee, error: employeeError } = await supabaseAdmin.from('employees').select('id').ilike('employee_name', params.staffName).maybeSingle();
+    if (employeeError) return { success: false, error: employeeError.message };
+    const date = parseDateToISO(params.columnKey);
+    const { data: monitoring, error: monitoringError } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_monitoring')
+      .select('id').eq('trainer_employee_id', employee?.id).eq('week_date', date).limit(1).maybeSingle();
+    if (monitoringError) return { success: false, error: monitoringError.message };
+    if (!monitoring) return { success: true };
+    const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainer_light_remarks').delete().eq('monitoring_id', monitoring.id);
+    return { success: !error, error: error?.message };
+  }
+  const roster = await getTrainingTraineeRecords(supabaseAdmin);
+  const target = roster.find((row) => row.name.toLowerCase() === params.staffName.toLowerCase() && matchesTrafficLightAccount(params.account, row.accountName));
+  if (!target) return { success: false, error: 'Trainee not found.' };
+  const type = params.columnKey.toLowerCase() === '30 days' ? 'MILESTONE_30' : params.columnKey.toLowerCase() === '60 days' ? 'MILESTONE_60' : params.columnKey.toLowerCase() === '90 days' ? 'MILESTONE_90' : 'TRAFFIC_LIGHT';
+  const { error } = await supabaseAdmin.schema('trainingHub_system').from('trainee_assessments_api').update({ remarks: null }).eq('enrollment_id', target.enrollmentId).eq('assessment_type', type).eq('assessed_on', parseDateToISO(params.columnKey));
   return { success: !error, error: error?.message };
 }
 

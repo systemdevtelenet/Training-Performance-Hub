@@ -4,6 +4,7 @@ import { getRequestActor } from '@/lib/auth/access';
 import { getDashboardData } from '@/lib/data-fetcher';
 import { calculateRosterAttrition, getFilteredData } from '@/lib/analytics-utils';
 import { AI_FEATURES_ENABLED } from '@/lib/feature-flags';
+import { getTrainingTraineeRecords } from '@/lib/training-data';
 
 const OPENROUTER_MODELS = [
   'google/gemini-3.7-flash',
@@ -18,19 +19,17 @@ let privacyEntityCache: { expiresAt: number; employeeCodes: string[]; employeeNa
 async function getPrivacyEntities() {
   if (privacyEntityCache && privacyEntityCache.expiresAt > Date.now()) return privacyEntityCache;
 
-  const [employees, inhouseTrainees, pstTrainees] = await Promise.all([
+  const [employees, trainees] = await Promise.all([
     supabase.from('employees').select('employee_code, employee_name'),
-    supabase.schema('training_system').from('inhouse').select('name'),
-    supabase.schema('training_system').from('product_spec_training').select('name'),
+    getTrainingTraineeRecords(supabase),
   ]);
-  if (employees.error || inhouseTrainees.error || pstTrainees.error || !employees.data || !inhouseTrainees.data || !pstTrainees.data) {
+  if (employees.error || !employees.data) {
     throw new Error('Privacy screening data is unavailable.');
   }
 
   const peopleNames = [
     ...employees.data.map((row: any) => row.employee_name),
-    ...inhouseTrainees.data.map((row: any) => row.name),
-    ...pstTrainees.data.map((row: any) => row.name),
+    ...trainees.map((row) => row.name),
   ];
 
   privacyEntityCache = {
